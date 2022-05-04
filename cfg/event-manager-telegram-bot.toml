@@ -1,0 +1,10 @@
+telegram_bot_token = ""
+
+# telegram ids
+admin_ids = ""
+
+# telegram usernames
+admin_names = ""
+
+# show participant lists to all participants
+public_lists = false
