@@ -72,19 +72,28 @@ pub fn show_event(
             if s.my_adults < s.event.max_adults_per_reservation {
                 if free_adults > 0 {
                     v.push(telegram_bot::types::InlineKeyboardButton::callback(
-                        "Записать взрослого",
+                        match s.event.max_children != 0 {
+                            true => "Записать взрослого +1",
+                            false => "Записаться +1",
+                        },
                         format!("sign_up {} adult nowait", s.event.id),
                     ));
                 } else {
                     v.push(telegram_bot::types::InlineKeyboardButton::callback(
-                        "В лист ожидания взрослого",
+                        match s.event.max_children != 0 {
+                            true => "В лист ожидания взрослого +1",
+                            false => "В лист ожидания +1",
+                        },
                         format!("sign_up {} adult wait", s.event.id),
                     ));
                 }
             }
             if s.my_adults > 0 || s.my_wait_adults > 0 {
                 v.push(telegram_bot::types::InlineKeyboardButton::callback(
-                    "Отписать взрослого",
+                    match s.event.max_children != 0 {
+                        true => "Отписать взрослого -1",
+                        false => "Отписаться -1",
+                    },
                     format!("cancel {} adult", s.event.id),
                 ));
             }
@@ -94,19 +103,19 @@ pub fn show_event(
             if s.my_children < s.event.max_children_per_reservation {
                 if free_children > 0 {
                     v.push(telegram_bot::types::InlineKeyboardButton::callback(
-                        "Записать ребёнка",
+                        "Записать ребёнка +1",
                         format!("sign_up {} child nowait", s.event.id),
                     ));
                 } else {
                     v.push(telegram_bot::types::InlineKeyboardButton::callback(
-                        "В лист ожидания ребёнка",
+                        "В лист ожидания ребёнка +1",
                         format!("sign_up {} child wait", s.event.id),
                     ));
                 }
             }
             if s.my_children > 0 || s.my_wait_children > 0 {
                 v.push(telegram_bot::types::InlineKeyboardButton::callback(
-                    "Отписать ребёнка",
+                    "Отписать ребёнка -1",
                     format!("cancel {} child", s.event.id),
                 ));
             }
@@ -118,7 +127,8 @@ pub fn show_event(
                 "event_list",
             ));
 
-            let is_admin = admin_ids.contains(&user_id.into()) != false || admin_names.contains(user_name2) != false;
+            let is_admin = admin_ids.contains(&user_id.into()) != false
+                || admin_names.contains(user_name2) != false;
             let mut list = "".to_string();
             if public_lists || is_admin {
                 match db.get_participants(event_id, 0) {
@@ -141,7 +151,11 @@ pub fn show_event(
                                     p.user_id, p.user_name1
                                 ));
                             }
-                            list.push_str(&format!(" {} {}", p.adults, p.children));
+                            if s.event.max_children != 0 {
+                                list.push_str(&format!(" {} {}", p.adults, p.children));
+                            } else {
+                                list.push_str(&format!(" {}", p.adults));
+                            }
                             if let Some(a) = p.attachment {
                                 list.push_str(&format!(" {}", a));
                             }
@@ -163,16 +177,35 @@ pub fn show_event(
             }
             keyboard.add_row(v);
 
-            let mut text = format!("\n \n<a href=\"{}\">{}</a>\nНачало: {}\nВзрослые места: свободные - {}, моя бронь - {}", s.event.link, s.event.name, format_ts(s.event.ts), free_adults, s.my_adults);
-            if s.my_wait_adults > 0 {
-                text.push_str(&format!(", лист ожидания - {}", s.my_wait_adults));
-            }
-            text.push_str(&format!(
-                "\nДетские места: свободные - {}, моя бронь - {}",
-                free_children, s.my_children
-            ));
-            if s.my_wait_children > 0 {
-                text.push_str(&format!(", лист ожидания - {}", s.my_wait_children));
+            let mut text = format!(
+                "\n \n<a href=\"{}\">{}</a>\nНачало: {}",
+                s.event.link,
+                s.event.name,
+                format_ts(s.event.ts)
+            );
+            if s.event.max_children != 0 {
+                text.push_str(&format!(
+                    "\nВзрослые места: свободные - {}, моя бронь - {}",
+                    free_adults, s.my_adults
+                ));
+                if s.my_wait_adults > 0 {
+                    text.push_str(&format!(", лист ожидания - {}", s.my_wait_adults));
+                }
+                text.push_str(&format!(
+                    "\nДетские места: свободные - {}, моя бронь - {}",
+                    free_children, s.my_children
+                ));
+                if s.my_wait_children > 0 {
+                    text.push_str(&format!(", лист ожидания - {}", s.my_wait_children));
+                }
+            } else {
+                text.push_str(&format!(
+                    "\nМеста: свободные - {}, моя бронь - {}",
+                    free_adults, s.my_adults
+                ));
+                if s.my_wait_adults > 0 {
+                    text.push_str(&format!(", лист ожидания - {}", s.my_wait_adults));
+                }
             }
             text.push_str(&format!("\n{}\n", list));
 
@@ -192,7 +225,7 @@ pub fn show_event(
                         _ => {}
                     }
                 }
-                text.push_str("\nПошлите сообщение этому боту чтобы добавить примечание к брони. (Макс. 256 символов)");
+                text.push_str("\nКоличество мест можно менять кнопками \"Записать/Отписать\". Примечание к брони можно добавить, послав сообщение боту.");
             }
 
             if let Some(msg) = callback {
@@ -283,11 +316,11 @@ pub fn show_waiting_list(
 }
 
 pub fn notify_users_on_waiting_list(api: &Api, event_id: i64, update: HashSet<i64>) {
-    let text = "Одно из ваших бронирований в списке ожидания подтверждено.";
+    let text = "Одно из ваших бронирований в списке ожидания подтверждено. Если вы не сможете пойти, отпишитесь, пожалуйста, чтобы дать возможность следующим в списке ожидания. Спасибо!";
     let mut keyboard = telegram_bot::types::InlineKeyboardMarkup::new();
     let mut v: Vec<telegram_bot::types::InlineKeyboardButton> = Vec::new();
     v.push(telegram_bot::types::InlineKeyboardButton::callback(
-        "Посмотреть",
+        "К мероприятию",
         format!("event {}", event_id),
     ));
     keyboard.add_row(v);

@@ -220,7 +220,7 @@ async fn main() -> std::result::Result<(), String> {
                                                                 for p in participants {
                                                                     api.spawn(
                                                                         telegram_bot::types::UserId::new(p.user_id)
-                                                                            .text(&text).parse_mode(telegram_bot::types::ParseMode::Html).disable_preview(),
+                                                                            .text(&text).parse_mode(telegram_bot::types::ParseMode::Html),
                                                                     );
                                                                 }
                                                             }
@@ -278,8 +278,8 @@ async fn main() -> std::result::Result<(), String> {
                                     } else {
                                         api.spawn(
                                             msg.to_source_chat()
-                                                .text("<b>Добавить мероприятие</b> - { \"name\":\"WIENXTRA CHILDREN'S ACTIVITIES for children up to 13 y.o.\", \"link\":\"https://t.me/storiesvienna/21\", \"start\":\"2022-05-29 15:00 +02:00\", \"remind\":\"2022-05-28 15:00 +02:00\", \"max_adults\":15, \"max_children\":15, \"max_adults_per_reservation\":15, \"max_children_per_reservation\":15 }\
-                                                \n \n<b>Послать сообщение всем запибронировавшим</b> - @номер_мероприятия текст")
+                                                .text("<b>Добавить мероприятие</b> - \n{ \"name\":\"WIENXTRA CHILDREN'S ACTIVITIES for children up to 13 y.o.\", \"link\":\"https://t.me/storiesvienna/21\", \"start\":\"2022-05-29 15:00 +02:00\", \"remind\":\"2022-05-28 15:00 +02:00\", \"max_adults\":15, \"max_children\":15, \"max_adults_per_reservation\":15, \"max_children_per_reservation\":15 }\
+                                                \n \n<b>Послать сообщение всем забронировавшим</b> - \n@номер_мероприятия текст")
                                                 .parse_mode(telegram_bot::types::ParseMode::Html).disable_preview(),
                                         );
                                     }
@@ -503,7 +503,9 @@ async fn main() -> std::result::Result<(), String> {
                                     if pars.len() == 2 {
                                         match pars[1].parse::<i64>() {
                                             Ok(event_id) => {
-                                                if config.public_lists || admin_ids.contains(&msg.from.id.into()) != false
+                                                if config.public_lists
+                                                    || admin_ids.contains(&msg.from.id.into())
+                                                        != false
                                                     || admin_names.contains(&user_name2) != false
                                                 {
                                                     show_waiting_list(
