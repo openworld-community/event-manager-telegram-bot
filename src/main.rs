@@ -21,6 +21,7 @@ pub struct Configuration {
     pub admin_ids: String,
     pub admin_names: String,
     pub public_lists: bool,
+    pub black_list_time: i64,
 }
 
 #[derive(Deserialize, Serialize, Clone, Default, Debug)]
@@ -255,6 +256,7 @@ async fn main() -> std::result::Result<(), String> {
                                                             &user_name2,
                                                             None,
                                                             config.public_lists,
+                                                            None,
                                                         );
                                                         continue;
                                                     }
@@ -266,7 +268,58 @@ async fn main() -> std::result::Result<(), String> {
                                     _ => {}
                                 }
 
-                                if data == "/help" {
+                                match data.find("/add_to_black_list ") {
+                                    Some(v) => {
+                                        if v == 0 {
+                                            let pars: Vec<&str> = data.split(' ').collect();
+                                            if pars.len() == 2 {
+                                                match pars[1].parse::<i64>() {
+                                                    Ok(user_id) => {
+                                                        if db.add_to_black_list(user_id).is_ok()
+                                                            == false
+                                                        {
+                                                            error!("Failed to add user {} from black list", user_id);
+                                                        }
+                                                        show_black_list(&db, &api, msg.from.id);
+                                                        continue;
+                                                    }
+                                                    Err(_e) => {}
+                                                }
+                                            }
+                                        }
+                                    }
+                                    _ => {}
+                                }
+
+                                match data.find("/remove_from_black_list ") {
+                                    Some(v) => {
+                                        if v == 0 {
+                                            let pars: Vec<&str> = data.split(' ').collect();
+                                            if pars.len() == 2 {
+                                                match pars[1].parse::<i64>() {
+                                                    Ok(user_id) => {
+                                                        if db
+                                                            .remove_from_black_list(user_id)
+                                                            .is_ok()
+                                                            == false
+                                                        {
+                                                            error!("Failed to remove user {} from black list", user_id);
+                                                        }
+                                                        show_black_list(&db, &api, msg.from.id);
+                                                        continue;
+                                                    }
+                                                    Err(_e) => {}
+                                                }
+                                            }
+                                        }
+                                    }
+                                    _ => {}
+                                }
+
+                                if data == "/show_black_list" {
+                                    show_black_list(&db, &api, msg.from.id);
+                                    continue;
+                                } else if data == "/help" {
                                     if admin_ids.contains(&msg.from.id.into()) == false
                                         && admin_names.contains(&user_name2) == false
                                     {
@@ -279,7 +332,12 @@ async fn main() -> std::result::Result<(), String> {
                                         api.spawn(
                                             msg.to_source_chat()
                                                 .text("<b>Добавить мероприятие</b> - \n{ \"name\":\"WIENXTRA CHILDREN'S ACTIVITIES for children up to 13 y.o.\", \"link\":\"https://t.me/storiesvienna/21\", \"start\":\"2022-05-29 15:00 +02:00\", \"remind\":\"2022-05-28 15:00 +02:00\", \"max_adults\":15, \"max_children\":15, \"max_adults_per_reservation\":15, \"max_children_per_reservation\":15 }\
-                                                \n \n<b>Послать сообщение всем забронировавшим</b> - \n@номер_мероприятия текст")
+                                                \n \n<b>Послать сообщение всем забронировавшим</b> - \n@номер_мероприятия текст \
+                                                \n \n<b>Чёрный список:</b>
+                                                \n /add_to_black_list id \
+                                                \n /remove_from_black_list id \
+                                                \n /show_black_list \
+                                                ")
                                                 .parse_mode(telegram_bot::types::ParseMode::Html).disable_preview(),
                                         );
                                     }
@@ -309,6 +367,10 @@ async fn main() -> std::result::Result<(), String> {
                                                     &user_name2,
                                                     None,
                                                     config.public_lists,
+                                                    match data.chars().any(char::is_numeric) {
+                                                        true => Some("\n\nВНИМАНИЕ!\nВаше примечание содержит цифры. Они никак не влияют на количество забронированных мест. Количество мест можно менять только кнопками \"Записать/Отписать\".".to_string()),
+                                                        false => None
+                                                    }
                                                 );
                                             }
                                             _ => {}
@@ -354,6 +416,7 @@ async fn main() -> std::result::Result<(), String> {
                                                     &user_name2,
                                                     msg.message,
                                                     config.public_lists,
+                                                    None,
                                                 );
                                                 continue;
                                             }
@@ -377,7 +440,7 @@ async fn main() -> std::result::Result<(), String> {
                                                     wait as i64,
                                                     get_unix_time(),
                                                 ) {
-                                                    Ok(_) => {
+                                                    Ok((_, black_listed)) => {
                                                         show_event(
                                                             &db,
                                                             &api,
@@ -388,6 +451,10 @@ async fn main() -> std::result::Result<(), String> {
                                                             &user_name2,
                                                             msg.message,
                                                             config.public_lists,
+                                                            match black_listed {
+                                                                true => { Some("\n\nВы добавлены в список ожидания.".to_string())},
+                                                                false => None
+                                                            }
                                                         );
                                                     }
                                                     Err(e) => {
@@ -424,6 +491,7 @@ async fn main() -> std::result::Result<(), String> {
                                                             &user_name2,
                                                             msg.message,
                                                             config.public_lists,
+                                                            None,
                                                         );
                                                         notify_users_on_waiting_list(
                                                             &api, event_id, update,
@@ -565,9 +633,12 @@ async fn main() -> std::result::Result<(), String> {
                         error!("Failed to get reminders at {}", ts);
                     }
                 }
-                // Clear past events.
+                // Clean up.
                 if db.clear_old_events(ts).is_ok() == false {
                     error!("Failed to clear old events at {}", ts);
+                }
+                if db.clear_black_list(ts - config.black_list_time * 24 * 60 * 60).is_ok() == false {
+                    error!("Failed to clear black list at {}", ts);
                 }
             }
         }

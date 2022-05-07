@@ -8,3 +8,6 @@ admin_names = ""
 
 # show participant lists to all participants
 public_lists = false
+
+# days to keep users in the black list
+black_list_time = 30

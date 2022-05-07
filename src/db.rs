@@ -50,6 +50,12 @@ pub struct Reminder {
     pub user_id: i64,
 }
 
+pub struct User {
+    pub id: i64,
+    pub user_name1: String,
+    pub user_name2: String,
+}
+
 pub struct EventDB {
     pub conn: Connection,
 }
@@ -99,12 +105,12 @@ impl EventDB {
         children: i64,
         wait: i64,
         ts: i64,
-    ) -> Result<usize, rusqlite::Error> {
+    ) -> Result<(usize, bool), rusqlite::Error> {
         let s = self.get_event(event_id, user)?;
 
         if ts > s.event.ts {
             trace!("The even has already begun: {} {}", ts, s.event.ts);
-            return Ok(0);
+            return Ok((0, false));
         }
 
         // Check user limits
@@ -116,7 +122,7 @@ impl EventDB {
                 s.my_adults + adults,
                 s.my_children + children
             );
-            return Ok(0);
+            return Ok((0, false));
         }
 
         // Check event limits
@@ -127,13 +133,25 @@ impl EventDB {
                 vacant_adults,
                 vacant_children
             );
-            return Ok(0);
+            return Ok((0, false));
         }
 
-        self.conn.execute(
+        let (waiting_list, black_listed) = match self.is_in_black_list(user) {
+            Ok(v) => {
+                if v {
+                    (1, true)
+                }
+                else {
+                    (wait, false)
+                }
+            },
+            _ => (wait, false)
+        };
+
+        Ok((self.conn.execute(
             "INSERT INTO reservations (event, user, user_name1, user_name2, adults, children, waiting_list, ts) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
-            params![event_id, user, user_name1, user_name2, adults, children, wait, ts],
-        )
+            params![event_id, user, user_name1, user_name2, adults, children, waiting_list, ts],
+        )?, black_listed))
     }
 
     pub fn add_attachment(
@@ -511,6 +529,97 @@ impl EventDB {
             }
         }
         drop(stmt);
+
+        let mut stmt =
+            conn.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='black_list'")?;
+        match stmt.query([]) {
+            Ok(rows) => match rows.count() {
+                Ok(count) => {
+                    if count == 0 {
+                        conn.execute(
+                            "CREATE TABLE black_list (
+                                user            INTEGER PRIMARY KEY,
+                                user_name1      TEXT NOT NULL,
+                                user_name2      TEXT NOT NULL,
+                                ts              INTEGER NOT NULL
+                                )",
+                            [],
+                        )?;
+                    }
+                }
+                _ => {}
+            },
+            _ => {
+                error!("Failed to query db.");
+            }
+        }
+        drop(stmt);
+
         Ok(EventDB { conn })
+    }
+
+    pub fn add_to_black_list(&self, user: i64) -> Result<(), rusqlite::Error> {
+
+        let mut user_name1 = user.to_string();
+        let mut user_name2 = "".to_string();
+
+        let mut stmt = self.conn.prepare(
+            "SELECT user_name1, user_name2 FROM reservations WHERE user = ?1 LIMIT 1"
+        )?;
+        let mut rows = stmt.query([user])?;
+        if let Some(row) = rows.next()? {
+            user_name1 = row.get(0)?;
+            user_name2 = row.get(1)?;
+        }
+
+        self.conn.execute(
+            "INSERT INTO black_list (user, user_name1, user_name2, ts) VALUES (?1, ?2, ?3, ?4)",
+            params![user, user_name1, user_name2, util::get_unix_time()],
+        )?;
+
+        Ok(())
+    }
+    
+    pub fn remove_from_black_list(&self, user: i64) -> Result<(), rusqlite::Error> {
+        self.conn.execute(
+            "DELETE FROM black_list WHERE user=?1",
+            params![user],
+        )?;
+        Ok(())
+    }
+    
+    pub fn get_black_list(&self) -> Result<Vec<User>, rusqlite::Error> {
+        let mut stmt = self.conn.prepare(
+            "SELECT * FROM black_list"
+        )?;
+        let mut rows = stmt.query([])?;
+        let mut res = Vec::new();
+        while let Some(row) = rows.next()? {
+            res.push(User {
+                id: row.get(0)?,
+                user_name1: row.get(1)?,
+                user_name2: row.get(2)?,
+            });
+        }
+        Ok(res)
+    }
+
+    pub fn is_in_black_list(&self, user: i64) -> Result<bool, rusqlite::Error> {
+        let mut stmt = self.conn.prepare(
+            "SELECT * FROM black_list WHERE user = ?1"
+        )?;
+        let mut rows = stmt.query([user])?;
+        if let Some(_) = rows.next()? {
+            Ok(true)
+        }
+        else {
+            Ok(false)
+        }
+    }
+
+    pub fn clear_black_list(&self, ts: i64) -> Result<(), rusqlite::Error> {
+        self.conn
+            .execute("DELETE FROM black_list WHERE ts < ?1", params![ts])?;
+        Ok(())
     }
 }

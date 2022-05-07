@@ -62,6 +62,7 @@ pub fn show_event(
     user_name2: &str,
     callback: Option<MessageOrChannelPost>,
     public_lists: bool,
+    ps: Option<String>,
 ) {
     match db.get_event(event_id, user_id.into()) {
         Ok(s) => {
@@ -140,15 +141,16 @@ pub fn show_event(
                             list.push_str("\nЗаписались:");
                         }
                         for p in participants {
+                            let id = match is_admin { true => {p.user_id.to_string() + " "}, false => {"".to_string()}};
                             if p.user_name2.len() > 0 {
                                 list.push_str(&format!(
-                                    "\n<a href=\"https://t.me/{}\">{} ({})</a>",
-                                    p.user_name2, p.user_name1, p.user_name2
+                                    "\n{}<a href=\"https://t.me/{}\">{} ({})</a>",
+                                    id, p.user_name2, p.user_name1, p.user_name2
                                 ));
                             } else {
                                 list.push_str(&format!(
-                                    "\n<a href=\"tg://user?id={}\">{}</a>",
-                                    p.user_id, p.user_name1
+                                    "\n{}<a href=\"tg://user?id={}\">{}</a>",
+                                    id, p.user_id, p.user_name1
                                 ));
                             }
                             if s.event.max_children != 0 {
@@ -226,6 +228,10 @@ pub fn show_event(
                     }
                 }
                 text.push_str("\nКоличество мест можно менять кнопками \"Записать/Отписать\". Примечание к брони можно добавить, послав сообщение боту.");
+            }
+
+            if let Some(ps) = ps {
+                text.push_str(&ps);
             }
 
             if let Some(msg) = callback {
@@ -331,5 +337,34 @@ pub fn notify_users_on_waiting_list(api: &Api, event_id: i64, update: HashSet<i6
                 .text(text)
                 .reply_markup(keyboard.clone()),
         );
+    }
+}
+
+
+pub fn show_black_list(
+    db: &db::EventDB,
+    api: &Api,
+    user_id: telegram_bot::UserId,
+) {
+    match db.get_black_list() {
+        Ok(users) => {
+            let mut list = "".to_string();
+            for u in users {
+                if u.user_name2.len() > 0 {
+                    list.push_str(&format!("\n{} <a href=\"tg://user?id={}\">{} ({})</a>", u.id, u.id, u.user_name1, u.user_name2));
+                }
+                else {
+                    list.push_str(&format!("\n{} <a href=\"tg://user?id={}\">{}</a>", u.id, u.id, u.user_name1));
+                }
+            }
+            api.spawn(
+                user_id.text(format!("\nЧёрный список:{}", list))
+                .parse_mode(telegram_bot::types::ParseMode::Html)
+                .disable_preview()
+            );
+        }
+        Err(_e) => {
+            error!("Failed to get blacklist");
+        }
     }
 }
