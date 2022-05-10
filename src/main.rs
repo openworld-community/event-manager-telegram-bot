@@ -117,127 +117,8 @@ async fn main() -> std::result::Result<(), String> {
                         match &msg.kind {
                             telegram_bot::types::MessageKind::Text { data, .. } => {
                                 debug!("Text: {}", data);
-                                // Add new event?
-                                match data.find("{") {
-                                    Some(_v) => {
-                                        if admin_ids.contains(&msg.from.id.into()) == false
-                                            && admin_names.contains(&user_name2) == false
-                                        {
-                                            warn!("not allowed");
-                                            continue;
-                                        }
-
-                                        let event: Result<NewEvent, serde_json::Error> =
-                                            serde_json::from_str(&data);
-                                        match event {
-                                            Ok(v) => {
-                                                match (
-                                                    DateTime::parse_from_str(
-                                                        &v.start,
-                                                        "%Y-%m-%d %H:%M  %z",
-                                                    ),
-                                                    DateTime::parse_from_str(
-                                                        &v.remind,
-                                                        "%Y-%m-%d %H:%M  %z",
-                                                    ),
-                                                ) {
-                                                    (Ok(ts), Ok(remind)) => {
-                                                        match db.add_event(db::Event {
-                                                            id: 0,
-                                                            name: v.name,
-                                                            link: v.link,
-                                                            max_adults: v.max_adults,
-                                                            max_children: v.max_children,
-                                                            max_adults_per_reservation: v
-                                                                .max_adults_per_reservation,
-                                                            max_children_per_reservation: v
-                                                                .max_children_per_reservation,
-                                                            ts: ts.timestamp(),
-                                                            remind: remind.timestamp(),
-                                                        }) {
-                                                            Ok(id) => {
-                                                                if id > 0 {
-                                                                    api.spawn(
-                                                                        msg.to_source_chat()
-                                                                            .text(format!("Direct event link: https://t.me/sign_up_for_event_bot?start={}", id)),
-                                                                    );
-                                                                }
-                                                            }
-                                                            Err(e) => {
-                                                                api.spawn(
-                                                                    msg.to_source_chat().text(
-                                                                        format!(
-                                                                    "Failed to add event: {}.",
-                                                                    e
-                                                                ),
-                                                                    ),
-                                                                );
-                                                            }
-                                                        }
-                                                    }
-                                                    (_, _) => {}
-                                                }
-                                            }
-                                            Err(e) => {
-                                                api.spawn(
-                                                    msg.to_source_chat().text(format!(
-                                                        "Failed to parse json: {}.",
-                                                        e
-                                                    )),
-                                                );
-                                            }
-                                        }
-                                        continue;
-                                    }
-                                    _ => {}
-                                }
-
-                                // Broadcast message to a group?
-                                match data.find("@") {
-                                    Some(v) => {
-                                        if v != 0 {
-                                            continue;
-                                        }
-                                        if admin_ids.contains(&msg.from.id.into()) == false
-                                            && admin_names.contains(&user_name2) == false
-                                        {
-                                            warn!("not allowed");
-                                            continue;
-                                        }
-
-                                        match data.find(" ") {
-                                            Some(v) => {
-                                                let text = format!(
-                                                    "<a href=\"tg://user?id={}\">{}</a>:{}",
-                                                    msg.from.id,
-                                                    user_name1,
-                                                    data[v..].to_string()
-                                                );
-                                                match data[1..v].parse::<i64>() {
-                                                    Ok(event_id) => {
-                                                        trace!("event id {}", event_id);
-                                                        match db.get_participants(event_id, 0) {
-                                                            Ok(participants) => {
-                                                                for p in participants {
-                                                                    api.spawn(
-                                                                        telegram_bot::types::UserId::new(p.user_id)
-                                                                            .text(&text).parse_mode(telegram_bot::types::ParseMode::Html),
-                                                                    );
-                                                                }
-                                                            }
-                                                            Err(_) => {}
-                                                        }
-                                                    }
-                                                    Err(_e) => {}
-                                                }
-                                            }
-                                            None => {}
-                                        }
-                                        continue;
-                                    }
-                                    _ => {}
-                                }
-
+                                let is_admin = admin_ids.contains(&msg.from.id.into()) != false
+                                    || admin_names.contains(&user_name2) != false;
                                 // Direct link to subscribe
                                 match data.find("/start ") {
                                     Some(v) => {
@@ -251,9 +132,7 @@ async fn main() -> std::result::Result<(), String> {
                                                             &api,
                                                             msg.from.id,
                                                             event_id,
-                                                            &admin_ids,
-                                                            &admin_names,
-                                                            &user_name2,
+                                                            is_admin,
                                                             None,
                                                             config.public_lists,
                                                             None,
@@ -268,79 +147,236 @@ async fn main() -> std::result::Result<(), String> {
                                     _ => {}
                                 }
 
-                                match data.find("/add_to_black_list ") {
-                                    Some(v) => {
-                                        if v == 0 {
-                                            let pars: Vec<&str> = data.split(' ').collect();
-                                            if pars.len() == 2 {
-                                                match pars[1].parse::<i64>() {
-                                                    Ok(user_id) => {
-                                                        if db.add_to_black_list(user_id).is_ok()
-                                                            == false
-                                                        {
-                                                            error!("Failed to add user {} from black list", user_id);
+                                if is_admin {
+                                    // Broadcast message to a group?
+                                    // /send confirmed <event> text
+                                    // /send waiting <event> text
+                                    match data.find("/send ") {
+                                        Some(v) => {
+                                            if v == 0 {
+                                                let pars: Vec<&str> = data.splitn(4, ' ').collect();
+                                                if pars.len() == 4 {
+                                                    let waiting_list = match pars[1] {
+                                                        "confirmed" => 0,
+                                                        "waiting" => 1,
+                                                        _ => 2,
+                                                    };
+                                                    if waiting_list < 2 {
+                                                        match pars[2].parse::<i64>() {
+                                                            Ok(event_id) => {
+                                                                let text = format!(
+                                                                    "<a href=\"tg://user?id={}\">{}</a>: {}",
+                                                                    msg.from.id,
+                                                                    user_name1,
+                                                                    pars[3].to_string()
+                                                                );
+                                                                trace!("event id {}", event_id);
+                                                                match db.get_participants(
+                                                                    event_id,
+                                                                    waiting_list,
+                                                                ) {
+                                                                    Ok(participants) => {
+                                                                        api.spawn(
+                                                                            msg.from
+                                                                                .id
+                                                                                .text(format!("The following message has been sent to {} participant(s):\n{}", participants.len(), text)).parse_mode(telegram_bot::types::ParseMode::Html),
+                                                                        );
+                                                                        for p in participants {
+                                                                            api.spawn(
+                                                                                telegram_bot::types::UserId::new(p.user_id)
+                                                                                    .text(&text).parse_mode(telegram_bot::types::ParseMode::Html),
+                                                                            );
+                                                                            tokio::time::sleep(Duration::from_millis(40)).await; // not to hit the limits
+                                                                        }
+                                                                        continue;
+                                                                    }
+                                                                    Err(_) => {}
+                                                                }
+                                                            }
+                                                            _ => {}
                                                         }
-                                                        show_black_list(&db, &api, msg.from.id);
-                                                        continue;
                                                     }
-                                                    Err(_e) => {}
                                                 }
                                             }
                                         }
+                                        _ => {}
                                     }
-                                    _ => {}
-                                }
 
-                                match data.find("/remove_from_black_list ") {
-                                    Some(v) => {
-                                        if v == 0 {
-                                            let pars: Vec<&str> = data.split(' ').collect();
-                                            if pars.len() == 2 {
-                                                match pars[1].parse::<i64>() {
-                                                    Ok(user_id) => {
-                                                        if db
-                                                            .remove_from_black_list(user_id)
-                                                            .is_ok()
-                                                            == false
-                                                        {
-                                                            error!("Failed to remove user {} from black list", user_id);
+                                    match data.find("/add_to_black_list ") {
+                                        Some(v) => {
+                                            if v == 0 {
+                                                let pars: Vec<&str> = data.split(' ').collect();
+                                                if pars.len() == 2 {
+                                                    match pars[1].parse::<i64>() {
+                                                        Ok(user_id) => {
+                                                            if db.add_to_black_list(user_id).is_ok()
+                                                                == false
+                                                            {
+                                                                error!("Failed to add user {} from black list", user_id);
+                                                            }
+                                                            show_black_list(&db, &api, msg.from.id);
+                                                            continue;
                                                         }
-                                                        show_black_list(&db, &api, msg.from.id);
-                                                        continue;
+                                                        Err(_e) => {}
                                                     }
-                                                    Err(_e) => {}
                                                 }
                                             }
                                         }
+                                        _ => {}
                                     }
-                                    _ => {}
-                                }
 
-                                if data == "/show_black_list" {
-                                    show_black_list(&db, &api, msg.from.id);
-                                    continue;
-                                } else if data == "/help" {
-                                    if admin_ids.contains(&msg.from.id.into()) == false
-                                        && admin_names.contains(&user_name2) == false
-                                    {
+                                    match data.find("/remove_from_black_list ") {
+                                        Some(v) => {
+                                            if v == 0 {
+                                                let pars: Vec<&str> = data.split(' ').collect();
+                                                if pars.len() == 2 {
+                                                    match pars[1].parse::<i64>() {
+                                                        Ok(user_id) => {
+                                                            if db
+                                                                .remove_from_black_list(user_id)
+                                                                .is_ok()
+                                                                == false
+                                                            {
+                                                                error!("Failed to remove user {} from black list", user_id);
+                                                            }
+                                                            show_black_list(&db, &api, msg.from.id);
+                                                            continue;
+                                                        }
+                                                        Err(_e) => {}
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        _ => {}
+                                    }
+
+                                    match data.find("/delete_event ") {
+                                        Some(v) => {
+                                            if v == 0 {
+                                                let pars: Vec<&str> = data.split(' ').collect();
+                                                if pars.len() == 2 {
+                                                    match pars[1].parse::<i64>() {
+                                                        Ok(event_id) => {
+                                                            match db.delete_event(event_id) {
+                                                                Ok(_) => {
+                                                                    api.spawn(
+                                                                        msg.from.id.text(format!(
+                                                                            "Deleted"
+                                                                        )),
+                                                                    );
+                                                                }
+                                                                Err(e) => {
+                                                                    api.spawn(msg.from.id.text(format!(
+                                                                        "Failed to delete event: {}.",
+                                                                        e
+                                                                    )));
+                                                                }
+                                                            }
+                                                            continue;
+                                                        }
+                                                        Err(_e) => {}
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        _ => {}
+                                    }
+
+                                    if data == "/show_black_list" {
+                                        show_black_list(&db, &api, msg.from.id);
+                                        continue;
+                                    } else if data == "/help" {
                                         api.spawn(
                                             msg.to_source_chat()
-                                                .text("Этот бот поможет вам записываться на мероприятия: /start")
-                                                .parse_mode(telegram_bot::types::ParseMode::Html),
-                                        );
-                                    } else {
-                                        api.spawn(
-                                            msg.to_source_chat()
-                                                .text("<b>Добавить мероприятие</b> - \n{ \"name\":\"WIENXTRA CHILDREN'S ACTIVITIES for children up to 13 y.o.\", \"link\":\"https://t.me/storiesvienna/21\", \"start\":\"2022-05-29 15:00 +02:00\", \"remind\":\"2022-05-28 15:00 +02:00\", \"max_adults\":15, \"max_children\":15, \"max_adults_per_reservation\":15, \"max_children_per_reservation\":15 }\
-                                                \n \n<b>Послать сообщение всем забронировавшим</b> - \n@номер_мероприятия текст \
-                                                \n \n<b>Чёрный список:</b>
+                                                .text("Добавить мероприятие: \
+                                                \n { \"name\":\"WIENXTRA CHILDREN'S ACTIVITIES for children up to 13 y.o.\", \"link\":\"https://t.me/storiesvienna/21\", \"start\":\"2022-05-29 15:00 +02:00\", \"remind\":\"2022-05-28 15:00 +02:00\", \"max_adults\":15, \"max_children\":15, \"max_adults_per_reservation\":15, \"max_children_per_reservation\":15 }\
+                                                \n \nПослать сообщение: \
+                                                \n /send confirmed <event> текст \
+                                                \n /send waiting <event> текст \
+                                                \n \nЧёрный список: \
                                                 \n /add_to_black_list id \
                                                 \n /remove_from_black_list id \
                                                 \n /show_black_list \
-                                                ")
-                                                .parse_mode(telegram_bot::types::ParseMode::Html).disable_preview(),
+                                                \n \n \
+                                                \n /delete_event id \
+                                                ").disable_preview(),
                                         );
+                                        continue;
                                     }
+
+                                    // Add new event?
+                                    match data.find("{") {
+                                        Some(_) => {
+                                            let event: Result<NewEvent, serde_json::Error> =
+                                                serde_json::from_str(&data);
+                                            match event {
+                                                Ok(v) => {
+                                                    match (
+                                                        DateTime::parse_from_str(
+                                                            &v.start,
+                                                            "%Y-%m-%d %H:%M  %z",
+                                                        ),
+                                                        DateTime::parse_from_str(
+                                                            &v.remind,
+                                                            "%Y-%m-%d %H:%M  %z",
+                                                        ),
+                                                    ) {
+                                                        (Ok(ts), Ok(remind)) => {
+                                                            match db.add_event(db::Event {
+                                                                id: 0,
+                                                                name: v.name,
+                                                                link: v.link,
+                                                                max_adults: v.max_adults,
+                                                                max_children: v.max_children,
+                                                                max_adults_per_reservation: v
+                                                                    .max_adults_per_reservation,
+                                                                max_children_per_reservation: v
+                                                                    .max_children_per_reservation,
+                                                                ts: ts.timestamp(),
+                                                                remind: remind.timestamp(),
+                                                            }) {
+                                                                Ok(id) => {
+                                                                    if id > 0 {
+                                                                        api.spawn(
+                                                                            msg.to_source_chat()
+                                                                                .text(format!("Direct event link: https://t.me/sign_up_for_event_bot?start={}", id)),
+                                                                        );
+                                                                    }
+                                                                }
+                                                                Err(e) => {
+                                                                    api.spawn(
+                                                                        msg.to_source_chat().text(
+                                                                            format!(
+                                                                        "Failed to add event: {}.",
+                                                                        e
+                                                                    ),
+                                                                        ),
+                                                                    );
+                                                                }
+                                                            }
+                                                        }
+                                                        (_, _) => {}
+                                                    }
+                                                }
+                                                Err(e) => {
+                                                    api.spawn(msg.to_source_chat().text(format!(
+                                                        "Failed to parse json: {}.",
+                                                        e
+                                                    )));
+                                                }
+                                            }
+                                            continue;
+                                        }
+                                        _ => {}
+                                    }
+                                }
+
+                                if data == "/help" {
+                                    api.spawn(
+                                        msg.to_source_chat()
+                                            .text("Этот бот поможет вам записываться на мероприятия: /start")
+                                            .parse_mode(telegram_bot::types::ParseMode::Html),
+                                    );
                                     continue;
                                 } else if data == "/start" {
                                     show_event_list(&db, &api, msg.from.id, None);
@@ -362,9 +398,7 @@ async fn main() -> std::result::Result<(), String> {
                                                     &api,
                                                     msg.from.id,
                                                     event_id,
-                                                    &admin_ids,
-                                                    &admin_names,
-                                                    &user_name2,
+                                                    is_admin,
                                                     None,
                                                     config.public_lists,
                                                     match data.chars().any(char::is_numeric) {
@@ -392,6 +426,8 @@ async fn main() -> std::result::Result<(), String> {
                             Some(name) => name,
                             None => "".to_string(),
                         };
+                        let is_admin = admin_ids.contains(&msg.from.id.into()) != false
+                            || admin_names.contains(&user_name2) != false;
 
                         debug!("callback: {:?}", &msg);
                         api.spawn(msg.acknowledge());
@@ -411,9 +447,7 @@ async fn main() -> std::result::Result<(), String> {
                                                     &api,
                                                     msg.from.id,
                                                     event_id,
-                                                    &admin_ids,
-                                                    &admin_names,
-                                                    &user_name2,
+                                                    is_admin,
                                                     msg.message,
                                                     config.public_lists,
                                                     None,
@@ -446,9 +480,7 @@ async fn main() -> std::result::Result<(), String> {
                                                             &api,
                                                             msg.from.id,
                                                             event_id,
-                                                            &admin_ids,
-                                                            &admin_names,
-                                                            &user_name2,
+                                                            is_admin,
                                                             msg.message,
                                                             config.public_lists,
                                                             match black_listed {
@@ -486,9 +518,7 @@ async fn main() -> std::result::Result<(), String> {
                                                             &api,
                                                             msg.from.id,
                                                             event_id,
-                                                            &admin_ids,
-                                                            &admin_names,
-                                                            &user_name2,
+                                                            is_admin,
                                                             msg.message,
                                                             config.public_lists,
                                                             None,
@@ -535,25 +565,29 @@ async fn main() -> std::result::Result<(), String> {
                                             Err(_e) => {}
                                         }
                                     }
-                                } else if data.find("delete ").is_some() {
+                                } else if data.find("change_event_state ").is_some() {
                                     let pars: Vec<&str> = data.split(' ').collect();
-                                    if pars.len() == 2 {
-                                        match pars[1].parse::<i64>() {
-                                            Ok(event_id) => {
-                                                if admin_ids.contains(&msg.from.id.into()) != false
-                                                    || admin_names.contains(&user_name2) != false
-                                                {
-                                                    match db.delete_event(event_id) {
+                                    if pars.len() == 3 {
+                                        match (pars[1].parse::<i64>(), pars[2].parse::<i64>()) {
+                                            (Ok(event_id), Ok(state)) => {
+                                                if is_admin != false {
+                                                    match db.change_event_state(event_id, state) {
                                                         Ok(_) => {
-                                                            api.spawn(
-                                                                msg.from
-                                                                    .id
-                                                                    .text(format!("Deleted")),
+                                                            show_event(
+                                                                &db,
+                                                                &api,
+                                                                msg.from.id,
+                                                                event_id,
+                                                                is_admin,
+                                                                None,
+                                                                config.public_lists,
+                                                                None,
                                                             );
+                                                            continue;
                                                         }
                                                         Err(e) => {
                                                             api.spawn(msg.from.id.text(format!(
-                                                                "Failed to delete event: {}.",
+                                                                "Failed to close event: {}.",
                                                                 e
                                                             )));
                                                         }
@@ -563,7 +597,7 @@ async fn main() -> std::result::Result<(), String> {
                                                 }
                                                 continue;
                                             }
-                                            Err(_e) => {}
+                                            (_, _) => {}
                                         }
                                     }
                                 } else if data.find("show_waiting_list ").is_some() {
@@ -571,11 +605,7 @@ async fn main() -> std::result::Result<(), String> {
                                     if pars.len() == 2 {
                                         match pars[1].parse::<i64>() {
                                             Ok(event_id) => {
-                                                if config.public_lists
-                                                    || admin_ids.contains(&msg.from.id.into())
-                                                        != false
-                                                    || admin_names.contains(&user_name2) != false
-                                                {
+                                                if config.public_lists || is_admin != false {
                                                     show_waiting_list(
                                                         &db,
                                                         &api,
@@ -617,13 +647,16 @@ async fn main() -> std::result::Result<(), String> {
                             debug!("sending reminder");
                             api.spawn(
                                 telegram_bot::types::UserId::new(s.user_id).text(
-                                    format!("\nЗдравствуйте!\nНе забудьте, пожалуйста, что вы записались на\n<a href=\"{}\">{}</a>\nНачало: {}\nБудем рады вас видеть!\n",
+                                    format!("\nЗдравствуйте!\nНе забудьте, пожалуйста, что вы записались на\n<a href=\"{}\">{}</a>\
+                                    \nНачало: {}\n\
+                                    ВНИМАНИЕ! Если вы не сможете прийти и не отмените бронь заблаговременно, то в последующий месяц сможете бронировать только в листе ожидания.\n",
                                     s.link, s.name, format_ts(s.ts), )
                                 )
                                 .parse_mode(telegram_bot::types::ParseMode::Html)
                                 .disable_preview()
                                 .reply_markup(keyboard),
                             );
+                            tokio::time::sleep(Duration::from_millis(40)).await; // not to hit the limits
                         }
                         if db.clear_user_reminders(ts).is_ok() == false {
                             error!("Failed to clear reminders at {}", ts);
@@ -637,7 +670,11 @@ async fn main() -> std::result::Result<(), String> {
                 if db.clear_old_events(ts).is_ok() == false {
                     error!("Failed to clear old events at {}", ts);
                 }
-                if db.clear_black_list(ts - config.black_list_time * 24 * 60 * 60).is_ok() == false {
+                if db
+                    .clear_black_list(ts - config.black_list_time * 24 * 60 * 60)
+                    .is_ok()
+                    == false
+                {
                     error!("Failed to clear black list at {}", ts);
                 }
             }

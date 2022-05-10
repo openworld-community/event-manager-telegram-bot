@@ -30,6 +30,7 @@ pub struct EventState {
     pub my_children: i64,
     pub my_wait_adults: i64,
     pub my_wait_children: i64,
+    pub state: i64,
 }
 
 pub struct Participant {
@@ -113,6 +114,11 @@ impl EventDB {
             return Ok((0, false));
         }
 
+        if s.state != 0 {
+            trace!("Event closed");
+            return Ok((0, false));
+        }
+
         // Check user limits
         if s.my_adults + s.my_wait_adults + adults > s.event.max_adults_per_reservation
             || s.my_children + s.my_wait_children + children > s.event.max_children_per_reservation
@@ -140,12 +146,11 @@ impl EventDB {
             Ok(v) => {
                 if v {
                     (1, true)
-                }
-                else {
+                } else {
                     (wait, false)
                 }
-            },
-            _ => (wait, false)
+            }
+            _ => (wait, false),
         };
 
         Ok((self.conn.execute(
@@ -164,12 +169,16 @@ impl EventDB {
             warn!("attachment too long");
             return Ok(0);
         }
+
+        let html_safe: String = attachment.chars().filter_map(
+            |a| match a.is_alphanumeric() || a.is_ascii_whitespace() || a == ',' || a == '.' || a == ':' || a == '-'  { true => Some(a), false => Some(' ')} ).collect();
+
         let s = self.get_event(event_id, user)?;
         if s.my_adults > 0 || s.my_wait_adults > 0 || s.my_children > 0 || s.my_wait_children > 0 {
             self.conn.execute(
                 "INSERT INTO attachments (event, user, attachment) VALUES (?1, ?2, ?3) ON CONFLICT (event, user) DO \
                 UPDATE SET attachment=excluded.attachment",
-                params![event_id, user, attachment],
+                params![event_id, user, html_safe],
             )
         } else {
             Ok(0)
@@ -282,7 +291,7 @@ impl EventDB {
     pub fn get_events(&self, user: i64) -> Result<Vec<EventState>, rusqlite::Error> {
         let mut stmt = self.conn.prepare(
             "select a.*, b.my_adults, b.my_children FROM \
-            (SELECT events.id, events.name, events.link, events.max_adults, events.max_children, events.max_adults_per_reservation, events.max_children_per_reservation, events.ts, r.adults, r.children FROM events \
+            (SELECT events.id, events.name, events.link, events.max_adults, events.max_children, events.max_adults_per_reservation, events.max_children_per_reservation, events.ts, r.adults, r.children, events.state FROM events \
             LEFT JOIN (SELECT sum(adults) as adults, sum(children) as children, event FROM reservations WHERE waiting_list = 0 GROUP BY event) as r ON events.id = r.event) as a \
             LEFT JOIN (SELECT sum(adults) as my_adults, sum(children) as my_children, event FROM reservations WHERE user = ?1 GROUP BY event) as b ON a.id = b.event order by a.ts"
         )?;
@@ -309,11 +318,12 @@ impl EventDB {
                     Ok(v) => v,
                     Err(_) => 0,
                 },
-                my_adults: match row.get(10) {
+                state: row.get(10)?,
+                my_adults: match row.get(11) {
                     Ok(v) => v,
                     Err(_) => 0,
                 },
-                my_children: match row.get(11) {
+                my_children: match row.get(12) {
                     Ok(v) => v,
                     Err(_) => 0,
                 },
@@ -327,7 +337,7 @@ impl EventDB {
     pub fn get_event(&self, event_id: i64, user: i64) -> Result<EventState, rusqlite::Error> {
         let mut stmt = self.conn.prepare(
             "select a.*, b.my_adults, b.my_children, c.my_wait_adults, c.my_wait_children FROM \
-            (SELECT events.id, events.name, events.link, events.max_adults, events.max_children, events.max_adults_per_reservation, events.max_children_per_reservation, events.ts, r.adults, r.children FROM events \
+            (SELECT events.id, events.name, events.link, events.max_adults, events.max_children, events.max_adults_per_reservation, events.max_children_per_reservation, events.ts, r.adults, r.children, events.state FROM events \
             LEFT JOIN (SELECT sum(adults) as adults, sum(children) as children, event FROM reservations WHERE waiting_list = 0 GROUP BY event) as r ON events.id = r.event) as a \
             LEFT JOIN (SELECT sum(adults) as my_adults, sum(children) as my_children, event FROM reservations WHERE waiting_list = 0 AND user = ?1 GROUP BY event) as b ON a.id = b.event \
             LEFT JOIN (SELECT sum(adults) as my_wait_adults, sum(children) as my_wait_children, event FROM reservations WHERE waiting_list = 1 AND user = ?1 GROUP BY event) as c ON a.id = c.event WHERE a.id = ?2"
@@ -355,19 +365,20 @@ impl EventDB {
                     Ok(v) => v,
                     Err(_) => 0,
                 },
-                my_adults: match row.get(10) {
+                state: row.get(10)?,
+                my_adults: match row.get(11) {
                     Ok(v) => v,
                     Err(_) => 0,
                 },
-                my_children: match row.get(11) {
+                my_children: match row.get(12) {
                     Ok(v) => v,
                     Err(_) => 0,
                 },
-                my_wait_adults: match row.get(12) {
+                my_wait_adults: match row.get(13) {
                     Ok(v) => v,
                     Err(_) => 0,
                 },
-                my_wait_children: match row.get(13) {
+                my_wait_children: match row.get(14) {
                     Ok(v) => v,
                     Err(_) => 0,
                 },
@@ -473,7 +484,8 @@ impl EventDB {
                                 max_adults_per_reservation   INTEGER NOT NULL,
                                 max_children_per_reservation INTEGER NOT NULL,
                                 ts              INTEGER NOT NULL,
-                                remind          INTEGER NOT NULL
+                                remind          INTEGER NOT NULL,
+                                state           INTEGER default 0
                                 )",
                             [],
                         )?;
@@ -520,22 +532,7 @@ impl EventDB {
                             [],
                         )?;
                         conn.execute("CREATE UNIQUE INDEX attachments_unique_event_user_idx ON attachments (event, user)", [])?;
-                    }
-                }
-                _ => {}
-            },
-            _ => {
-                error!("Failed to query db.");
-            }
-        }
-        drop(stmt);
 
-        let mut stmt =
-            conn.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='black_list'")?;
-        match stmt.query([]) {
-            Ok(rows) => match rows.count() {
-                Ok(count) => {
-                    if count == 0 {
                         conn.execute(
                             "CREATE TABLE black_list (
                                 user            INTEGER PRIMARY KEY,
@@ -554,18 +551,16 @@ impl EventDB {
             }
         }
         drop(stmt);
-
         Ok(EventDB { conn })
     }
 
     pub fn add_to_black_list(&self, user: i64) -> Result<(), rusqlite::Error> {
-
         let mut user_name1 = user.to_string();
         let mut user_name2 = "".to_string();
 
-        let mut stmt = self.conn.prepare(
-            "SELECT user_name1, user_name2 FROM reservations WHERE user = ?1 LIMIT 1"
-        )?;
+        let mut stmt = self
+            .conn
+            .prepare("SELECT user_name1, user_name2 FROM reservations WHERE user = ?1 LIMIT 1")?;
         let mut rows = stmt.query([user])?;
         if let Some(row) = rows.next()? {
             user_name1 = row.get(0)?;
@@ -579,19 +574,13 @@ impl EventDB {
 
         Ok(())
     }
-    
     pub fn remove_from_black_list(&self, user: i64) -> Result<(), rusqlite::Error> {
-        self.conn.execute(
-            "DELETE FROM black_list WHERE user=?1",
-            params![user],
-        )?;
+        self.conn
+            .execute("DELETE FROM black_list WHERE user=?1", params![user])?;
         Ok(())
     }
-    
     pub fn get_black_list(&self) -> Result<Vec<User>, rusqlite::Error> {
-        let mut stmt = self.conn.prepare(
-            "SELECT * FROM black_list"
-        )?;
+        let mut stmt = self.conn.prepare("SELECT * FROM black_list")?;
         let mut rows = stmt.query([])?;
         let mut res = Vec::new();
         while let Some(row) = rows.next()? {
@@ -605,14 +594,13 @@ impl EventDB {
     }
 
     pub fn is_in_black_list(&self, user: i64) -> Result<bool, rusqlite::Error> {
-        let mut stmt = self.conn.prepare(
-            "SELECT * FROM black_list WHERE user = ?1"
-        )?;
+        let mut stmt = self
+            .conn
+            .prepare("SELECT * FROM black_list WHERE user = ?1")?;
         let mut rows = stmt.query([user])?;
         if let Some(_) = rows.next()? {
             Ok(true)
-        }
-        else {
+        } else {
             Ok(false)
         }
     }
@@ -620,6 +608,14 @@ impl EventDB {
     pub fn clear_black_list(&self, ts: i64) -> Result<(), rusqlite::Error> {
         self.conn
             .execute("DELETE FROM black_list WHERE ts < ?1", params![ts])?;
+        Ok(())
+    }
+
+    pub fn change_event_state(&self, event_id: i64, state: i64) -> Result<(), rusqlite::Error> {
+        self.conn.execute(
+            "UPDATE events SET state = ?1 WHERE id = ?2",
+            params![state, event_id],
+        )?;
         Ok(())
     }
 }

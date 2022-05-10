@@ -19,8 +19,14 @@ pub fn show_event_list(
                         format!(
                             "{} /{}({})/ {}",
                             format_ts(s.event.ts),
-                            s.event.max_adults - s.adults,
-                            s.event.max_children - s.children,
+                            match s.state == 0 {
+                                true => s.event.max_adults - s.adults,
+                                false => 0,
+                            },
+                            match s.state == 0 {
+                                true => s.event.max_children - s.children,
+                                false => 0,
+                            },
                             s.event.name
                         ),
                         format!("event {}", s.event.id),
@@ -57,9 +63,7 @@ pub fn show_event(
     api: &Api,
     user_id: telegram_bot::UserId,
     event_id: i64,
-    admin_ids: &HashSet<i64>,
-    admin_names: &HashSet<String>,
-    user_name2: &str,
+    is_admin: bool,
     callback: Option<MessageOrChannelPost>,
     public_lists: bool,
     ps: Option<String>,
@@ -70,7 +74,7 @@ pub fn show_event(
             let mut v: Vec<telegram_bot::types::InlineKeyboardButton> = Vec::new();
             let free_adults = s.event.max_adults - s.adults;
             let free_children = s.event.max_children - s.children;
-            if s.my_adults < s.event.max_adults_per_reservation {
+            if s.state == 0 && s.my_adults < s.event.max_adults_per_reservation {
                 if free_adults > 0 {
                     v.push(telegram_bot::types::InlineKeyboardButton::callback(
                         match s.event.max_children != 0 {
@@ -101,7 +105,7 @@ pub fn show_event(
             keyboard.add_row(v);
 
             let mut v: Vec<telegram_bot::types::InlineKeyboardButton> = Vec::new();
-            if s.my_children < s.event.max_children_per_reservation {
+            if s.state == 0 && s.my_children < s.event.max_children_per_reservation {
                 if free_children > 0 {
                     v.push(telegram_bot::types::InlineKeyboardButton::callback(
                         "Записать ребёнка +1",
@@ -128,8 +132,6 @@ pub fn show_event(
                 "event_list",
             ));
 
-            let is_admin = admin_ids.contains(&user_id.into()) != false
-                || admin_names.contains(user_name2) != false;
             let mut list = "".to_string();
             if public_lists || is_admin {
                 match db.get_participants(event_id, 0) {
@@ -141,7 +143,10 @@ pub fn show_event(
                             list.push_str("\nЗаписались:");
                         }
                         for p in participants {
-                            let id = match is_admin { true => {p.user_id.to_string() + " "}, false => {"".to_string()}};
+                            let id = match is_admin {
+                                true => p.user_id.to_string() + " ",
+                                false => "".to_string(),
+                            };
                             if p.user_name2.len() > 0 {
                                 list.push_str(&format!(
                                     "\n{}<a href=\"https://t.me/{}\">{} ({})</a>",
@@ -171,10 +176,22 @@ pub fn show_event(
                     format!("show_waiting_list {}", event_id),
                 ));
                 if is_admin {
+                    if s.state == 0 {
+                        v.push(telegram_bot::types::InlineKeyboardButton::callback(
+                            "Остановить запись",
+                            format!("change_event_state {} 1", event_id),
+                        ));
+                    }
+                    else {
+                        v.push(telegram_bot::types::InlineKeyboardButton::callback(
+                            "Разрешить запись",
+                            format!("change_event_state {} 0", event_id),
+                        ));
+                    }/*
                     v.push(telegram_bot::types::InlineKeyboardButton::callback(
                         "Удалить мероприятие",
                         format!("delete {}", event_id),
-                    ));
+                    ));*/
                 }
             }
             keyboard.add_row(v);
@@ -185,29 +202,34 @@ pub fn show_event(
                 s.event.name,
                 format_ts(s.event.ts)
             );
-            if s.event.max_children != 0 {
-                text.push_str(&format!(
-                    "\nВзрослые места: свободные - {}, моя бронь - {}",
-                    free_adults, s.my_adults
-                ));
-                if s.my_wait_adults > 0 {
-                    text.push_str(&format!(", лист ожидания - {}", s.my_wait_adults));
-                }
-                text.push_str(&format!(
-                    "\nДетские места: свободные - {}, моя бронь - {}",
-                    free_children, s.my_children
-                ));
-                if s.my_wait_children > 0 {
-                    text.push_str(&format!(", лист ожидания - {}", s.my_wait_children));
+
+            if s.state == 0 {
+                if s.event.max_children != 0 {
+                    text.push_str(&format!(
+                        "\nВзрослые места: свободные - {}, моя бронь - {}",
+                        free_adults, s.my_adults
+                    ));
+                    if s.my_wait_adults > 0 {
+                        text.push_str(&format!(", лист ожидания - {}", s.my_wait_adults));
+                    }
+                    text.push_str(&format!(
+                        "\nДетские места: свободные - {}, моя бронь - {}",
+                        free_children, s.my_children
+                    ));
+                    if s.my_wait_children > 0 {
+                        text.push_str(&format!(", лист ожидания - {}", s.my_wait_children));
+                    }
+                } else {
+                    text.push_str(&format!(
+                        "\nМеста: свободные - {}, моя бронь - {}",
+                        free_adults, s.my_adults
+                    ));
+                    if s.my_wait_adults > 0 {
+                        text.push_str(&format!(", лист ожидания - {}", s.my_wait_adults));
+                    }
                 }
             } else {
-                text.push_str(&format!(
-                    "\nМеста: свободные - {}, моя бронь - {}",
-                    free_adults, s.my_adults
-                ));
-                if s.my_wait_adults > 0 {
-                    text.push_str(&format!(", лист ожидания - {}", s.my_wait_adults));
-                }
+                text.push_str("\nЗапись остановлена.");
             }
             text.push_str(&format!("\n{}\n", list));
 
@@ -340,27 +362,28 @@ pub fn notify_users_on_waiting_list(api: &Api, event_id: i64, update: HashSet<i6
     }
 }
 
-
-pub fn show_black_list(
-    db: &db::EventDB,
-    api: &Api,
-    user_id: telegram_bot::UserId,
-) {
+pub fn show_black_list(db: &db::EventDB, api: &Api, user_id: telegram_bot::UserId) {
     match db.get_black_list() {
         Ok(users) => {
             let mut list = "".to_string();
             for u in users {
                 if u.user_name2.len() > 0 {
-                    list.push_str(&format!("\n{} <a href=\"tg://user?id={}\">{} ({})</a>", u.id, u.id, u.user_name1, u.user_name2));
-                }
-                else {
-                    list.push_str(&format!("\n{} <a href=\"tg://user?id={}\">{}</a>", u.id, u.id, u.user_name1));
+                    list.push_str(&format!(
+                        "\n{} <a href=\"tg://user?id={}\">{} ({})</a>",
+                        u.id, u.id, u.user_name1, u.user_name2
+                    ));
+                } else {
+                    list.push_str(&format!(
+                        "\n{} <a href=\"tg://user?id={}\">{}</a>",
+                        u.id, u.id, u.user_name1
+                    ));
                 }
             }
             api.spawn(
-                user_id.text(format!("\nЧёрный список:{}", list))
-                .parse_mode(telegram_bot::types::ParseMode::Html)
-                .disable_preview()
+                user_id
+                    .text(format!("\nЧёрный список:{}", list))
+                    .parse_mode(telegram_bot::types::ParseMode::Html)
+                    .disable_preview(),
             );
         }
         Err(_e) => {
