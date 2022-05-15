@@ -40,8 +40,9 @@ fn test() -> Result<(), rusqlite::Error> {
                     false => 0,
                 },
                 e.ts - 20,
-            ),
-            Ok(1)
+            )
+            .unwrap(),
+            (1, false)
         );
     }
 
@@ -60,8 +61,9 @@ fn test() -> Result<(), rusqlite::Error> {
             1,
             1,
             e.ts - 20,
-        ),
-        Ok(1)
+        )
+        .unwrap(),
+        (1, false)
     );
 
     let s = db.get_event(e.id, 2000).unwrap();
@@ -98,7 +100,7 @@ fn test() -> Result<(), rusqlite::Error> {
     assert_eq!(s.my_wait_children, 0);
 
     // time for cleanup
-    db.clear_old_events(ts + 20 * 60 * 60)?;
+    db.clear_old_events(ts + 20 * 60 * 60, false)?;
 
     let events = db.get_events(0).unwrap();
     assert_eq!(events.len(), 0);
@@ -133,11 +135,20 @@ fn test_waiting_list() -> Result<(), rusqlite::Error> {
     assert_eq!(db.add_event(e.clone()), Ok(1));
 
     // sign up
-    assert_eq!(db.sign_up(e.id, 10, "", "", 1, 0, 0, e.ts - 30,), Ok(1));
+    assert_eq!(
+        db.sign_up(e.id, 10, "", "", 1, 0, 0, e.ts - 30,).unwrap(),
+        (1, false)
+    );
 
     // add to waiting list
-    assert_eq!(db.sign_up(e.id, 20, "", "", 1, 0, 1, e.ts - 20,), Ok(1));
-    assert_eq!(db.sign_up(e.id, 30, "", "", 1, 0, 1, e.ts - 10,), Ok(1));
+    assert_eq!(
+        db.sign_up(e.id, 20, "", "", 1, 0, 1, e.ts - 20,).unwrap(),
+        (1, false)
+    );
+    assert_eq!(
+        db.sign_up(e.id, 30, "", "", 1, 0, 1, e.ts - 10,).unwrap(),
+        (1, false)
+    );
 
     let s = db.get_event(e.id, 10)?;
     assert_eq!(s.my_adults, 1);

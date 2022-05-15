@@ -42,6 +42,14 @@ pub struct Participant {
     pub attachment: Option<String>,
 }
 
+pub struct Presence {
+    pub user_id: i64,
+    pub user_name1: String,
+    pub user_name2: String,
+    pub reserved: i64,
+    pub attachment: Option<String>,
+}
+
 #[derive(Debug, PartialEq)]
 pub struct Reminder {
     pub event_id: i64,
@@ -84,15 +92,80 @@ impl EventDB {
         Ok(0)
     }
 
+    pub fn blacklist_absent_participants(&self, event_id: i64) -> Result<(), rusqlite::Error> {
+        let mut stmt = self.conn.prepare(
+            "select r.*, p.user from (select event, user, user_name1, user_name2, count(user) as count from reservations where event = ?1 and waiting_list = 0 group by user) as r 
+            left join presence as p on r.event = p.event and r.user = p.user"
+        )?;
+        let mut rows = stmt.query(params![event_id])?;
+        let now = util::get_unix_time();
+        let mut list: Vec<Presence> = Vec::new();
+        let mut checked_one = false;
+        while let Some(row) = rows.next()? {
+            let present: rusqlite::Result<i64> = row.get(5);
+            if let Err(_) = present {
+                list.push(Presence {
+                    user_id: row.get(1)?,
+                    user_name1: row.get(2)?,
+                    user_name2: row.get(3)?,
+                    reserved: row.get(4)?,
+                    attachment: None,
+                });
+            } else {
+                checked_one = true;
+            }
+        }
+        if checked_one {
+            // Check at least one present.
+            for p in list {
+                if let Err(e) = self.conn.execute(
+                    "INSERT INTO black_list (user, user_name1, user_name2, ts) VALUES (?1, ?2, ?3, ?4)",
+                    params![p.user_id, p.user_name1, p.user_name2, now],
+                ) {
+                    warn!("{}", e);
+                }
+            }
+        }
+        Ok(())
+    }
+
     pub fn delete_event(&self, event_id: i64) -> Result<(), rusqlite::Error> {
-        self.conn
-            .execute("DELETE FROM reservations WHERE event=?1", params![event_id])?;
-        self.conn
-            .execute("DELETE FROM events WHERE id=?1", params![event_id])?;
-        self.conn
-            .execute("DELETE FROM alarms WHERE event=?1", params![event_id])?;
-        self.conn
-            .execute("DELETE FROM attachments WHERE event=?1", params![event_id])?;
+        if let Err(e) = self
+            .conn
+            .execute("DELETE FROM reservations WHERE event=?1", params![event_id])
+        {
+            error!("{}", e);
+        }
+        if let Err(e) = self
+            .conn
+            .execute("DELETE FROM events WHERE id=?1", params![event_id])
+        {
+            error!("{}", e);
+        }
+        if let Err(e) = self
+            .conn
+            .execute("DELETE FROM alarms WHERE event=?1", params![event_id])
+        {
+            error!("{}", e);
+        }
+        if let Err(e) = self
+            .conn
+            .execute("DELETE FROM attachments WHERE event=?1", params![event_id])
+        {
+            error!("{}", e);
+        }
+        if let Err(e) = self
+            .conn
+            .execute("DELETE FROM presence WHERE event=?1", params![event_id])
+        {
+            error!("{}", e);
+        }
+        if let Err(e) = self.conn.execute(
+            "DELETE FROM group_leaders WHERE event=?1",
+            params![event_id],
+        ) {
+            error!("{}", e);
+        }
         Ok(())
     }
 
@@ -106,17 +179,22 @@ impl EventDB {
         children: i64,
         wait: i64,
         ts: i64,
-    ) -> Result<(usize, bool), rusqlite::Error> {
+    ) -> anyhow::Result<(usize, bool)> {
         let s = self.get_event(event_id, user)?;
 
-        if ts > s.event.ts {
-            trace!("The even has already begun: {} {}", ts, s.event.ts);
-            return Ok((0, false));
+        if ts > s.event.ts || s.state != 0 {
+            return Err(anyhow::anyhow!("Запись остановлена."));
         }
 
-        if s.state != 0 {
-            trace!("Event closed");
-            return Ok((0, false));
+        // Check conflicting time
+        let mut stmt = self
+            .conn
+            .prepare("select events.id from events join reservations as r on events.id = r.event where events.ts = ?1 and r.user = ?2 and events.id != ?3")?;
+        let mut rows = stmt.query(params![s.event.ts, user, s.event.id])?;
+        if let Some(_) = rows.next()? {
+            return Err(anyhow::anyhow!(
+                "Вы уже записаны на другое мероприятие в это время."
+            ));
         }
 
         // Check user limits
@@ -170,8 +248,21 @@ impl EventDB {
             return Ok(0);
         }
 
-        let html_safe: String = attachment.chars().filter_map(
-            |a| match a.is_alphanumeric() || a.is_ascii_whitespace() || a == ',' || a == '.' || a == ':' || a == '-'  { true => Some(a), false => Some(' ')} ).collect();
+        let html_safe: String = attachment
+            .chars()
+            .filter_map(|a| {
+                match a.is_alphanumeric()
+                    || a.is_ascii_whitespace()
+                    || a == ','
+                    || a == '.'
+                    || a == ':'
+                    || a == '-'
+                {
+                    true => Some(a),
+                    false => Some(' '),
+                }
+            })
+            .collect();
 
         let s = self.get_event(event_id, user)?;
         if s.my_adults > 0 || s.my_wait_adults > 0 || s.my_children > 0 || s.my_wait_children > 0 {
@@ -417,6 +508,61 @@ impl EventDB {
         Ok(res)
     }
 
+    pub fn get_presence_list(&self, event_id: i64) -> Result<Vec<Presence>, rusqlite::Error> {
+        let mut stmt = self.conn.prepare(
+            "select r.*, p.user, a.attachment from (select event, user, user_name1, user_name2, count(user) from reservations where event = ?1 and waiting_list = 0 group by user) as r \
+            left join presence as p on r.event = p.event and r.user = p.user \
+            left join attachments as a on r.event = a.event and r.user = a.user \
+            order by r.user_name1"
+        )?;
+        let mut rows = stmt.query([event_id])?;
+        let mut res = Vec::new();
+        while let Some(row) = rows.next()? {
+            let present: rusqlite::Result<i64> = row.get(5);
+            if let Err(_) = present {
+                res.push(Presence {
+                    user_id: row.get(1)?,
+                    user_name1: row.get(2)?,
+                    user_name2: row.get(3)?,
+                    reserved: row.get(4)?,
+                    attachment: match row.get(6) {
+                        Ok(v) => Some(v),
+                        Err(_) => None,
+                    },
+                });
+            }
+        }
+        Ok(res)
+    }
+
+    pub fn confirm_presence(&self, event_id: i64, user_id: i64) -> Result<(), rusqlite::Error> {
+        self.conn.execute(
+            "insert into presence (event, user) values (?1, ?2)",
+            params![event_id, user_id],
+        )?;
+        Ok(())
+    }
+
+    pub fn is_group_leader(&self, event_id: i64, user_id: i64) -> Result<bool, rusqlite::Error> {
+        let mut stmt = self
+            .conn
+            .prepare("SELECT event FROM group_leaders WHERE event = ?1 AND user = ?2")?;
+        let mut rows = stmt.query(params![event_id, user_id])?;
+        if let Some(_) = rows.next()? {
+            Ok(true)
+        } else {
+            Ok(false)
+        }
+    }
+
+    pub fn set_group_leader(&self, event_id: i64, user_id: i64) -> Result<(), rusqlite::Error> {
+        self.conn.execute(
+            "insert into group_leaders (event, user) values (?1, ?2)",
+            params![event_id, user_id],
+        )?;
+        Ok(())
+    }
+
     pub fn get_user_reminders(&self, ts: i64) -> Result<Vec<Reminder>, rusqlite::Error> {
         let mut stmt = self.conn.prepare(
             "SELECT a.id, a.name, a.link, a.ts, c.user FROM events as a JOIN alarms as b ON a.id = b.event 
@@ -455,11 +601,20 @@ impl EventDB {
         Ok(())
     }
 
-    pub fn clear_old_events(&self, ts: i64) -> Result<(), rusqlite::Error> {
+    pub fn clear_old_events(
+        &self,
+        ts: i64,
+        automatic_blacklisting: bool,
+    ) -> Result<(), rusqlite::Error> {
         let mut stmt = self.conn.prepare("SELECT id FROM events WHERE ts < ?1")?;
         let mut rows = stmt.query([ts - util::get_seconds_before_midnight(ts)])?;
         while let Some(row) = rows.next()? {
             let event_id: i64 = row.get(0)?;
+            if automatic_blacklisting {
+                if let Err(e) = self.blacklist_absent_participants(event_id) {
+                    error!("{}", e);
+                }
+            }
             self.delete_event(event_id)?;
         }
         Ok(())
@@ -551,6 +706,40 @@ impl EventDB {
             }
         }
         drop(stmt);
+
+        let mut stmt =
+            conn.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='presence'")?;
+        match stmt.query([]) {
+            Ok(rows) => match rows.count() {
+                Ok(count) => {
+                    if count == 0 {
+                        conn.execute(
+                            "CREATE TABLE presence (
+                                event           INTEGER NOT NULL,
+                                user            INTEGER NOT NULL
+                                )",
+                            [],
+                        )?;
+                        conn.execute("CREATE INDEX presence_event_index ON presence (event)", [])?;
+                        conn.execute("CREATE UNIQUE INDEX presence_event_user_unique_idx ON presence (event, user)", [])?;
+
+                        conn.execute(
+                            "CREATE TABLE group_leaders (
+                                event           INTEGER NOT NULL,
+                                user            INTEGER NOT NULL
+                                )",
+                            [],
+                        )?;
+                        conn.execute("CREATE UNIQUE INDEX group_leaders_event_user_unique_idx ON presence (event, user)", [])?;
+                    }
+                }
+                _ => {}
+            },
+            _ => {
+                error!("Failed to query db.");
+            }
+        }
+        drop(stmt);
         Ok(EventDB { conn })
     }
 
@@ -580,7 +769,9 @@ impl EventDB {
         Ok(())
     }
     pub fn get_black_list(&self) -> Result<Vec<User>, rusqlite::Error> {
-        let mut stmt = self.conn.prepare("SELECT * FROM black_list")?;
+        let mut stmt = self
+            .conn
+            .prepare("SELECT * FROM black_list order by user_name1")?;
         let mut rows = stmt.query([])?;
         let mut res = Vec::new();
         while let Some(row) = rows.next()? {

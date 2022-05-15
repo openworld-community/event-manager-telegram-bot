@@ -1,13 +1,19 @@
 telegram_bot_token = ""
 
-# telegram ids
+# telegram ids, comma separated
 admin_ids = ""
-
-# telegram usernames
-admin_names = ""
 
 # show participant lists to all participants
 public_lists = false
 
+# add users to black list when verifying presence
+automatic_blacklisting = true
+
+# hours to keep old events before removing
+drop_events_after_hours = 48
+
 # days to keep users in the black list
-black_list_time = 30
+delete_from_black_list_after_days = 30
+
+# how many hours before event
+too_late_to_cancel_hours = 1
