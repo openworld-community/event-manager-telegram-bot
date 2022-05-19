@@ -1,6 +1,6 @@
 use crate::util;
 use fallible_streaming_iterator::FallibleStreamingIterator;
-use rusqlite::{params, Connection, Result};
+use rusqlite::{params, Connection, Result, Row};
 use std::collections::HashSet;
 
 #[cfg(test)]
@@ -22,15 +22,67 @@ pub struct Event {
     pub remind: i64,
 }
 
-pub struct EventState {
+#[derive(PartialEq)]
+pub enum EventState {
+    Open,
+    Closed,
+}
+
+pub struct Counter {
+    pub reserved: i64,
+    pub my_reservation: i64,
+    pub my_waiting: i64,
+}
+
+impl Counter {
+    pub fn new(reserved: Result<i64, rusqlite::Error>, my_reservation: Result<i64, rusqlite::Error>, my_waiting: Result<i64, rusqlite::Error>) -> Result<Counter, rusqlite::Error> {
+        Ok(Counter {
+            reserved: match reserved {
+                Ok(v) => v,
+                Err(_) => 0,
+            },
+            my_reservation: match my_reservation {
+                Ok(v) => v,
+                Err(_) => 0,
+            },
+            my_waiting: match my_waiting {
+                Ok(v) => v,
+                Err(_) => 0,
+            },
+        })
+    }
+}
+
+pub struct EventStats {
     pub event: Event,
-    pub adults: i64,
-    pub children: i64,
-    pub my_adults: i64,
-    pub my_children: i64,
-    pub my_wait_adults: i64,
-    pub my_wait_children: i64,
-    pub state: i64,
+    pub adults: Counter,
+    pub children: Counter,
+    pub state: EventState,
+}
+
+impl EventStats {
+    pub fn new(row: &Row) -> Result<EventStats, rusqlite::Error> {
+        let state: i64 = row.get("state")?;
+        Ok(EventStats {
+            event: Event {
+                id: row.get("id")?,
+                name: row.get("name")?,
+                link: row.get("link")?,
+                max_adults: row.get("max_adults")?,
+                max_children: row.get("max_children")?,
+                max_adults_per_reservation: row.get("max_adults_per_reservation")?,
+                max_children_per_reservation: row.get("max_children_per_reservation")?,
+                ts: row.get("ts")?,
+                remind: 0,
+            },
+            adults: Counter::new(row.get("adults"), row.get("my_adults"), row.get("my_wait_adults"))?,
+            children: Counter::new(row.get("children"), row.get("my_children"), row.get("my_wait_children"))?,
+            state: match state {
+                0 => EventState::Open,
+                _ => EventState::Closed,
+            },
+        })
+    }
 }
 
 pub struct Participant {
@@ -66,7 +118,7 @@ pub struct User {
 }
 
 pub struct EventDB {
-    pub conn: Connection,
+    conn: Connection,
 }
 
 impl EventDB {
@@ -182,7 +234,7 @@ impl EventDB {
     ) -> anyhow::Result<(usize, bool)> {
         let s = self.get_event(event_id, user)?;
 
-        if ts > s.event.ts || s.state != 0 {
+        if ts > s.event.ts || s.state != EventState::Open {
             return Err(anyhow::anyhow!("Запись остановлена."));
         }
 
@@ -198,13 +250,15 @@ impl EventDB {
         }
 
         // Check user limits
-        if s.my_adults + s.my_wait_adults + adults > s.event.max_adults_per_reservation
-            || s.my_children + s.my_wait_children + children > s.event.max_children_per_reservation
+        if s.adults.my_reservation + s.adults.my_waiting + adults
+            > s.event.max_adults_per_reservation
+            || s.children.my_reservation + s.children.my_waiting + children
+                > s.event.max_children_per_reservation
         {
             trace!(
                 "Order threshold reached: {} {}",
-                s.my_adults + adults,
-                s.my_children + children
+                s.adults.my_reservation + adults,
+                s.children.my_reservation + children
             );
             return Ok((0, false));
         }
@@ -265,7 +319,11 @@ impl EventDB {
             .collect();
 
         let s = self.get_event(event_id, user)?;
-        if s.my_adults > 0 || s.my_wait_adults > 0 || s.my_children > 0 || s.my_wait_children > 0 {
+        if s.adults.my_reservation > 0
+            || s.adults.my_waiting > 0
+            || s.children.my_reservation > 0
+            || s.children.my_waiting > 0
+        {
             self.conn.execute(
                 "INSERT INTO attachments (event, user, attachment) VALUES (?1, ?2, ?3) ON CONFLICT (event, user) DO \
                 UPDATE SET attachment=excluded.attachment",
@@ -379,7 +437,7 @@ impl EventDB {
         }
     }
 
-    pub fn get_events(&self, user: i64) -> Result<Vec<EventState>, rusqlite::Error> {
+    pub fn get_events(&self, user: i64) -> Result<Vec<EventStats>, rusqlite::Error> {
         let mut stmt = self.conn.prepare(
             "select a.*, b.my_adults, b.my_children FROM \
             (SELECT events.id, events.name, events.link, events.max_adults, events.max_children, events.max_adults_per_reservation, events.max_children_per_reservation, events.ts, r.adults, r.children, events.state FROM events \
@@ -389,43 +447,12 @@ impl EventDB {
         let mut rows = stmt.query([user])?;
         let mut res = Vec::new();
         while let Some(row) = rows.next()? {
-            res.push(EventState {
-                event: Event {
-                    id: row.get(0)?,
-                    name: row.get(1)?,
-                    link: row.get(2)?,
-                    max_adults: row.get(3)?,
-                    max_children: row.get(4)?,
-                    max_adults_per_reservation: row.get(5)?,
-                    max_children_per_reservation: row.get(6)?,
-                    ts: row.get(7)?,
-                    remind: 0,
-                },
-                adults: match row.get(8) {
-                    Ok(v) => v,
-                    Err(_) => 0,
-                },
-                children: match row.get(9) {
-                    Ok(v) => v,
-                    Err(_) => 0,
-                },
-                state: row.get(10)?,
-                my_adults: match row.get(11) {
-                    Ok(v) => v,
-                    Err(_) => 0,
-                },
-                my_children: match row.get(12) {
-                    Ok(v) => v,
-                    Err(_) => 0,
-                },
-                my_wait_adults: 0,
-                my_wait_children: 0,
-            });
+            res.push(EventStats::new(row)?);
         }
         Ok(res)
     }
 
-    pub fn get_event(&self, event_id: i64, user: i64) -> Result<EventState, rusqlite::Error> {
+    pub fn get_event(&self, event_id: i64, user: i64) -> Result<EventStats, rusqlite::Error> {
         let mut stmt = self.conn.prepare(
             "select a.*, b.my_adults, b.my_children, c.my_wait_adults, c.my_wait_children FROM \
             (SELECT events.id, events.name, events.link, events.max_adults, events.max_children, events.max_adults_per_reservation, events.max_children_per_reservation, events.ts, r.adults, r.children, events.state FROM events \
@@ -436,44 +463,7 @@ impl EventDB {
         )?;
         let mut rows = stmt.query([user, event_id])?;
         if let Some(row) = rows.next()? {
-            Ok(EventState {
-                event: Event {
-                    id: row.get(0)?,
-                    name: row.get(1)?,
-                    link: row.get(2)?,
-                    max_adults: row.get(3)?,
-                    max_children: row.get(4)?,
-                    max_adults_per_reservation: row.get(5)?,
-                    max_children_per_reservation: row.get(6)?,
-                    ts: row.get(7)?,
-                    remind: 0,
-                },
-                adults: match row.get(8) {
-                    Ok(v) => v,
-                    Err(_) => 0,
-                },
-                children: match row.get(9) {
-                    Ok(v) => v,
-                    Err(_) => 0,
-                },
-                state: row.get(10)?,
-                my_adults: match row.get(11) {
-                    Ok(v) => v,
-                    Err(_) => 0,
-                },
-                my_children: match row.get(12) {
-                    Ok(v) => v,
-                    Err(_) => 0,
-                },
-                my_wait_adults: match row.get(13) {
-                    Ok(v) => v,
-                    Err(_) => 0,
-                },
-                my_wait_children: match row.get(14) {
-                    Ok(v) => v,
-                    Err(_) => 0,
-                },
-            })
+            Ok(EventStats::new(row)?)
         } else {
             Err(rusqlite::Error::InvalidParameterName(
                 "Failed to find event".to_string(),
@@ -558,6 +548,14 @@ impl EventDB {
     pub fn set_group_leader(&self, event_id: i64, user_id: i64) -> Result<(), rusqlite::Error> {
         self.conn.execute(
             "insert into group_leaders (event, user) values (?1, ?2)",
+            params![event_id, user_id],
+        )?;
+        Ok(())
+    }
+
+    pub fn delete_reservation(&self, event_id: i64, user_id: i64) -> Result<(), rusqlite::Error> {
+        self.conn.execute(
+            "delete from reservations where event = ?1 and user = ?2",
             params![event_id, user_id],
         )?;
         Ok(())

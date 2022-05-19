@@ -1,4 +1,4 @@
-use crate::db::EventDB;
+use crate::db::{EventDB, EventState};
 use crate::format_ts;
 use crate::util::*;
 use std::collections::{HashMap, HashSet};
@@ -45,9 +45,9 @@ impl User {
 }
 
 pub struct MessageHandler<'a> {
-    pub db: &'a EventDB,
-    pub api: &'a Api,
-    pub config: &'a Configuration,
+    db: &'a EventDB,
+    api: &'a Api,
+    config: &'a Configuration,
 }
 
 impl<'a> MessageHandler<'a> {
@@ -61,22 +61,27 @@ impl<'a> MessageHandler<'a> {
         data: &str,
         active_events: &mut HashMap<i64, i64>,
     ) -> bool {
-        // Direct link
-        if let Some(v) = data.find("/start ") {
-            if v == 0 {
-                let pars: Vec<&str> = data.split(' ').collect();
+        let pars: Vec<&str> = data.splitn(3, ' ').collect();
+        if pars.len() == 0 {
+            return false;
+        }
+        match pars[0] {
+            "/start" => {
                 if pars.len() == 2 {
+                    // Direct link
                     if let Ok(event_id) = pars[1].parse::<i64>() {
                         self.show_event(user, event_id, &None, None);
                     }
+                } else {
+                    self.show_event_list(user.id, &None);
                 }
             }
-        } else if data == "/start" {
-            self.show_event_list(user.id, &None);
-        } else {
-            // Message from user - try to add as attachment to the last reservation.
-            self.add_attachment(&user, data, active_events);
+            _ => {
+                // Message from user - try to add as attachment to the last reservation.
+                self.add_attachment(&user, data, active_events);
+            }
         }
+
         true
     }
 
@@ -87,59 +92,55 @@ impl<'a> MessageHandler<'a> {
         message: &Option<MessageOrChannelPost>,
         active_events: &mut HashMap<i64, i64>,
     ) -> bool {
-        if data == "event_list" {
-            self.show_event_list(user.id, message);
-        } else if data.find("event ").is_some() {
-            let pars: Vec<&str> = data.split(' ').collect();
-            if pars.len() == 2 {
-                match pars[1].parse::<i64>() {
-                    Ok(event_id) => {
-                        active_events.insert(user.id.into(), event_id);
-                        self.show_event(user, event_id, message, None);
-                    }
-                    Err(_e) => {}
-                }
+        let pars: Vec<&str> = data.splitn(4, ' ').collect();
+        if pars.len() == 0 {
+            return false;
+        }
+        match pars[0] {
+            "event_list" => {
+                self.show_event_list(user.id, message);
             }
-        } else if data.find("sign_up ").is_some() {
-            let pars: Vec<&str> = data.split(' ').collect();
-            if pars.len() == 4 {
-                match pars[1].parse::<i64>() {
-                    Ok(event_id) => {
-                        let is_adult = pars[2] == "adult";
-                        let wait = pars[3] == "wait";
-                        match self.db.sign_up(
-                            event_id,
-                            user.id.into(),
-                            &user.user_name1,
-                            &user.user_name2,
-                            is_adult as i64,
-                            !is_adult as i64,
-                            wait as i64,
-                            get_unix_time(),
-                        ) {
-                            Ok((_, black_listed)) => {
-                                self.show_event(
-                                    user,
-                                    event_id,
-                                    message,
-                                    if black_listed {
-                                        Some("\n\nВы добавлены в список ожидания.".to_string())
-                                    } else {
-                                        None
-                                    },
-                                );
-                            }
-                            Err(e) => {
-                                self.api.spawn(user.id.text(format!("{}", e)));
-                            }
+            "event" if pars.len() == 2 => match pars[1].parse::<i64>() {
+                Ok(event_id) => {
+                    active_events.insert(user.id.into(), event_id);
+                    self.show_event(user, event_id, message, None);
+                }
+                Err(_e) => {}
+            },
+            "sign_up" if pars.len() == 4 => match pars[1].parse::<i64>() {
+                Ok(event_id) => {
+                    let is_adult = pars[2] == "adult";
+                    let wait = pars[3] == "wait";
+                    match self.db.sign_up(
+                        event_id,
+                        user.id.into(),
+                        &user.user_name1,
+                        &user.user_name2,
+                        is_adult as i64,
+                        !is_adult as i64,
+                        wait as i64,
+                        get_unix_time(),
+                    ) {
+                        Ok((_, black_listed)) => {
+                            self.show_event(
+                                user,
+                                event_id,
+                                message,
+                                if black_listed {
+                                    Some("\n\nВы добавлены в список ожидания.".to_string())
+                                } else {
+                                    None
+                                },
+                            );
+                        }
+                        Err(e) => {
+                            self.api.spawn(user.id.text(format!("{}", e)));
                         }
                     }
-                    Err(_e) => {}
                 }
-            }
-        } else if data.find("cancel ").is_some() {
-            let pars: Vec<&str> = data.split(' ').collect();
-            if pars.len() == 3 {
+                Err(_e) => {}
+            },
+            "cancel" if pars.len() == 3 => {
                 if let Ok(event_id) = pars[1].parse::<i64>() {
                     if self.is_too_late_to_cancel(event_id, user) {
                         self.api
@@ -159,32 +160,25 @@ impl<'a> MessageHandler<'a> {
                     }
                 }
             }
-        } else if data.find("wontgo ").is_some() {
-            let pars: Vec<&str> = data.split(' ').collect();
-            if pars.len() == 2 {
-                match pars[1].parse::<i64>() {
-                    Ok(event_id) => match self.db.wontgo(event_id, user.id.into()) {
-                        Ok(update) => {
-                            if self.is_too_late_to_cancel(event_id, user) {
-                                self.api.spawn(
-                                    user.id.text("Извините, отменить бронь уже невозможно."),
-                                );
-                            } else {
-                                self.api.spawn(user.id.text("Мы сожалеем, что вы не сможете пойти. Увидимся в другой раз. Спасибо!"));
-                                self.notify_users_on_waiting_list(event_id, update);
-                            }
-                        }
-                        Err(e) => {
+            "wontgo" if pars.len() == 2 => match pars[1].parse::<i64>() {
+                Ok(event_id) => match self.db.wontgo(event_id, user.id.into()) {
+                    Ok(update) => {
+                        if self.is_too_late_to_cancel(event_id, user) {
                             self.api
-                                .spawn(user.id.text(format!("Failed to add event: {}.", e)));
+                                .spawn(user.id.text("Извините, отменить бронь уже невозможно."));
+                        } else {
+                            self.api.spawn(user.id.text("Мы сожалеем, что вы не сможете пойти. Увидимся в другой раз. Спасибо!"));
+                            self.notify_users_on_waiting_list(event_id, update);
                         }
-                    },
-                    Err(_e) => {}
-                }
-            }
-        } else if data.find("change_event_state ").is_some() {
-            let pars: Vec<&str> = data.split(' ').collect();
-            if pars.len() == 3 {
+                    }
+                    Err(e) => {
+                        self.api
+                            .spawn(user.id.text(format!("Failed to add event: {}.", e)));
+                    }
+                },
+                Err(_e) => {}
+            },
+            "change_event_state" if pars.len() == 3 => {
                 match (pars[1].parse::<i64>(), pars[2].parse::<i64>()) {
                     (Ok(event_id), Ok(state)) => {
                         if user.is_admin != false {
@@ -202,36 +196,26 @@ impl<'a> MessageHandler<'a> {
                             warn!("not allowed");
                         }
                     }
-                    (_, _) => {}
+                    _ => {}
                 }
             }
-        } else if data.find("show_waiting_list ").is_some() {
-            let pars: Vec<&str> = data.split(' ').collect();
-            if pars.len() == 2 {
-                match pars[1].parse::<i64>() {
-                    Ok(event_id) => {
-                        if self.config.public_lists || user.is_admin != false {
-                            self.show_waiting_list(user, event_id, message);
-                        } else {
-                            warn!("not allowed");
-                        }
+            "show_waiting_list" if pars.len() == 2 => match pars[1].parse::<i64>() {
+                Ok(event_id) => {
+                    if self.config.public_lists || user.is_admin != false {
+                        self.show_waiting_list(user, event_id, message);
+                    } else {
+                        warn!("not allowed");
                     }
-                    Err(_e) => {}
                 }
-            }
-        } else if data.find("show_presence_list ").is_some() {
-            let pars: Vec<&str> = data.split(' ').collect();
-            if pars.len() == 2 {
-                match pars[1].parse::<i64>() {
-                    Ok(event_id) => {
-                        self.show_presence_list(event_id, user, message);
-                    }
-                    Err(_) => {}
+                Err(_e) => {}
+            },
+            "show_presence_list" if pars.len() == 2 => match pars[1].parse::<i64>() {
+                Ok(event_id) => {
+                    self.show_presence_list(event_id, user, message);
                 }
-            }
-        } else if data.find("confirm_presence ").is_some() {
-            let pars: Vec<&str> = data.split(' ').collect();
-            if pars.len() == 3 {
+                Err(_) => {}
+            },
+            "confirm_presence" if pars.len() == 3 => {
                 match (pars[1].parse::<i64>(), pars[2].parse::<i64>()) {
                     (Ok(event_id), Ok(user_id)) => {
                         let user_has_permissions = if user.is_admin {
@@ -257,14 +241,16 @@ impl<'a> MessageHandler<'a> {
                             self.api.spawn(user.id.text(format!("Not allowed.")));
                         }
                     }
-                    (_, _) => {}
+                    _ => {}
                 }
             }
-        } else {
-            self.api.spawn(user.id.text("Faied to parse query."));
-            return false;
+            _ => {
+                self.api.spawn(user.id.text("Faied to parse query."));
+                return false;
+            }
         }
-        return true;
+
+        true
     }
 
     pub fn add_attachment(&self, user: &User, data: &str, active_events: &mut HashMap<i64, i64>) {
@@ -310,13 +296,13 @@ impl<'a> MessageHandler<'a> {
                             format!(
                                 "{} /{}({})/ {}",
                                 format_ts(s.event.ts),
-                                if s.state == 0 {
-                                    s.event.max_adults - s.adults
+                                if s.state == EventState::Open {
+                                    s.event.max_adults - s.adults.reserved
                                 } else {
                                     0
                                 },
-                                if s.state == 0 {
-                                    s.event.max_children - s.children
+                                if s.state == EventState::Open {
+                                    s.event.max_children - s.children.reserved
                                 } else {
                                     0
                                 },
@@ -360,57 +346,74 @@ impl<'a> MessageHandler<'a> {
             Ok(s) => {
                 let mut keyboard = telegram_bot::types::InlineKeyboardMarkup::new();
                 let mut v: Vec<telegram_bot::types::InlineKeyboardButton> = Vec::new();
-                let free_adults = s.event.max_adults - s.adults;
-                let free_children = s.event.max_children - s.children;
-                if s.state == 0 && s.my_adults < s.event.max_adults_per_reservation {
+                let free_adults = s.event.max_adults - s.adults.reserved;
+                let free_children = s.event.max_children - s.children.reserved;
+                let no_age_distinction = s.event.max_adults == 0 || s.event.max_children == 0;
+                if s.state == EventState::Open
+                    && s.adults.my_reservation + s.adults.my_waiting < s.event.max_adults_per_reservation
+                {
                     if free_adults > 0 {
                         v.push(telegram_bot::types::InlineKeyboardButton::callback(
-                            if s.event.max_children != 0 {
-                                "Записать взрослого +1"
-                            } else {
+                            if no_age_distinction {
                                 "Записаться +1"
+                            } else {
+                                "Записать взрослого +1"
                             },
                             format!("sign_up {} adult nowait", s.event.id),
                         ));
                     } else {
                         v.push(telegram_bot::types::InlineKeyboardButton::callback(
-                            if s.event.max_children != 0 {
-                                "В лист ожидания взрослого +1"
-                            } else {
+                            if no_age_distinction {
                                 "В лист ожидания +1"
+                            } else {
+                                "В лист ожидания взрослого +1"
                             },
                             format!("sign_up {} adult wait", s.event.id),
                         ));
                     }
                 }
-                if s.my_adults > 0 || s.my_wait_adults > 0 {
+                if s.adults.my_reservation > 0 || s.adults.my_waiting > 0 {
                     v.push(telegram_bot::types::InlineKeyboardButton::callback(
-                        if s.event.max_children != 0 {
-                            "Отписать взрослого -1"
-                        } else {
+                        if no_age_distinction {
                             "Отписаться -1"
+                        } else {
+                            "Отписать взрослого -1"
                         },
                         format!("cancel {} adult", s.event.id),
                     ));
                 }
                 keyboard.add_row(v);
                 let mut v: Vec<telegram_bot::types::InlineKeyboardButton> = Vec::new();
-                if s.state == 0 && s.my_children < s.event.max_children_per_reservation {
+                if s.state == EventState::Open
+                    && s.children.my_reservation + s.children.my_waiting < s.event.max_children_per_reservation
+                {
                     if free_children > 0 {
                         v.push(telegram_bot::types::InlineKeyboardButton::callback(
-                            "Записать ребёнка +1",
+                            if no_age_distinction {
+                                "Записаться +1"
+                            } else {
+                                "Записать ребёнка +1"
+                            },
                             format!("sign_up {} child nowait", s.event.id),
                         ));
                     } else {
                         v.push(telegram_bot::types::InlineKeyboardButton::callback(
-                            "В лист ожидания ребёнка +1",
+                            if no_age_distinction {
+                                "В лист ожидания +1"
+                            } else {
+                                "В лист ожидания ребёнка +1"
+                            },
                             format!("sign_up {} child wait", s.event.id),
                         ));
                     }
                 }
-                if s.my_children > 0 || s.my_wait_children > 0 {
+                if s.children.my_reservation > 0 || s.children.my_waiting > 0 {
                     v.push(telegram_bot::types::InlineKeyboardButton::callback(
-                        "Отписать ребёнка -1",
+                        if no_age_distinction {
+                            "Отписаться -1"
+                        } else {
+                            "Отписать ребёнка -1"
+                        },
                         format!("cancel {} child", s.event.id),
                     ));
                 }
@@ -447,10 +450,10 @@ impl<'a> MessageHandler<'a> {
                                         id, p.user_id, p.user_name1
                                     ));
                                 }
-                                if s.event.max_children != 0 {
-                                    list.push_str(&format!(" {} {}", p.adults, p.children));
+                                if no_age_distinction {
+                                    list.push_str(&format!(" {}", p.adults + p.children));
                                 } else {
-                                    list.push_str(&format!(" {}", p.adults));
+                                    list.push_str(&format!(" {} {}", p.adults, p.children));
                                 }
                                 if let Some(a) = &p.attachment {
                                     list.push_str(&format!(" {}", a));
@@ -468,7 +471,7 @@ impl<'a> MessageHandler<'a> {
                             "Присутствие",
                             format!("show_presence_list {}", event_id),
                         ));
-                        if s.state == 0 {
+                        if s.state == EventState::Open {
                             v.push(telegram_bot::types::InlineKeyboardButton::callback(
                                 "Остановить запись",
                                 format!("change_event_state {} 1", event_id),
@@ -497,39 +500,44 @@ impl<'a> MessageHandler<'a> {
                     s.event.name,
                     format_ts(s.event.ts)
                 );
-                if s.state == 0 {
-                    if s.event.max_children != 0 {
+                if s.state == EventState::Open {
+                    if no_age_distinction {
                         text.push_str(&format!(
-                            "\nВзрослые места: свободные - {}, моя бронь - {}",
-                            free_adults, s.my_adults
+                            "\nМеста: свободные - {}, моя бронь - {}",
+                            free_adults + free_children,
+                            s.adults.my_reservation + s.children.my_reservation
                         ));
-                        if s.my_wait_adults > 0 {
-                            text.push_str(&format!(", лист ожидания - {}", s.my_wait_adults));
-                        }
-                        text.push_str(&format!(
-                            "\nДетские места: свободные - {}, моя бронь - {}",
-                            free_children, s.my_children
-                        ));
-                        if s.my_wait_children > 0 {
-                            text.push_str(&format!(", лист ожидания - {}", s.my_wait_children));
+                        if s.adults.my_waiting + s.children.my_waiting > 0 {
+                            text.push_str(&format!(
+                                ", лист ожидания - {}",
+                                s.adults.my_waiting + s.children.my_waiting
+                            ));
                         }
                     } else {
                         text.push_str(&format!(
-                            "\nМеста: свободные - {}, моя бронь - {}",
-                            free_adults, s.my_adults
+                            "\nВзрослые места: свободные - {}, моя бронь - {}",
+                            free_adults, s.adults.my_reservation
                         ));
-                        if s.my_wait_adults > 0 {
-                            text.push_str(&format!(", лист ожидания - {}", s.my_wait_adults));
+                        if s.adults.my_waiting > 0 {
+                            text.push_str(&format!(", лист ожидания - {}", s.adults.my_waiting));
+                        }
+
+                        text.push_str(&format!(
+                            "\nДетские места: свободные - {}, моя бронь - {}",
+                            free_children, s.children.my_reservation
+                        ));
+                        if s.children.my_waiting > 0 {
+                            text.push_str(&format!(", лист ожидания - {}", s.children.my_waiting));
                         }
                     }
                 } else {
                     text.push_str("\nЗапись остановлена.");
                 }
                 text.push_str(&format!("\n{}\n", list));
-                if s.my_adults > 0
-                    || s.my_wait_adults > 0
-                    || s.my_children > 0
-                    || s.my_wait_children > 0
+                if s.adults.my_reservation > 0
+                    || s.adults.my_waiting > 0
+                    || s.children.my_reservation > 0
+                    || s.children.my_waiting > 0
                 {
                     if self.config.public_lists == false {
                         match self.db.get_attachment(event_id, user.id.into()) {
@@ -576,8 +584,10 @@ impl<'a> MessageHandler<'a> {
         callback: &Option<MessageOrChannelPost>,
     ) {
         let mut list = "".to_string();
+        let no_age_distinction;
         match self.db.get_event(event_id, user.id.into()) {
             Ok(s) => {
+                no_age_distinction = s.event.max_adults == 0 || s.event.max_children == 0;
                 list.push_str(&format!(
                     "\n \n<a href=\"{}\">{}</a>\nНачало: {}\n",
                     s.event.link,
@@ -604,18 +614,28 @@ impl<'a> MessageHandler<'a> {
                 } else {
                     list.push_str("Список ожидания:");
                     for p in &participants {
+                        let id = if user.is_admin {
+                            p.user_id.to_string()
+                        } else {
+                            "".to_string()
+                        };
                         if p.user_name2.len() > 0 {
                             list.push_str(&format!(
-                                "\n<a href=\"https://t.me/{}\">{} ({})</a>",
-                                p.user_name2, p.user_name1, p.user_name2
+                                "\n{} <a href=\"https://t.me/{}\">{} ({})</a>",
+                                id, p.user_name2, p.user_name1, p.user_name2
                             ));
                         } else {
                             list.push_str(&format!(
-                                "\n<a href=\"tg://user?id={}\">{}</a>",
-                                p.user_id, p.user_name1
+                                "\n{} <a href=\"tg://user?id={}\">{}</a>",
+                                id, p.user_id, p.user_name1
                             ));
                         }
-                        list.push_str(&format!(" {} {}", p.adults, p.children));
+                        if no_age_distinction {
+                            list.push_str(&format!(" {}", p.adults + p.children));
+                        }
+                        else {
+                            list.push_str(&format!(" {} {}", p.adults, p.children));
+                        }
                         if let Some(a) = &p.attachment {
                             list.push_str(&format!(" {}", a));
                         }

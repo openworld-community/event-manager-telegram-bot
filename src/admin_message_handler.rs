@@ -18,10 +18,10 @@ pub struct NewEvent {
 }
 
 pub struct AdminMessageHandler<'a> {
-    pub db: &'a EventDB,
-    pub api: &'a Api,
-    pub config: &'a Configuration,
-    pub message_handler: &'a MessageHandler<'a>,
+    db: &'a EventDB,
+    api: &'a Api,
+    config: &'a Configuration,
+    message_handler: &'a MessageHandler<'a>,
 }
 
 impl<'a> AdminMessageHandler<'a> {
@@ -39,28 +39,26 @@ impl<'a> AdminMessageHandler<'a> {
         }
     }
 
-    pub async fn process_message(
-        &self,
-        user: &User,
-        data: &str,
-    ) -> bool {
-        if let Some(v) = data.find("/send ") {
-            // Broadcast message to a group?
-            // /send confirmed <event> text
-            // /send waiting <event> text
-            if v == 0 {
-                let pars: Vec<&str> = data.splitn(4, ' ').collect();
-                if pars.len() == 4 {
-                    let waiting_list = match pars[1] {
-                        "confirmed" => 0,
-                        "waiting" => 1,
-                        _ => 2,
-                    };
-                    if waiting_list < 2 {
-                        if let Ok(event_id) = pars[2].parse::<i64>() {
-                            match self.db.get_event(event_id, user.id.into()) {
-                                Ok(s) => {
-                                    let text = format!(
+    pub async fn process_message(&self, user: &User, data: &str) -> bool {
+        let pars: Vec<&str> = data.splitn(4, ' ').collect();
+        if pars.len() == 0 {
+            return false;
+        }
+        match pars[0] {
+            "/send" if pars.len() == 4 => {
+                // Broadcast message to a group?
+                // /send confirmed <event> text
+                // /send waiting <event> text
+                let waiting_list = match pars[1] {
+                    "confirmed" => 0,
+                    "waiting" => 1,
+                    _ => 2,
+                };
+                if waiting_list < 2 {
+                    if let Ok(event_id) = pars[2].parse::<i64>() {
+                        match self.db.get_event(event_id, user.id.into()) {
+                            Ok(s) => {
+                                let text = format!(
                                         "<a href=\"tg://user?id={}\">{}</a>:\nСообщение по мероприятию <a href=\"{}\">{}</a> (Начало: {})\n{}",
                                         user.id,
                                         user.user_name1,
@@ -69,139 +67,140 @@ impl<'a> AdminMessageHandler<'a> {
                                         format_ts(s.event.ts),
                                         pars[3].to_string()
                                     );
-                                    trace!("event id {}", event_id);
-                                    if let Ok(participants) =
-                                        self.db.get_participants(event_id, waiting_list)
-                                    {
-                                        self.api.spawn(
+                                trace!("event id {}", event_id);
+                                if let Ok(participants) =
+                                    self.db.get_participants(event_id, waiting_list)
+                                {
+                                    self.api.spawn(
                                             user.id
                                                 .text(format!("The following message has been sent to {} participant(s):\n{}", participants.len(), text)).parse_mode(telegram_bot::types::ParseMode::Html).disable_preview(),
                                         );
-                                        for p in &participants {
-                                            self.api.spawn(
-                                                telegram_bot::types::UserId::new(p.user_id)
-                                                    .text(&text)
-                                                    .parse_mode(
-                                                        telegram_bot::types::ParseMode::Html,
-                                                    ),
-                                            );
-                                            tokio::time::sleep(tokio::time::Duration::from_millis(
-                                                40,
-                                            ))
+                                    for p in &participants {
+                                        self.api.spawn(
+                                            telegram_bot::types::UserId::new(p.user_id)
+                                                .text(&text)
+                                                .parse_mode(telegram_bot::types::ParseMode::Html),
+                                        );
+                                        tokio::time::sleep(tokio::time::Duration::from_millis(40))
                                             .await;
-                                            // not to hit the limits
-                                        }
+                                        // not to hit the limits
                                     }
                                 }
-                                Err(_e) => {
-                                    self.api.spawn(user.id.text("Failed to find event"));
-                                }
+                            }
+                            Err(_e) => {
+                                self.api.spawn(user.id.text("Failed to find event"));
                             }
                         }
                     }
                 }
             }
-        } else if let Some(v) = data.find("/add_to_black_list ") {
-            // /add_to_black_list id
-            if v == 0 {
-                let pars: Vec<&str> = data.split(' ').collect();
-                if pars.len() == 2 {
-                    if let Ok(user_id) = pars[1].parse::<i64>() {
-                        if self.db.add_to_black_list(user_id).is_ok() == false {
-                            error!("Failed to add user {} from black list", user_id);
-                        }
-                        self.show_black_list(user, &None);
+            "/add_to_black_list" if pars.len() == 2 => {
+                if let Ok(user_id) = pars[1].parse::<i64>() {
+                    if self.db.add_to_black_list(user_id).is_ok() == false {
+                        error!("Failed to add user {} from black list", user_id);
                     }
+                    self.show_black_list(user, &None);
                 }
             }
-        } else if let Some(v) = data.find("/remove_from_black_list ") {
-            // /remove_from_black_list id
-            if v == 0 {
-                let pars: Vec<&str> = data.split(' ').collect();
-                if pars.len() == 2 {
-                    if let Ok(user_id) = pars[1].parse::<i64>() {
-                        if self.db.remove_from_black_list(user_id).is_ok() == false {
-                            error!("Failed to remove user {} from black list", user_id);
-                        }
-                        self.show_black_list(user, &None);
+            "/remove_from_black_list" if pars.len() == 2 => {
+                if let Ok(user_id) = pars[1].parse::<i64>() {
+                    if self.db.remove_from_black_list(user_id).is_ok() == false {
+                        error!("Failed to remove user {} from black list", user_id);
                     }
+                    self.show_black_list(user, &None);
                 }
             }
-        } else if let Some(v) = data.find("/delete_event ") {
-            // /delete_event id
-            if v == 0 {
-                let pars: Vec<&str> = data.split(' ').collect();
-                if pars.len() == 2 {
-                    if let Ok(event_id) = pars[1].parse::<i64>() {
-                        if self.config.automatic_blacklisting {
-                            if let Err(e) = self.db.blacklist_absent_participants(event_id) {
-                                self.api.spawn(user.id.text(format!(
+            "/delete_event" if pars.len() == 2 => {
+                if let Ok(event_id) = pars[1].parse::<i64>() {
+                    if self.config.automatic_blacklisting {
+                        if let Err(e) = self.db.blacklist_absent_participants(event_id) {
+                            self.api.spawn(
+                                user.id.text(format!(
                                     "Failed to blacklist absent participants: {}.",
                                     e
-                                )));
-                            }
+                                )),
+                            );
                         }
-                        match self.db.delete_event(event_id) {
+                    }
+                    match self.db.delete_event(event_id) {
+                        Ok(_) => {
+                            self.api.spawn(user.id.text("Deleted"));
+                        }
+                        Err(e) => {
+                            self.api
+                                .spawn(user.id.text(format!("Failed to delete event: {}.", e)));
+                        }
+                    }
+                }
+            }
+            "/delete_reservation" if pars.len() == 3 => {
+                match (pars[1].parse::<i64>(), pars[2].parse::<i64>()) {
+                    (Ok(event_id), Ok(user_id)) => {
+                        match self.db.delete_reservation(event_id, user_id) {
                             Ok(_) => {
-                                self.api.spawn(user.id.text("Deleted"));
+                                self.api
+                                    .spawn(user.id.text(format!("Reservation deleted.")));
                             }
                             Err(e) => {
-                                self.api
-                                    .spawn(user.id.text(format!("Failed to delete event: {}.", e)));
+                                self.api.spawn(
+                                    user.id
+                                        .text(format!("Failed to delete reservation: {}.", e)),
+                                );
                             }
                         }
                     }
+                    _ => {}
                 }
             }
-        } else if let Some(v) = data.find("/set_group_leader ") {
-            if v == 0 {
-                let pars: Vec<&str> = data.split(' ').collect();
-                if pars.len() == 3 {
-                    match (pars[1].parse::<i64>(), pars[2].parse::<i64>()) {
-                        (Ok(event_id), Ok(user_id)) => {
-                            match self.db.set_group_leader(event_id, user_id) {
-                                Ok(_) => {
-                                    self.api.spawn(user.id.text(format!("Group leader set.")));
-                                }
-                                Err(e) => {
-                                    self.api.spawn(
-                                        user.id.text(format!("Failed to confirm presence: {}.", e)),
-                                    );
-                                }
+            "/set_group_leader" if pars.len() == 3 => {
+                match (pars[1].parse::<i64>(), pars[2].parse::<i64>()) {
+                    (Ok(event_id), Ok(user_id)) => {
+                        match self.db.set_group_leader(event_id, user_id) {
+                            Ok(_) => {
+                                self.api.spawn(user.id.text(format!("Group leader set.")));
+                            }
+                            Err(e) => {
+                                self.api.spawn(
+                                    user.id.text(format!("Failed to set group leader: {}.", e)),
+                                );
                             }
                         }
-                        (_, _) => {}
+                    }
+                    _ => {}
+                }
+            }
+            "/show_black_list" => {
+                self.show_black_list(user, &None);
+            }
+            "/help" => {
+                self.api.spawn(
+                        user.id
+                            .text("Добавить мероприятие: \
+                            \n { \"name\":\"WIENXTRA CHILDREN'S ACTIVITIES for children up to 13 y.o.\", \"link\":\"https://t.me/storiesvienna/21\", \"start\":\"2022-05-29 15:00 +02:00\", \"remind\":\"2022-05-28 15:00 +02:00\", \"max_adults\":15, \"max_children\":15, \"max_adults_per_reservation\":15, \"max_children_per_reservation\":15 }\
+                            \n \nПослать сообщение: \
+                            \n /send confirmed <event> текст \
+                            \n /send waiting <event> текст \
+                            \n \nЧёрный список: \
+                            \n /add_to_black_list <user> \
+                            \n /show_black_list \
+                            \n \n \
+                            \n /delete_event <event> \
+                            \n /delete_reservation <event> <user> \
+                            \n /set_group_leader <event> <user> \
+                            ").disable_preview(),
+                    );
+            }
+            _ => {
+                if let Some(ch) = data.chars().next() {
+                    if ch == '{' {
+                        self.add_event(user, data);
+                        return true;
                     }
                 }
+                return false;
             }
-        } else if data == "/show_black_list" {
-            self.show_black_list(user, &None);
-        } else if data == "/help" {
-            self.api.spawn(
-                user.id
-                    .text("Добавить мероприятие: \
-                    \n { \"name\":\"WIENXTRA CHILDREN'S ACTIVITIES for children up to 13 y.o.\", \"link\":\"https://t.me/storiesvienna/21\", \"start\":\"2022-05-29 15:00 +02:00\", \"remind\":\"2022-05-28 15:00 +02:00\", \"max_adults\":15, \"max_children\":15, \"max_adults_per_reservation\":15, \"max_children_per_reservation\":15 }\
-                    \n \nПослать сообщение: \
-                    \n /send confirmed <event> текст \
-                    \n /send waiting <event> текст \
-                    \n \nЧёрный список: \
-                    \n /add_to_black_list <user> \
-                    \n /remove_from_black_list <user> \
-                    \n /show_black_list \
-                    \n \n \
-                    \n /delete_event <event> \
-                    \n /set_group_leader <event> <user> \
-                    ").disable_preview(),
-            );
-        } else {
-            if let Some(ch) = data.chars().next() {
-                if ch == '{' {
-                    self.add_event(user, data);
-                    return true;
-                }
-            }
-            return false;
         }
+
         true
     }
 
@@ -212,9 +211,12 @@ impl<'a> AdminMessageHandler<'a> {
         message: &Option<MessageOrChannelPost>,
         _active_events: &mut HashMap<i64, i64>,
     ) -> bool {
-        if data.find("change_event_state ").is_some() {
-            let pars: Vec<&str> = data.split(' ').collect();
-            if pars.len() == 3 {
+        let pars: Vec<&str> = data.splitn(3, ' ').collect();
+        if pars.len() == 0 {
+            return false;
+        }
+        match pars[0] {
+            "change_event_state" if pars.len() == 3 => {
                 match (pars[1].parse::<i64>(), pars[2].parse::<i64>()) {
                     (Ok(event_id), Ok(state)) => {
                         match self.db.change_event_state(event_id, state) {
@@ -228,24 +230,22 @@ impl<'a> AdminMessageHandler<'a> {
                             }
                         }
                     }
-                    (_, _) => {}
+                    _ => {}
                 }
             }
-        } else if let Some(v) = data.find("remove_from_black_list ") {
-            if v == 0 {
-                let pars: Vec<&str> = data.split(' ').collect();
-                if pars.len() == 2 {
-                    if let Ok(user_id) = pars[1].parse::<i64>() {
-                        if self.db.remove_from_black_list(user_id).is_ok() == false {
-                            error!("Failed to remove user {} from black list", user_id);
-                        }
-                        self.show_black_list(user, message);
+            "remove_from_black_list" if pars.len() == 2 => {
+                if let Ok(user_id) = pars[1].parse::<i64>() {
+                    if self.db.remove_from_black_list(user_id).is_ok() == false {
+                        error!("Failed to remove user {} from black list", user_id);
                     }
+                    self.show_black_list(user, message);
                 }
             }
-        } else {
-            return false;
+            _ => {
+                return false;
+            }
         }
+
         true
     }
 
