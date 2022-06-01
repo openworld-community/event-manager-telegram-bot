@@ -17,3 +17,6 @@ delete_from_black_list_after_days = 30
 
 # how many hours before event
 too_late_to_cancel_hours = 1
+
+# send out reminders and clean up
+perform_periodic_tasks = true

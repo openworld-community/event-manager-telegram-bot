@@ -13,6 +13,7 @@ pub struct Configuration {
     pub drop_events_after_hours: i64,
     pub delete_from_black_list_after_days: i64,
     pub too_late_to_cancel_hours: i64,
+    pub perform_periodic_tasks: bool,
 }
 
 #[derive(Deserialize, Serialize, Clone, Debug)]
@@ -76,6 +77,17 @@ impl<'a> MessageHandler<'a> {
                     self.show_event_list(user.id, &None);
                 }
             }
+            "/help" => {
+                self.api.spawn(
+                    user.id
+                        .text(
+                            "Здесь вы можете бронировать места на мероприятия.\n \
+                            \n /start - показать список мероприятий \
+                            \n /help - эта подсказка",
+                        )
+                        .disable_preview(),
+                );
+            }
             _ => {
                 // Message from user - try to add as attachment to the last reservation.
                 self.add_attachment(&user, data, active_events);
@@ -127,7 +139,7 @@ impl<'a> MessageHandler<'a> {
                                 event_id,
                                 message,
                                 if black_listed {
-                                    Some("\n\nВы добавлены в список ожидания.".to_string())
+                                    Some("\n\nИзвините, но бронирование невозможно, поскольку ранее Вы не использовали и не отменили бронь. Если это ошибка, пожалуйста, свяжитесь с администратором.".to_string())
                                 } else {
                                     None
                                 },
@@ -291,20 +303,30 @@ impl<'a> MessageHandler<'a> {
                 if events.len() > 0 {
                     let mut keyboard = telegram_bot::types::InlineKeyboardMarkup::new();
                     for s in &events {
+                        let marker =
+                            if s.adults.my_reservation != 0 || s.children.my_reservation != 0 {
+                                "✅"
+                            } else if s.adults.my_waiting != 0 || s.children.my_waiting != 0 {
+                                "⏳"
+                            } else {
+                                ""
+                            };
+
                         let mut v: Vec<telegram_bot::types::InlineKeyboardButton> = Vec::new();
                         v.push(telegram_bot::types::InlineKeyboardButton::callback(
                             format!(
-                                "{} /{}({})/ {}",
+                                "{} {} / {} / {}",
+                                marker,
                                 format_ts(s.event.ts),
                                 if s.state == EventState::Open {
-                                    s.event.max_adults - s.adults.reserved
+                                    if s.event.max_adults == 0 || s.event.max_children == 0 {
+                                        (s.event.max_adults - s.adults.reserved + s.event.max_children - s.children.reserved).to_string()
+                                    }
+                                    else {
+                                        format!("{}({})", s.event.max_adults - s.adults.reserved, s.event.max_children - s.children.reserved)
+                                    }
                                 } else {
-                                    0
-                                },
-                                if s.state == EventState::Open {
-                                    s.event.max_children - s.children.reserved
-                                } else {
-                                    0
+                                    "-".to_string()
                                 },
                                 s.event.name
                             ),
@@ -312,18 +334,19 @@ impl<'a> MessageHandler<'a> {
                         ));
                         keyboard.add_row(v);
                     }
-                    let text = "Программа\nвремя / взросл.(детск.) места  / мероприятие";
+                    let header_text = "Программа\nвремя / взросл.(детск.) места  / мероприятие";
                     if let Some(msg) = callback {
                         if let MessageOrChannelPost::Message(msg) = msg {
                             self.api.spawn(
-                                msg.edit_text(text)
+                                msg.edit_text(header_text)
                                     .parse_mode(telegram_bot::types::ParseMode::Html)
                                     .disable_preview()
                                     .reply_markup(keyboard),
                             );
                         }
                     } else {
-                        self.api.spawn(user_id.text(text).reply_markup(keyboard));
+                        self.api
+                            .spawn(user_id.text(header_text).reply_markup(keyboard));
                     }
                 } else {
                     self.api.spawn(user_id.text("Нет мероприятий."));
@@ -350,7 +373,8 @@ impl<'a> MessageHandler<'a> {
                 let free_children = s.event.max_children - s.children.reserved;
                 let no_age_distinction = s.event.max_adults == 0 || s.event.max_children == 0;
                 if s.state == EventState::Open
-                    && s.adults.my_reservation + s.adults.my_waiting < s.event.max_adults_per_reservation
+                    && s.adults.my_reservation + s.adults.my_waiting
+                        < s.event.max_adults_per_reservation
                 {
                     if free_adults > 0 {
                         v.push(telegram_bot::types::InlineKeyboardButton::callback(
@@ -385,7 +409,8 @@ impl<'a> MessageHandler<'a> {
                 keyboard.add_row(v);
                 let mut v: Vec<telegram_bot::types::InlineKeyboardButton> = Vec::new();
                 if s.state == EventState::Open
-                    && s.children.my_reservation + s.children.my_waiting < s.event.max_children_per_reservation
+                    && s.children.my_reservation + s.children.my_waiting
+                        < s.event.max_children_per_reservation
                 {
                     if free_children > 0 {
                         v.push(telegram_bot::types::InlineKeyboardButton::callback(
@@ -495,7 +520,7 @@ impl<'a> MessageHandler<'a> {
                 }
                 keyboard.add_row(v);
                 let mut text = format!(
-                    "\n \n<a href=\"{}\">{}</a>\nНачало: {}",
+                    "\n \n<a href=\"{}\">{}</a>\nНачало: {}.",
                     s.event.link,
                     s.event.name,
                     format_ts(s.event.ts)
@@ -503,42 +528,35 @@ impl<'a> MessageHandler<'a> {
                 if s.state == EventState::Open {
                     if no_age_distinction {
                         text.push_str(&format!(
-                            "\nМеста: свободные - {}, моя бронь - {}",
+                            " Свободные места: {}",
                             free_adults + free_children,
-                            s.adults.my_reservation + s.children.my_reservation
                         ));
-                        if s.adults.my_waiting + s.children.my_waiting > 0 {
-                            text.push_str(&format!(
-                                ", лист ожидания - {}",
-                                s.adults.my_waiting + s.children.my_waiting
-                            ));
-                        }
                     } else {
-                        text.push_str(&format!(
-                            "\nВзрослые места: свободные - {}, моя бронь - {}",
-                            free_adults, s.adults.my_reservation
-                        ));
-                        if s.adults.my_waiting > 0 {
-                            text.push_str(&format!(", лист ожидания - {}", s.adults.my_waiting));
-                        }
-
-                        text.push_str(&format!(
-                            "\nДетские места: свободные - {}, моя бронь - {}",
-                            free_children, s.children.my_reservation
-                        ));
-                        if s.children.my_waiting > 0 {
-                            text.push_str(&format!(", лист ожидания - {}", s.children.my_waiting));
-                        }
+                        text.push_str(&format!("\nВзрослые свободные места: {}", free_adults));
+                        text.push_str(&format!("\nДетские свободные места: {}", free_children));
                     }
                 } else {
-                    text.push_str("\nЗапись остановлена.");
+                    text.push_str(" Запись остановлена.");
                 }
                 text.push_str(&format!("\n{}\n", list));
-                if s.adults.my_reservation > 0
+                if user.is_admin
+                    || s.adults.my_reservation > 0
                     || s.adults.my_waiting > 0
                     || s.children.my_reservation > 0
                     || s.children.my_waiting > 0
                 {
+                    if let Ok(messages) = self.db.get_messages(
+                        event_id,
+                        if user.is_admin { None } else { Some((s.adults.my_reservation == 0 && s.children.my_reservation == 0) as i64)},
+                    ) {
+                        if let Some(messages) = messages {
+                            text.push_str(&format!(
+                                "\n<b>Cообщения по мероприятию</b>\n{}\n",
+                                messages
+                            ));
+                        }
+                    }
+
                     if self.config.public_lists == false {
                         match self.db.get_attachment(event_id, user.id.into()) {
                             Ok(v) => match v {
@@ -550,7 +568,21 @@ impl<'a> MessageHandler<'a> {
                             _ => {}
                         }
                     }
-                    text.push_str("\nКоличество мест можно менять кнопками \"Записать/Отписать\". Примечание к брони можно добавить, послав сообщение боту.");
+                    if user.is_admin == false {
+                        text.push_str("\nКоличество мест можно менять кнопками \"Записаться/Отписаться\". Примечание к брони можно добавить, послав сообщение боту.\n");
+                    }
+                    if s.adults.my_reservation + s.children.my_reservation > 0 {
+                        text.push_str(&format!(
+                            "\n<b>У вас забронировано: {}</b>",
+                            s.adults.my_reservation + s.children.my_reservation
+                        ));
+                    }
+                    if s.adults.my_waiting + s.children.my_waiting > 0 {
+                        text.push_str(&format!(
+                            "\n<b>У вас в списке ожидания: {}</b>",
+                            s.adults.my_waiting + s.children.my_waiting
+                        ));
+                    }
                 }
                 if let Some(ps) = ps {
                     text.push_str(&ps);
@@ -632,8 +664,7 @@ impl<'a> MessageHandler<'a> {
                         }
                         if no_age_distinction {
                             list.push_str(&format!(" {}", p.adults + p.children));
-                        }
-                        else {
+                        } else {
                             list.push_str(&format!(" {} {}", p.adults, p.children));
                         }
                         if let Some(a) = &p.attachment {

@@ -2,7 +2,7 @@ use crate::db::{Event, EventDB};
 use crate::message_handler::{Configuration, MessageHandler, User};
 use crate::util::*;
 use chrono::DateTime;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use telegram_bot::{Api, CanEditMessageText, CanSendMessage, MessageOrChannelPost};
 
 #[derive(Deserialize, Serialize, Clone, Default, Debug)]
@@ -39,7 +39,7 @@ impl<'a> AdminMessageHandler<'a> {
         }
     }
 
-    pub async fn process_message(&self, user: &User, data: &str) -> bool {
+    pub async fn process_message(&self, user: &User, data: &str, admins: &HashSet<i64>) -> bool {
         let pars: Vec<&str> = data.splitn(4, ' ').collect();
         if pars.len() == 0 {
             return false;
@@ -67,6 +67,14 @@ impl<'a> AdminMessageHandler<'a> {
                                         format_ts(s.event.ts),
                                         pars[3].to_string()
                                     );
+                                if let Err(e) = self.db.save_message(
+                                    event_id,
+                                    &user.user_name1,
+                                    pars[3],
+                                    waiting_list,
+                                ) {
+                                    error!("{}", e);
+                                }
                                 trace!("event id {}", event_id);
                                 if let Ok(participants) =
                                     self.db.get_participants(event_id, waiting_list)
@@ -113,7 +121,7 @@ impl<'a> AdminMessageHandler<'a> {
             "/delete_event" if pars.len() == 2 => {
                 if let Ok(event_id) = pars[1].parse::<i64>() {
                     if self.config.automatic_blacklisting {
-                        if let Err(e) = self.db.blacklist_absent_participants(event_id) {
+                        if let Err(e) = self.db.blacklist_absent_participants(event_id, admins) {
                             self.api.spawn(
                                 user.id.text(format!(
                                     "Failed to blacklist absent participants: {}.",

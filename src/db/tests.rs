@@ -102,7 +102,7 @@ mod tests {
         assert_eq!(s.children.my_waiting, 0);
 
         // time for cleanup
-        db.clear_old_events(ts + 20 * 60 * 60, false)?;
+        db.clear_old_events(ts + 20 * 60 * 60, false, &HashSet::<i64>::new())?;
 
         let events = db.get_events(0).unwrap();
         assert_eq!(events.len(), 0);

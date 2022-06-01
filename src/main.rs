@@ -82,7 +82,7 @@ async fn main() -> std::result::Result<(), String> {
                         match &msg.kind {
                             telegram_bot::types::MessageKind::Text { data, .. } => {
                                 debug!("Text: {}", data);
-                                if user.is_admin && admin_handler.process_message(&user, data).await
+                                if user.is_admin && admin_handler.process_message(&user, data, &admins).await
                                 {
                                     continue;
                                 }
@@ -124,14 +124,16 @@ async fn main() -> std::result::Result<(), String> {
             }
             Err(_) => {
                 // Timeout elapsed?
-                perform_periodic_tasks(&db, &api, &config).await;
+                if config.perform_periodic_tasks {
+                    perform_periodic_tasks(&db, &api, &config, &admins).await;
+                }
                 next_break = tokio::time::Instant::now() + Duration::from_millis(60000);
             }
         }
     }
 }
 
-async fn perform_periodic_tasks(db: &EventDB, api: &Api, config: &Configuration) {
+async fn perform_periodic_tasks(db: &EventDB, api: &Api, config: &Configuration, admins: &HashSet<i64>) {
     let ts = get_unix_time();
     // Time to send out reminders?
     match db.get_user_reminders(ts) {
@@ -170,7 +172,11 @@ async fn perform_periodic_tasks(db: &EventDB, api: &Api, config: &Configuration)
 
     // Clean up.
     if db
-        .clear_old_events(ts - config.drop_events_after_hours * 60 * 60, config.automatic_blacklisting)
+        .clear_old_events(
+            ts - config.drop_events_after_hours * 60 * 60,
+            config.automatic_blacklisting,
+            &admins,
+        )
         .is_ok()
         == false
     {

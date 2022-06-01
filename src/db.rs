@@ -1,4 +1,4 @@
-use crate::util;
+use crate::util::{self, format_ts};
 use fallible_streaming_iterator::FallibleStreamingIterator;
 use rusqlite::{params, Connection, Result, Row};
 use std::collections::HashSet;
@@ -35,7 +35,11 @@ pub struct Counter {
 }
 
 impl Counter {
-    pub fn new(reserved: Result<i64, rusqlite::Error>, my_reservation: Result<i64, rusqlite::Error>, my_waiting: Result<i64, rusqlite::Error>) -> Result<Counter, rusqlite::Error> {
+    pub fn new(
+        reserved: Result<i64, rusqlite::Error>,
+        my_reservation: Result<i64, rusqlite::Error>,
+        my_waiting: Result<i64, rusqlite::Error>,
+    ) -> Result<Counter, rusqlite::Error> {
         Ok(Counter {
             reserved: match reserved {
                 Ok(v) => v,
@@ -75,8 +79,16 @@ impl EventStats {
                 ts: row.get("ts")?,
                 remind: 0,
             },
-            adults: Counter::new(row.get("adults"), row.get("my_adults"), row.get("my_wait_adults"))?,
-            children: Counter::new(row.get("children"), row.get("my_children"), row.get("my_wait_children"))?,
+            adults: Counter::new(
+                row.get("adults"),
+                row.get("my_adults"),
+                row.get("my_wait_adults"),
+            )?,
+            children: Counter::new(
+                row.get("children"),
+                row.get("my_children"),
+                row.get("my_wait_children"),
+            )?,
             state: match state {
                 0 => EventState::Open,
                 _ => EventState::Closed,
@@ -144,7 +156,11 @@ impl EventDB {
         Ok(0)
     }
 
-    pub fn blacklist_absent_participants(&self, event_id: i64) -> Result<(), rusqlite::Error> {
+    pub fn blacklist_absent_participants(
+        &self,
+        event_id: i64,
+        admins: &HashSet<i64>,
+    ) -> Result<(), rusqlite::Error> {
         let mut stmt = self.conn.prepare(
             "select r.*, p.user from (select event, user, user_name1, user_name2, count(user) as count from reservations where event = ?1 and waiting_list = 0 group by user) as r 
             left join presence as p on r.event = p.event and r.user = p.user"
@@ -170,11 +186,13 @@ impl EventDB {
         if checked_one {
             // Check at least one present.
             for p in list {
-                if let Err(e) = self.conn.execute(
-                    "INSERT INTO black_list (user, user_name1, user_name2, ts) VALUES (?1, ?2, ?3, ?4)",
-                    params![p.user_id, p.user_name1, p.user_name2, now],
-                ) {
-                    warn!("{}", e);
+                if admins.contains(&p.user_id) == false {
+                    if let Err(e) = self.conn.execute(
+                        "INSERT INTO black_list (user, user_name1, user_name2, ts) VALUES (?1, ?2, ?3, ?4)",
+                        params![p.user_id, p.user_name1, p.user_name2, now],
+                    ) {
+                        warn!("{}", e);
+                    }
                 }
             }
         }
@@ -216,6 +234,12 @@ impl EventDB {
             "DELETE FROM group_leaders WHERE event=?1",
             params![event_id],
         ) {
+            error!("{}", e);
+        }
+        if let Err(e) = self
+            .conn
+            .execute("DELETE FROM messages WHERE event=?1", params![event_id])
+        {
             error!("{}", e);
         }
         Ok(())
@@ -274,21 +298,16 @@ impl EventDB {
             return Ok((0, false));
         }
 
-        let (waiting_list, black_listed) = match self.is_in_black_list(user) {
-            Ok(v) => {
-                if v {
-                    (1, true)
-                } else {
-                    (wait, false)
-                }
+        if let Ok(black_listed) = self.is_in_black_list(user) {
+            if black_listed {
+                return Ok((0, true));
             }
-            _ => (wait, false),
-        };
+        }
 
         Ok((self.conn.execute(
             "INSERT INTO reservations (event, user, user_name1, user_name2, adults, children, waiting_list, ts) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
-            params![event_id, user, user_name1, user_name2, adults, children, waiting_list, ts],
-        )?, black_listed))
+            params![event_id, user, user_name1, user_name2, adults, children, wait, ts],
+        )?, false))
     }
 
     pub fn add_attachment(
@@ -439,10 +458,11 @@ impl EventDB {
 
     pub fn get_events(&self, user: i64) -> Result<Vec<EventStats>, rusqlite::Error> {
         let mut stmt = self.conn.prepare(
-            "select a.*, b.my_adults, b.my_children FROM \
+            "select a.*, b.my_adults, b.my_children, c.my_wait_adults, c.my_wait_children FROM \
             (SELECT events.id, events.name, events.link, events.max_adults, events.max_children, events.max_adults_per_reservation, events.max_children_per_reservation, events.ts, r.adults, r.children, events.state FROM events \
             LEFT JOIN (SELECT sum(adults) as adults, sum(children) as children, event FROM reservations WHERE waiting_list = 0 GROUP BY event) as r ON events.id = r.event) as a \
-            LEFT JOIN (SELECT sum(adults) as my_adults, sum(children) as my_children, event FROM reservations WHERE user = ?1 GROUP BY event) as b ON a.id = b.event order by a.ts"
+            LEFT JOIN (SELECT sum(adults) as my_adults, sum(children) as my_children, event FROM reservations WHERE waiting_list = 0 AND user = ?1 GROUP BY event) as b ON a.id = b.event \
+            LEFT JOIN (SELECT sum(adults) as my_wait_adults, sum(children) as my_wait_children, event FROM reservations WHERE waiting_list = 1 AND user = ?1 GROUP BY event) as c ON a.id = c.event order by a.ts"
         )?;
         let mut rows = stmt.query([user])?;
         let mut res = Vec::new();
@@ -603,13 +623,14 @@ impl EventDB {
         &self,
         ts: i64,
         automatic_blacklisting: bool,
+        admins: &HashSet<i64>,
     ) -> Result<(), rusqlite::Error> {
         let mut stmt = self.conn.prepare("SELECT id FROM events WHERE ts < ?1")?;
         let mut rows = stmt.query([ts - util::get_seconds_before_midnight(ts)])?;
         while let Some(row) = rows.next()? {
             let event_id: i64 = row.get(0)?;
             if automatic_blacklisting {
-                if let Err(e) = self.blacklist_absent_participants(event_id) {
+                if let Err(e) = self.blacklist_absent_participants(event_id, admins) {
                     error!("{}", e);
                 }
             }
@@ -695,22 +716,7 @@ impl EventDB {
                                 )",
                             [],
                         )?;
-                    }
-                }
-                _ => {}
-            },
-            _ => {
-                error!("Failed to query db.");
-            }
-        }
-        drop(stmt);
 
-        let mut stmt =
-            conn.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='presence'")?;
-        match stmt.query([]) {
-            Ok(rows) => match rows.count() {
-                Ok(count) => {
-                    if count == 0 {
                         conn.execute(
                             "CREATE TABLE presence (
                                 event           INTEGER NOT NULL,
@@ -729,6 +735,33 @@ impl EventDB {
                             [],
                         )?;
                         conn.execute("CREATE UNIQUE INDEX group_leaders_event_user_unique_idx ON presence (event, user)", [])?;
+                    }
+                }
+                _ => {}
+            },
+            _ => {
+                error!("Failed to query db.");
+            }
+        }
+        drop(stmt);
+
+        let mut stmt =
+            conn.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='messages'")?;
+        match stmt.query([]) {
+            Ok(rows) => match rows.count() {
+                Ok(count) => {
+                    if count == 0 {
+                        conn.execute(
+                            "CREATE TABLE messages (
+                                event           INTEGER NOT NULL,
+                                sender          text NOT NULL,
+                                waiting_list    INTEGER NOT NULL,
+                                text            text NOT NULL,
+                                ts              INTEGER NOT NULL
+                              )",
+                            [],
+                        )?;
+                        conn.execute("CREATE INDEX messages_event_index ON messages (event)", [])?;
                     }
                 }
                 _ => {}
@@ -806,5 +839,51 @@ impl EventDB {
             params![state, event_id],
         )?;
         Ok(())
+    }
+
+    pub fn save_message(
+        &self,
+        event_id: i64,
+        sender: &str,
+        text: &str,
+        waiting_list: i64,
+    ) -> Result<usize, rusqlite::Error> {
+        let now = util::get_unix_time();
+        self.conn.execute(
+            "INSERT INTO messages (event, sender, text, waiting_list, ts) VALUES (?1, ?2, ?3, ?4, ?5)",
+            params![event_id, sender, text, waiting_list, now],
+        )
+    }
+
+    pub fn get_messages(
+        &self,
+        event_id: i64,
+        waiting_list: Option<i64>,
+    ) -> Result<Option<String>, rusqlite::Error> {
+        let mut messages = String::new();
+
+        let mut stmt;
+        let mut rows = if let Some(waiting_list) = waiting_list {
+            stmt = self.conn.prepare(
+                "SELECT sender, text, ts, waiting_list FROM messages WHERE event = ?1 AND waiting_list = ?2 ORDER BY ts"
+            )?;
+            stmt.query(params![event_id, waiting_list])?
+        } else {
+            stmt = self.conn.prepare(
+                "SELECT sender, text, ts, waiting_list FROM messages WHERE event = ?1 ORDER BY ts"
+            )?;
+            stmt.query(params![event_id])?
+        };
+        while let Some(row) = rows.next()? {
+            let sender: String = row.get(0)?;
+            let text: String = row.get(1)?;
+            let ts: i64 = row.get(2)?;
+            messages.push_str(&format!("{}, {}: {}\n", sender, format_ts(ts), text));
+        }
+        if messages.len() > 0 {
+            Ok(Some(messages))
+        } else {
+            Ok(None)
+        }
     }
 }
