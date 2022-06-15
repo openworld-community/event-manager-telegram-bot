@@ -1,3 +1,4 @@
+use crate::types::{Event, EventState, User, Participant, Presence, Reminder};
 use crate::util::{self, format_ts};
 use fallible_streaming_iterator::FallibleStreamingIterator;
 use rusqlite::{params, Connection, Result, Row};
@@ -8,25 +9,6 @@ use std::println as trace;
 
 #[cfg(test)]
 mod tests;
-
-#[derive(Clone)]
-pub struct Event {
-    pub id: i64,
-    pub name: String,
-    pub link: String,
-    pub max_adults: i64,
-    pub max_children: i64,
-    pub max_adults_per_reservation: i64,
-    pub max_children_per_reservation: i64,
-    pub ts: i64,
-    pub remind: i64,
-}
-
-#[derive(PartialEq)]
-pub enum EventState {
-    Open,
-    Closed,
-}
 
 pub struct Counter {
     pub reserved: i64,
@@ -97,37 +79,6 @@ impl EventStats {
     }
 }
 
-pub struct Participant {
-    pub user_id: i64,
-    pub user_name1: String,
-    pub user_name2: String,
-    pub adults: i64,
-    pub children: i64,
-    pub attachment: Option<String>,
-}
-
-pub struct Presence {
-    pub user_id: i64,
-    pub user_name1: String,
-    pub user_name2: String,
-    pub reserved: i64,
-    pub attachment: Option<String>,
-}
-
-#[derive(Debug, PartialEq)]
-pub struct Reminder {
-    pub event_id: i64,
-    pub name: String,
-    pub link: String,
-    pub ts: i64,
-    pub user_id: i64,
-}
-
-pub struct User {
-    pub id: i64,
-    pub user_name1: String,
-    pub user_name2: String,
-}
 
 pub struct EventDB {
     conn: Connection,
@@ -135,23 +86,36 @@ pub struct EventDB {
 
 impl EventDB {
     pub fn add_event(&self, e: Event) -> Result<i64, rusqlite::Error> {
-        let res = self.conn.execute(
-            "INSERT INTO events (name, link, max_adults, max_children, max_adults_per_reservation, max_children_per_reservation, ts, remind) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
-            params![e.name, e.link, e.max_adults, e.max_children, e.max_adults_per_reservation, e.max_children_per_reservation, e.ts, e.remind],
-        )?;
-        if res > 0 {
-            let mut stmt = self
-                .conn
-                .prepare("SELECT id FROM events WHERE name = ?1 AND link = ?2 AND ts = ?3")?;
-            let mut rows = stmt.query(params![e.name, e.link, e.ts])?;
-            if let Some(row) = rows.next()? {
-                let event_id: i64 = row.get(0)?;
-                self.conn.execute(
-                    "INSERT INTO alarms (event, remind) VALUES (?1, ?2)",
-                    params![event_id, e.remind],
-                )?;
-                return Ok(event_id);
+        if e.id == 0 {
+            let res = self.conn.execute(
+                "INSERT INTO events (name, link, max_adults, max_children, max_adults_per_reservation, max_children_per_reservation, ts, remind) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+                params![e.name, e.link, e.max_adults, e.max_children, e.max_adults_per_reservation, e.max_children_per_reservation, e.ts, e.remind],
+            )?;
+            if res > 0 {
+                let mut stmt = self
+                    .conn
+                    .prepare("SELECT id FROM events WHERE name = ?1 AND link = ?2 AND ts = ?3")?;
+                let mut rows = stmt.query(params![e.name, e.link, e.ts])?;
+                if let Some(row) = rows.next()? {
+                    let event_id: i64 = row.get(0)?;
+                    self.conn.execute(
+                        "INSERT INTO alarms (event, remind) VALUES (?1, ?2)",
+                        params![event_id, e.remind],
+                    )?;
+                    return Ok(event_id);
+                }
             }
+        }
+        else {
+            self.conn.execute(
+                "UPDATE events SET name = ?1, link = ?2, max_adults = ?3, max_children = ?4, max_adults_per_reservation = ?5, max_children_per_reservation = ?6, ts = ?7, remind = ?8 \
+                    WHERE id = ?9",
+                params![e.name, e.link, e.max_adults, e.max_children, e.max_adults_per_reservation, e.max_children_per_reservation, e.ts, e.remind, e.id],
+            )?;
+            self.conn.execute(
+                "UPDATE alarms SET remind = ?1 WHERE event = ?2",
+                params![e.remind, e.id],
+            )?;    
         }
         Ok(0)
     }
@@ -248,17 +212,16 @@ impl EventDB {
     pub fn sign_up(
         &self,
         event_id: i64,
-        user: i64,
-        user_name1: &str,
-        user_name2: &str,
+        user: &User,
         adults: i64,
         children: i64,
         wait: i64,
         ts: i64,
     ) -> anyhow::Result<(usize, bool)> {
-        let s = self.get_event(event_id, user)?;
+        let user_id = user.id.into();
+        let s = self.get_event(event_id, user_id)?;
 
-        if ts > s.event.ts || s.state != EventState::Open {
+        if ts > s.event.ts || (s.state != EventState::Open && user.is_admin == false) {
             return Err(anyhow::anyhow!("Запись остановлена."));
         }
 
@@ -266,7 +229,7 @@ impl EventDB {
         let mut stmt = self
             .conn
             .prepare("select events.id from events join reservations as r on events.id = r.event where events.ts = ?1 and r.user = ?2 and events.id != ?3")?;
-        let mut rows = stmt.query(params![s.event.ts, user, s.event.id])?;
+        let mut rows = stmt.query(params![s.event.ts, user_id, s.event.id])?;
         if let Some(_) = rows.next()? {
             return Err(anyhow::anyhow!(
                 "Вы уже записаны на другое мероприятие в это время."
@@ -298,7 +261,7 @@ impl EventDB {
             return Ok((0, false));
         }
 
-        if let Ok(black_listed) = self.is_in_black_list(user) {
+        if let Ok(black_listed) = self.is_in_black_list(user_id) {
             if black_listed {
                 return Ok((0, true));
             }
@@ -306,7 +269,7 @@ impl EventDB {
 
         Ok((self.conn.execute(
             "INSERT INTO reservations (event, user, user_name1, user_name2, adults, children, waiting_list, ts) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
-            params![event_id, user, user_name1, user_name2, adults, children, wait, ts],
+            params![event_id, user_id, user.user_name1, user.user_name2, adults, children, wait, ts],
         )?, false))
     }
 
@@ -456,15 +419,20 @@ impl EventDB {
         }
     }
 
-    pub fn get_events(&self, user: i64) -> Result<Vec<EventStats>, rusqlite::Error> {
+    pub fn get_events(
+        &self,
+        user: i64,
+        offset: i64,
+        limit: i64,
+    ) -> Result<Vec<EventStats>, rusqlite::Error> {
         let mut stmt = self.conn.prepare(
             "select a.*, b.my_adults, b.my_children, c.my_wait_adults, c.my_wait_children FROM \
             (SELECT events.id, events.name, events.link, events.max_adults, events.max_children, events.max_adults_per_reservation, events.max_children_per_reservation, events.ts, r.adults, r.children, events.state FROM events \
-            LEFT JOIN (SELECT sum(adults) as adults, sum(children) as children, event FROM reservations WHERE waiting_list = 0 GROUP BY event) as r ON events.id = r.event) as a \
+            LEFT JOIN (SELECT sum(adults) as adults, sum(children) as children, event FROM reservations WHERE waiting_list = 0 GROUP BY event) as r ON events.id = r.event ORDER BY ts LIMIT ?2 OFFSET ?3) as a \
             LEFT JOIN (SELECT sum(adults) as my_adults, sum(children) as my_children, event FROM reservations WHERE waiting_list = 0 AND user = ?1 GROUP BY event) as b ON a.id = b.event \
-            LEFT JOIN (SELECT sum(adults) as my_wait_adults, sum(children) as my_wait_children, event FROM reservations WHERE waiting_list = 1 AND user = ?1 GROUP BY event) as c ON a.id = c.event order by a.ts"
+            LEFT JOIN (SELECT sum(adults) as my_wait_adults, sum(children) as my_wait_children, event FROM reservations WHERE waiting_list = 1 AND user = ?1 GROUP BY event) as c ON a.id = c.event"
         )?;
-        let mut rows = stmt.query([user])?;
+        let mut rows = stmt.query([user, limit, offset * limit])?;
         let mut res = Vec::new();
         while let Some(row) = rows.next()? {
             res.push(EventStats::new(row)?);
@@ -495,12 +463,23 @@ impl EventDB {
         &self,
         event_id: i64,
         waiting_list: i64,
+        offset: i64,
+        limit: i64,
     ) -> Result<Vec<Participant>, rusqlite::Error> {
-        let mut stmt = self.conn.prepare(
+        let mut stmt;
+        let mut rows = if limit == 0 {
+            stmt = self.conn.prepare(
             "SELECT a.*, b.attachment FROM (SELECT sum(adults) as adults, sum(children) as children, user, user_name1, user_name2, event, ts FROM reservations WHERE waiting_list = ?1 AND event = ?2 group by event, user ORDER BY ts) as a \
             LEFT JOIN attachments as b ON a.event = b.event and a.user = b.user"
-        )?;
-        let mut rows = stmt.query([waiting_list, event_id])?;
+            )?;
+            stmt.query([waiting_list, event_id])?
+        } else {
+            stmt = self.conn.prepare(
+                "SELECT a.*, b.attachment FROM (SELECT sum(adults) as adults, sum(children) as children, user, user_name1, user_name2, event, ts FROM reservations WHERE waiting_list = ?1 AND event = ?2 group by event, user ORDER BY ts LIMIT ?3 OFFSET ?4) as a \
+                LEFT JOIN attachments as b ON a.event = b.event and a.user = b.user"
+                )?;
+            stmt.query([waiting_list, event_id, limit, offset * limit])?
+        };
         let mut res = Vec::new();
         while let Some(row) = rows.next()? {
             res.push(Participant {
@@ -518,29 +497,31 @@ impl EventDB {
         Ok(res)
     }
 
-    pub fn get_presence_list(&self, event_id: i64) -> Result<Vec<Presence>, rusqlite::Error> {
+    pub fn get_presence_list(
+        &self,
+        event_id: i64,
+        offset: i64,
+        limit: i64,
+    ) -> Result<Vec<Presence>, rusqlite::Error> {
         let mut stmt = self.conn.prepare(
-            "select r.*, p.user, a.attachment from (select event, user, user_name1, user_name2, count(user) from reservations where event = ?1 and waiting_list = 0 group by user) as r \
-            left join presence as p on r.event = p.event and r.user = p.user \
-            left join attachments as a on r.event = a.event and r.user = a.user \
-            order by r.user_name1"
+                "select r.*, p.user, a.attachment from (select event, user, user_name1, user_name2, count(user) from reservations where event = ?1 and waiting_list = 0 group by user) as r \
+                left join presence as p on r.event = p.event and r.user = p.user \
+                left join attachments as a on r.event = a.event and r.user = a.user \
+                where p.user IS NULL order by r.user_name1 LIMIT ?2 OFFSET ?3"
         )?;
-        let mut rows = stmt.query([event_id])?;
+        let mut rows = stmt.query([event_id, limit, offset * limit])?;
         let mut res = Vec::new();
         while let Some(row) = rows.next()? {
-            let present: rusqlite::Result<i64> = row.get(5);
-            if let Err(_) = present {
-                res.push(Presence {
-                    user_id: row.get(1)?,
-                    user_name1: row.get(2)?,
-                    user_name2: row.get(3)?,
-                    reserved: row.get(4)?,
-                    attachment: match row.get(6) {
-                        Ok(v) => Some(v),
-                        Err(_) => None,
-                    },
-                });
-            }
+            res.push(Presence {
+                user_id: row.get(1)?,
+                user_name1: row.get(2)?,
+                user_name2: row.get(3)?,
+                reserved: row.get(4)?,
+                attachment: match row.get(6) {
+                    Ok(v) => Some(v),
+                    Err(_) => None,
+                },
+            });
         }
         Ok(res)
     }
@@ -735,22 +716,7 @@ impl EventDB {
                             [],
                         )?;
                         conn.execute("CREATE UNIQUE INDEX group_leaders_event_user_unique_idx ON presence (event, user)", [])?;
-                    }
-                }
-                _ => {}
-            },
-            _ => {
-                error!("Failed to query db.");
-            }
-        }
-        drop(stmt);
 
-        let mut stmt =
-            conn.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='messages'")?;
-        match stmt.query([]) {
-            Ok(rows) => match rows.count() {
-                Ok(count) => {
-                    if count == 0 {
                         conn.execute(
                             "CREATE TABLE messages (
                                 event           INTEGER NOT NULL,
@@ -799,17 +765,19 @@ impl EventDB {
             .execute("DELETE FROM black_list WHERE user=?1", params![user])?;
         Ok(())
     }
-    pub fn get_black_list(&self) -> Result<Vec<User>, rusqlite::Error> {
+    pub fn get_black_list(&self, offset: i64, limit: i64) -> Result<Vec<User>, rusqlite::Error> {
         let mut stmt = self
             .conn
-            .prepare("SELECT * FROM black_list order by user_name1")?;
-        let mut rows = stmt.query([])?;
+            .prepare("SELECT * FROM black_list order by user_name1 LIMIT ?1 OFFSET ?2")?;
+        let mut rows = stmt.query([limit, offset * limit])?;
         let mut res = Vec::new();
         while let Some(row) = rows.next()? {
+            let user_id: i64 = row.get(0)?;
             res.push(User {
-                id: row.get(0)?,
+                id: user_id.into(),
                 user_name1: row.get(1)?,
                 user_name2: row.get(2)?,
+                is_admin: false,
             });
         }
         Ok(res)
@@ -841,6 +809,19 @@ impl EventDB {
         Ok(())
     }
 
+    pub fn set_event_limits(
+        &self,
+        event_id: i64,
+        max_adults: i64,
+        max_children: i64,
+    ) -> Result<HashSet<i64>, rusqlite::Error> {
+        self.conn.execute(
+            "UPDATE events SET max_adults = ?1, max_children = ?2 WHERE id = ?3",
+            params![max_adults, max_children, event_id],
+        )?;
+        self.process_waiting_list(event_id, 0)
+    }
+
     pub fn save_message(
         &self,
         event_id: i64,
@@ -870,7 +851,7 @@ impl EventDB {
             stmt.query(params![event_id, waiting_list])?
         } else {
             stmt = self.conn.prepare(
-                "SELECT sender, text, ts, waiting_list FROM messages WHERE event = ?1 ORDER BY ts"
+                "SELECT sender, text, ts, waiting_list FROM messages WHERE event = ?1 ORDER BY ts",
             )?;
             stmt.query(params![event_id])?
         };
@@ -878,7 +859,22 @@ impl EventDB {
             let sender: String = row.get(0)?;
             let text: String = row.get(1)?;
             let ts: i64 = row.get(2)?;
-            messages.push_str(&format!("{}, {}: {}\n", sender, format_ts(ts), text));
+            if waiting_list.is_some() {
+                messages.push_str(&format!("{}, {}:\n{}\n\n", sender, format_ts(ts), text));
+            } else {
+                let waiting_list: i64 = row.get(3)?;
+                messages.push_str(&format!(
+                    "{}, {} ({}):\n{}\n\n",
+                    sender,
+                    format_ts(ts),
+                    if waiting_list == 0 {
+                        "to confirmed"
+                    } else {
+                        "to waiting"
+                    },
+                    text
+                ));
+            }
         }
         if messages.len() > 0 {
             Ok(Some(messages))

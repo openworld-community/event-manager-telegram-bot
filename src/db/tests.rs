@@ -3,7 +3,7 @@ mod tests {
     use crate::db::*;
 
     #[test]
-    fn test() -> Result<(), rusqlite::Error> {
+    fn test_db() -> Result<(), rusqlite::Error> {
         let db_file = "./test.db3";
         let _ = std::fs::remove_file(db_file);
         let db = EventDB::open(db_file)
@@ -32,9 +32,12 @@ mod tests {
             assert_eq!(
                 db.sign_up(
                     e.id,
-                    1000,
-                    "user_name1_1000",
-                    "user_name2_1000",
+                    &User {
+                        id: 1000.into(),
+                        user_name1: "user_name1_1000".to_string(),
+                        user_name2: "user_name2_1000".to_string(),
+                        is_admin: false
+                    },
                     0,
                     1,
                     match i == 2 {
@@ -56,9 +59,12 @@ mod tests {
         assert_eq!(
             db.sign_up(
                 e.id,
-                2000,
-                "user_name1_2000",
-                "user_name2_2000",
+                &User {
+                    id: 2000.into(),
+                    user_name1: "user_name1_2000".to_string(),
+                    user_name2: "user_name1_2000".to_string(),
+                    is_admin: false
+                },
                 0,
                 1,
                 1,
@@ -71,7 +77,7 @@ mod tests {
         let s = db.get_event(e.id, 2000).unwrap();
         assert_eq!(s.children.my_waiting, 1);
 
-        let events = db.get_events(0).unwrap();
+        let events = db.get_events(0, 0, 20).unwrap();
         assert_eq!(events.len(), 1);
 
         // time to send reminders
@@ -104,7 +110,7 @@ mod tests {
         // time for cleanup
         db.clear_old_events(ts + 20 * 60 * 60, false, &HashSet::<i64>::new())?;
 
-        let events = db.get_events(0).unwrap();
+        let events = db.get_events(0, 0, 20).unwrap();
         assert_eq!(events.len(), 0);
 
         let _ = db.conn.close();
@@ -138,17 +144,56 @@ mod tests {
 
         // sign up
         assert_eq!(
-            db.sign_up(e.id, 10, "", "", 1, 0, 0, e.ts - 30,).unwrap(),
+            db.sign_up(
+                e.id,
+                &User {
+                    id: 10.into(),
+                    user_name1: "".to_string(),
+                    user_name2: "".to_string(),
+                    is_admin: false
+                },
+                1,
+                0,
+                0,
+                e.ts - 30,
+            )
+            .unwrap(),
             (1, false)
         );
 
         // add to waiting list
         assert_eq!(
-            db.sign_up(e.id, 20, "", "", 1, 0, 1, e.ts - 20,).unwrap(),
+            db.sign_up(
+                e.id,
+                &User {
+                    id: 20.into(),
+                    user_name1: "".to_string(),
+                    user_name2: "".to_string(),
+                    is_admin: false
+                },
+                1,
+                0,
+                1,
+                e.ts - 20,
+            )
+            .unwrap(),
             (1, false)
         );
         assert_eq!(
-            db.sign_up(e.id, 30, "", "", 1, 0, 1, e.ts - 10,).unwrap(),
+            db.sign_up(
+                e.id,
+                &User {
+                    id: 30.into(),
+                    user_name1: "".to_string(),
+                    user_name2: "".to_string(),
+                    is_admin: false
+                },
+                1,
+                0,
+                1,
+                e.ts - 10,
+            )
+            .unwrap(),
             (1, false)
         );
 

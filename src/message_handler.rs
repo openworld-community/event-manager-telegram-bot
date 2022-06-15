@@ -1,49 +1,11 @@
-use crate::db::{EventDB, EventState};
-use crate::format_ts;
-use crate::util::*;
-use std::collections::{HashMap, HashSet};
-use telegram_bot::{Api, CanEditMessageText, CanSendMessage, MessageOrChannelPost, UserId};
-
-#[derive(Deserialize, Serialize, Clone, Default, Debug)]
-pub struct Configuration {
-    pub telegram_bot_token: String,
-    pub admin_ids: String,
-    pub public_lists: bool,
-    pub automatic_blacklisting: bool,
-    pub drop_events_after_hours: i64,
-    pub delete_from_black_list_after_days: i64,
-    pub too_late_to_cancel_hours: i64,
-    pub perform_periodic_tasks: bool,
-}
-
-#[derive(Deserialize, Serialize, Clone, Debug)]
-pub struct User {
-    pub id: UserId,
-    pub user_name1: String,
-    pub user_name2: String,
-    pub is_admin: bool,
-}
-
-impl User {
-    pub fn new(u: telegram_bot::User, admins: &HashSet<i64>) -> User {
-        let mut user_name1 = u.first_name.clone();
-        if let Some(v) = u.last_name.clone() {
-            user_name1.push_str(" ");
-            user_name1.push_str(&v);
-        }
-        let user_name2 = match u.username.clone() {
-            Some(name) => name,
-            None => "".to_string(),
-        };
-
-        User {
-            id: u.id,
-            user_name1,
-            user_name2: user_name2.clone(),
-            is_admin: admins.contains(&u.id.into()),
-        }
-    }
-}
+use crate::db::EventDB;
+use crate::{format_ts, get_unix_time};
+use crate::types::{Configuration, DialogState, EventState, User};
+use std::collections::HashSet;
+use telegram_bot::{
+    types::{InlineKeyboardButton, InlineKeyboardMarkup},
+    Api, CanEditMessageText, CanSendMessage, MessageOrChannelPost,
+};
 
 pub struct MessageHandler<'a> {
     db: &'a EventDB,
@@ -56,11 +18,11 @@ impl<'a> MessageHandler<'a> {
         MessageHandler { db, api, config }
     }
 
-    pub async fn process_message(
+    pub fn process_message(
         &self,
         user: &User,
         data: &str,
-        active_events: &mut HashMap<i64, i64>,
+        dialog_state: &mut DialogState,
     ) -> bool {
         let pars: Vec<&str> = data.splitn(3, ' ').collect();
         if pars.len() == 0 {
@@ -71,10 +33,10 @@ impl<'a> MessageHandler<'a> {
                 if pars.len() == 2 {
                     // Direct link
                     if let Ok(event_id) = pars[1].parse::<i64>() {
-                        self.show_event(user, event_id, &None, None);
+                        self.show_event(user, event_id, &None, None, 0);
                     }
                 } else {
-                    self.show_event_list(user.id, &None);
+                    self.show_event_list(user.id, &None, 0);
                 }
             }
             "/help" => {
@@ -90,7 +52,7 @@ impl<'a> MessageHandler<'a> {
             }
             _ => {
                 // Message from user - try to add as attachment to the last reservation.
-                self.add_attachment(&user, data, active_events);
+                self.add_attachment(&user, data, dialog_state);
             }
         }
 
@@ -102,22 +64,25 @@ impl<'a> MessageHandler<'a> {
         user: &User,
         data: &str,
         message: &Option<MessageOrChannelPost>,
-        active_events: &mut HashMap<i64, i64>,
+        dialog_state: &mut DialogState,
     ) -> bool {
         let pars: Vec<&str> = data.splitn(4, ' ').collect();
         if pars.len() == 0 {
             return false;
         }
         match pars[0] {
-            "event_list" => {
-                self.show_event_list(user.id, message);
-            }
-            "event" if pars.len() == 2 => match pars[1].parse::<i64>() {
-                Ok(event_id) => {
-                    active_events.insert(user.id.into(), event_id);
-                    self.show_event(user, event_id, message, None);
+            "event_list" if pars.len() == 2 => match pars[1].parse::<i64>() {
+                Ok(offset) => {
+                    self.show_event_list(user.id, message, offset);
                 }
-                Err(_e) => {}
+                _ => {}
+            },
+            "event" if pars.len() == 3 => match (pars[1].parse::<i64>(), pars[2].parse::<i64>()) {
+                (Ok(event_id), Ok(offset)) => {
+                    dialog_state.set_current_user_event(user.id.into(), event_id);
+                    self.show_event(user, event_id, message, None, offset);
+                }
+                _ => {}
             },
             "sign_up" if pars.len() == 4 => match pars[1].parse::<i64>() {
                 Ok(event_id) => {
@@ -125,9 +90,7 @@ impl<'a> MessageHandler<'a> {
                     let wait = pars[3] == "wait";
                     match self.db.sign_up(
                         event_id,
-                        user.id.into(),
-                        &user.user_name1,
-                        &user.user_name2,
+                        user,
                         is_adult as i64,
                         !is_adult as i64,
                         wait as i64,
@@ -143,6 +106,7 @@ impl<'a> MessageHandler<'a> {
                                 } else {
                                     None
                                 },
+                                0,
                             );
                         }
                         Err(e) => {
@@ -161,7 +125,7 @@ impl<'a> MessageHandler<'a> {
                         let is_adult = pars[2] == "adult";
                         match self.db.cancel(event_id, user.id.into(), is_adult as i64) {
                             Ok(update) => {
-                                self.show_event(user, event_id, message, None);
+                                self.show_event(user, event_id, message, None, 0);
                                 self.notify_users_on_waiting_list(event_id, update);
                             }
                             Err(e) => {
@@ -196,7 +160,7 @@ impl<'a> MessageHandler<'a> {
                         if user.is_admin != false {
                             match self.db.change_event_state(event_id, state) {
                                 Ok(_) => {
-                                    self.show_event(user, event_id, &None, None);
+                                    self.show_event(user, event_id, &None, None, 0);
                                 }
                                 Err(e) => {
                                     self.api.spawn(
@@ -211,25 +175,33 @@ impl<'a> MessageHandler<'a> {
                     _ => {}
                 }
             }
-            "show_waiting_list" if pars.len() == 2 => match pars[1].parse::<i64>() {
-                Ok(event_id) => {
-                    if self.config.public_lists || user.is_admin != false {
-                        self.show_waiting_list(user, event_id, message);
-                    } else {
-                        warn!("not allowed");
-                    }
-                }
-                Err(_e) => {}
-            },
-            "show_presence_list" if pars.len() == 2 => match pars[1].parse::<i64>() {
-                Ok(event_id) => {
-                    self.show_presence_list(event_id, user, message);
-                }
-                Err(_) => {}
-            },
-            "confirm_presence" if pars.len() == 3 => {
+            "show_waiting_list" if pars.len() == 3 => {
                 match (pars[1].parse::<i64>(), pars[2].parse::<i64>()) {
-                    (Ok(event_id), Ok(user_id)) => {
+                    (Ok(event_id), Ok(offset)) => {
+                        if self.config.public_lists || user.is_admin != false {
+                            self.show_waiting_list(user, event_id, message, offset);
+                        } else {
+                            warn!("not allowed");
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            "show_presence_list" if pars.len() == 3 => {
+                match (pars[1].parse::<i64>(), pars[2].parse::<i64>()) {
+                    (Ok(event_id), Ok(offset)) => {
+                        self.show_presence_list(event_id, user, message, offset);
+                    }
+                    _ => {}
+                }
+            }
+            "confirm_presence" if pars.len() == 4 => {
+                match (
+                    pars[1].parse::<i64>(),
+                    pars[2].parse::<i64>(),
+                    pars[3].parse::<i64>(),
+                ) {
+                    (Ok(event_id), Ok(user_id), Ok(offset)) => {
                         let user_has_permissions = if user.is_admin {
                             true
                         } else {
@@ -241,7 +213,7 @@ impl<'a> MessageHandler<'a> {
                         if user_has_permissions {
                             match self.db.confirm_presence(event_id, user_id) {
                                 Ok(_) => {
-                                    self.show_presence_list(event_id, user, message);
+                                    self.show_presence_list(event_id, user, message, offset);
                                 }
                                 Err(e) => {
                                     self.api.spawn(
@@ -257,7 +229,7 @@ impl<'a> MessageHandler<'a> {
                 }
             }
             _ => {
-                self.api.spawn(user.id.text("Faied to parse query."));
+                self.api.spawn(user.id.text("Failed to parse query."));
                 return false;
             }
         }
@@ -265,9 +237,9 @@ impl<'a> MessageHandler<'a> {
         true
     }
 
-    pub fn add_attachment(&self, user: &User, data: &str, active_events: &mut HashMap<i64, i64>) {
+    pub fn add_attachment(&self, user: &User, data: &str, dialog_state: &mut DialogState) {
         let user_id: i64 = user.id.into();
-        let event_id = match active_events.get(&user_id) {
+        let event_id = match dialog_state.get_current_user_event(&user.id) {
             Some(v) => *v,
             _ => match self.db.get_last_reservation_event(user_id) {
                 Ok(v) => v,
@@ -286,6 +258,7 @@ impl<'a> MessageHandler<'a> {
                         } else {
                             None
                         },
+                        0,
                     );
                 }
                 _ => {}
@@ -297,78 +270,98 @@ impl<'a> MessageHandler<'a> {
         &self,
         user_id: telegram_bot::UserId,
         callback: &Option<MessageOrChannelPost>,
+        offset: i64,
     ) {
-        match self.db.get_events(user_id.into()) {
+        match self
+            .db
+            .get_events(user_id.into(), offset, self.config.event_list_page_size)
+        {
             Ok(events) => {
-                if events.len() > 0 {
-                    let mut keyboard = telegram_bot::types::InlineKeyboardMarkup::new();
-                    for s in &events {
-                        let marker =
-                            if s.adults.my_reservation != 0 || s.children.my_reservation != 0 {
-                                "✅"
-                            } else if s.adults.my_waiting != 0 || s.children.my_waiting != 0 {
-                                "⏳"
-                            } else {
-                                ""
-                            };
-
-                        let mut v: Vec<telegram_bot::types::InlineKeyboardButton> = Vec::new();
-                        v.push(telegram_bot::types::InlineKeyboardButton::callback(
-                            format!(
-                                "{} {} / {} / {}",
-                                marker,
-                                format_ts(s.event.ts),
-                                if s.state == EventState::Open {
-                                    if s.event.max_adults == 0 || s.event.max_children == 0 {
-                                        (s.event.max_adults - s.adults.reserved + s.event.max_children - s.children.reserved).to_string()
-                                    }
-                                    else {
-                                        format!("{}({})", s.event.max_adults - s.adults.reserved, s.event.max_children - s.children.reserved)
-                                    }
-                                } else {
-                                    "-".to_string()
-                                },
-                                s.event.name
-                            ),
-                            format!("event {}", s.event.id),
-                        ));
-                        keyboard.add_row(v);
-                    }
-                    let header_text = "Программа\nвремя / взросл.(детск.) места  / мероприятие";
-                    if let Some(msg) = callback {
-                        if let MessageOrChannelPost::Message(msg) = msg {
-                            self.api.spawn(
-                                msg.edit_text(header_text)
-                                    .parse_mode(telegram_bot::types::ParseMode::Html)
-                                    .disable_preview()
-                                    .reply_markup(keyboard),
-                            );
-                        }
+                let mut keyboard = InlineKeyboardMarkup::new();
+                for s in &events {
+                    let marker = if s.adults.my_reservation != 0 || s.children.my_reservation != 0 {
+                        "✅"
+                    } else if s.adults.my_waiting != 0 || s.children.my_waiting != 0 {
+                        "⏳"
                     } else {
-                        self.api
-                            .spawn(user_id.text(header_text).reply_markup(keyboard));
+                        ""
+                    };
+
+                    let mut v: Vec<InlineKeyboardButton> = Vec::new();
+                    v.push(InlineKeyboardButton::callback(
+                        format!(
+                            "{} {} / {} / {}",
+                            marker,
+                            format_ts(s.event.ts),
+                            if s.state == EventState::Open {
+                                if s.event.max_adults == 0 || s.event.max_children == 0 {
+                                    (s.event.max_adults - s.adults.reserved + s.event.max_children
+                                        - s.children.reserved)
+                                        .to_string()
+                                } else {
+                                    format!(
+                                        "{}({})",
+                                        s.event.max_adults - s.adults.reserved,
+                                        s.event.max_children - s.children.reserved
+                                    )
+                                }
+                            } else {
+                                "-".to_string()
+                            },
+                            s.event.name
+                        ),
+                        format!("event {} 0", s.event.id),
+                    ));
+                    keyboard.add_row(v);
+                }
+
+                let header_text = if offset != 0 || events.len() != 0 {
+                    "Программа\nвремя / взросл.(детск.) места  / мероприятие"
+                } else {
+                    "Нет мероприятий."
+                };
+
+                add_pagination(
+                    &mut keyboard,
+                    "event_list",
+                    events.len() as i64,
+                    self.config.event_list_page_size,
+                    offset,
+                );
+
+                if let Some(msg) = callback {
+                    if let MessageOrChannelPost::Message(msg) = msg {
+                        self.api.spawn(
+                            msg.edit_text(header_text)
+                                .parse_mode(telegram_bot::types::ParseMode::Html)
+                                .disable_preview()
+                                .reply_markup(keyboard),
+                        );
                     }
                 } else {
-                    self.api.spawn(user_id.text("Нет мероприятий."));
+                    self.api
+                        .spawn(user_id.text(header_text).reply_markup(keyboard));
                 }
             }
             Err(e) => {
                 self.api
-                    .spawn(user_id.text(format!("Failed to query events: {}", e.to_string())));
+                    .spawn(user_id.text(format!("Failed to query events: {}", e)));
             }
         }
     }
+
     pub fn show_event(
         &self,
         user: &User,
         event_id: i64,
         callback: &Option<MessageOrChannelPost>,
         ps: Option<String>,
+        offset: i64,
     ) {
         match self.db.get_event(event_id, user.id.into()) {
             Ok(s) => {
-                let mut keyboard = telegram_bot::types::InlineKeyboardMarkup::new();
-                let mut v: Vec<telegram_bot::types::InlineKeyboardButton> = Vec::new();
+                let mut keyboard = InlineKeyboardMarkup::new();
+                let mut v: Vec<InlineKeyboardButton> = Vec::new();
                 let free_adults = s.event.max_adults - s.adults.reserved;
                 let free_children = s.event.max_children - s.children.reserved;
                 let no_age_distinction = s.event.max_adults == 0 || s.event.max_children == 0;
@@ -377,7 +370,7 @@ impl<'a> MessageHandler<'a> {
                         < s.event.max_adults_per_reservation
                 {
                     if free_adults > 0 {
-                        v.push(telegram_bot::types::InlineKeyboardButton::callback(
+                        v.push(InlineKeyboardButton::callback(
                             if no_age_distinction {
                                 "Записаться +1"
                             } else {
@@ -386,7 +379,7 @@ impl<'a> MessageHandler<'a> {
                             format!("sign_up {} adult nowait", s.event.id),
                         ));
                     } else {
-                        v.push(telegram_bot::types::InlineKeyboardButton::callback(
+                        v.push(InlineKeyboardButton::callback(
                             if no_age_distinction {
                                 "В лист ожидания +1"
                             } else {
@@ -397,7 +390,7 @@ impl<'a> MessageHandler<'a> {
                     }
                 }
                 if s.adults.my_reservation > 0 || s.adults.my_waiting > 0 {
-                    v.push(telegram_bot::types::InlineKeyboardButton::callback(
+                    v.push(InlineKeyboardButton::callback(
                         if no_age_distinction {
                             "Отписаться -1"
                         } else {
@@ -407,13 +400,13 @@ impl<'a> MessageHandler<'a> {
                     ));
                 }
                 keyboard.add_row(v);
-                let mut v: Vec<telegram_bot::types::InlineKeyboardButton> = Vec::new();
+                let mut v: Vec<InlineKeyboardButton> = Vec::new();
                 if s.state == EventState::Open
                     && s.children.my_reservation + s.children.my_waiting
                         < s.event.max_children_per_reservation
                 {
                     if free_children > 0 {
-                        v.push(telegram_bot::types::InlineKeyboardButton::callback(
+                        v.push(InlineKeyboardButton::callback(
                             if no_age_distinction {
                                 "Записаться +1"
                             } else {
@@ -422,7 +415,7 @@ impl<'a> MessageHandler<'a> {
                             format!("sign_up {} child nowait", s.event.id),
                         ));
                     } else {
-                        v.push(telegram_bot::types::InlineKeyboardButton::callback(
+                        v.push(InlineKeyboardButton::callback(
                             if no_age_distinction {
                                 "В лист ожидания +1"
                             } else {
@@ -433,7 +426,7 @@ impl<'a> MessageHandler<'a> {
                     }
                 }
                 if s.children.my_reservation > 0 || s.children.my_waiting > 0 {
-                    v.push(telegram_bot::types::InlineKeyboardButton::callback(
+                    v.push(InlineKeyboardButton::callback(
                         if no_age_distinction {
                             "Отписаться -1"
                         } else {
@@ -443,21 +436,30 @@ impl<'a> MessageHandler<'a> {
                     ));
                 }
                 keyboard.add_row(v);
-                let mut v: Vec<telegram_bot::types::InlineKeyboardButton> = Vec::new();
-                v.push(telegram_bot::types::InlineKeyboardButton::callback(
+                let mut v: Vec<InlineKeyboardButton> = Vec::new();
+                v.push(InlineKeyboardButton::callback(
                     "Список мероприятий",
-                    "event_list",
+                    "event_list 0",
                 ));
                 let mut list = "".to_string();
+                let mut participants_len: i64 = 0;
                 if self.config.public_lists || user.is_admin {
-                    match self.db.get_participants(event_id, 0) {
+                    match self
+                        .db
+                        .get_participants(event_id, 0, offset, self.config.event_page_size)
+                    {
                         Ok(participants) => {
+                            participants_len = participants.len() as i64;
                             if user.is_admin {
-                                list.push_str(&format!("\nМероприятие {}", event_id));
+                                list.push_str(&format!(
+                                    "\nМероприятие {} / {}({})",
+                                    event_id, s.event.max_adults, s.event.max_children
+                                ));
                             }
                             if participants.len() != 0 {
                                 list.push_str("\nЗаписались:");
                             }
+
                             for p in &participants {
                                 let id = if user.is_admin {
                                     p.user_id.to_string() + " "
@@ -485,24 +487,26 @@ impl<'a> MessageHandler<'a> {
                                 }
                             }
                         }
-                        Err(_) => {}
+                        Err(e) => {
+                            error!("Failed to get participants: {}", e);
+                        }
                     }
-                    v.push(telegram_bot::types::InlineKeyboardButton::callback(
+                    v.push(InlineKeyboardButton::callback(
                         "Список ожидания",
-                        format!("show_waiting_list {}", event_id),
+                        format!("show_waiting_list {} 0", event_id),
                     ));
                     if user.is_admin {
-                        v.push(telegram_bot::types::InlineKeyboardButton::callback(
+                        v.push(InlineKeyboardButton::callback(
                             "Присутствие",
-                            format!("show_presence_list {}", event_id),
+                            format!("show_presence_list {} 0", event_id),
                         ));
                         if s.state == EventState::Open {
-                            v.push(telegram_bot::types::InlineKeyboardButton::callback(
+                            v.push(InlineKeyboardButton::callback(
                                 "Остановить запись",
                                 format!("change_event_state {} 1", event_id),
                             ));
                         } else {
-                            v.push(telegram_bot::types::InlineKeyboardButton::callback(
+                            v.push(InlineKeyboardButton::callback(
                                 "Разрешить запись",
                                 format!("change_event_state {} 0", event_id),
                             ));
@@ -510,15 +514,23 @@ impl<'a> MessageHandler<'a> {
                     } else {
                         if let Ok(check) = self.db.is_group_leader(event_id, user.id.into()) {
                             if check {
-                                v.push(telegram_bot::types::InlineKeyboardButton::callback(
+                                v.push(InlineKeyboardButton::callback(
                                     "Присутствие",
-                                    format!("show_presence_list {}", event_id),
+                                    format!("show_presence_list {} 0", event_id),
                                 ));
                             }
                         }
                     }
                 }
                 keyboard.add_row(v);
+                add_pagination(
+                    &mut keyboard,
+                    &format!("event {}", event_id),
+                    participants_len,
+                    self.config.event_page_size,
+                    offset,
+                );
+
                 let mut text = format!(
                     "\n \n<a href=\"{}\">{}</a>\nНачало: {}.",
                     s.event.link,
@@ -547,7 +559,14 @@ impl<'a> MessageHandler<'a> {
                 {
                     if let Ok(messages) = self.db.get_messages(
                         event_id,
-                        if user.is_admin { None } else { Some((s.adults.my_reservation == 0 && s.children.my_reservation == 0) as i64)},
+                        if user.is_admin {
+                            None
+                        } else {
+                            Some(
+                                (s.adults.my_reservation == 0 && s.children.my_reservation == 0)
+                                    as i64,
+                            )
+                        },
                     ) {
                         if let Some(messages) = messages {
                             text.push_str(&format!(
@@ -606,7 +625,9 @@ impl<'a> MessageHandler<'a> {
                     );
                 }
             }
-            Err(_e) => {}
+            Err(e) => {
+                error!("Failed to fetch event: {}", e);
+            }
         }
     }
     fn show_waiting_list(
@@ -614,6 +635,7 @@ impl<'a> MessageHandler<'a> {
         user: &User,
         event_id: i64,
         callback: &Option<MessageOrChannelPost>,
+        offset: i64,
     ) {
         let mut list = "".to_string();
         let no_age_distinction;
@@ -632,15 +654,27 @@ impl<'a> MessageHandler<'a> {
                 return;
             }
         }
-        match self.db.get_participants(event_id, 1) {
+        match self
+            .db
+            .get_participants(event_id, 1, offset, self.config.event_page_size)
+        {
             Ok(participants) => {
-                let mut keyboard = telegram_bot::types::InlineKeyboardMarkup::new();
-                let mut v: Vec<telegram_bot::types::InlineKeyboardButton> = Vec::new();
-                v.push(telegram_bot::types::InlineKeyboardButton::callback(
+                let mut keyboard = InlineKeyboardMarkup::new();
+                add_pagination(
+                    &mut keyboard,
+                    &format!("show_waiting_list {}", event_id),
+                    participants.len() as i64,
+                    self.config.event_page_size,
+                    offset,
+                );
+
+                let mut v: Vec<InlineKeyboardButton> = Vec::new();
+                v.push(InlineKeyboardButton::callback(
                     "Назад",
-                    format!("event {}", event_id),
+                    format!("event {} 0", event_id),
                 ));
                 keyboard.add_row(v);
+
                 if participants.len() == 0 {
                     list.push_str("Пустой список ожидания.");
                 } else {
@@ -696,11 +730,11 @@ impl<'a> MessageHandler<'a> {
     }
     pub fn notify_users_on_waiting_list(&self, event_id: i64, update: HashSet<i64>) {
         let text = "Одно из ваших бронирований в списке ожидания подтверждено. Если вы не сможете пойти, отпишитесь, пожалуйста, чтобы дать возможность следующим в списке ожидания. Спасибо!";
-        let mut keyboard = telegram_bot::types::InlineKeyboardMarkup::new();
-        let mut v: Vec<telegram_bot::types::InlineKeyboardButton> = Vec::new();
-        v.push(telegram_bot::types::InlineKeyboardButton::callback(
+        let mut keyboard = InlineKeyboardMarkup::new();
+        let mut v: Vec<InlineKeyboardButton> = Vec::new();
+        v.push(InlineKeyboardButton::callback(
             "К мероприятию",
-            format!("event {}", event_id),
+            format!("event {} 0", event_id),
         ));
         keyboard.add_row(v);
         for user_id in update {
@@ -726,6 +760,7 @@ impl<'a> MessageHandler<'a> {
         event_id: i64,
         user: &User,
         callback: &Option<MessageOrChannelPost>,
+        offset: i64,
     ) {
         let mut header = "".to_string();
         match self.db.get_event(event_id, user.id.into()) {
@@ -742,13 +777,16 @@ impl<'a> MessageHandler<'a> {
                 return;
             }
         }
-        match self.db.get_presence_list(event_id) {
+        match self
+            .db
+            .get_presence_list(event_id, offset, self.config.presence_page_size)
+        {
             Ok(participants) => {
-                let mut keyboard = telegram_bot::types::InlineKeyboardMarkup::new();
+                let mut keyboard = InlineKeyboardMarkup::new();
                 if participants.len() != 0 {
                     header.push_str("Пожалуйста, выберите присутствующих:");
                     for p in &participants {
-                        let mut v: Vec<telegram_bot::types::InlineKeyboardButton> = Vec::new();
+                        let mut v: Vec<InlineKeyboardButton> = Vec::new();
                         let mut text;
                         if p.user_name2.len() > 0 {
                             text = format!("{} ({}) {}", p.user_name1, p.user_name2, p.reserved);
@@ -759,18 +797,26 @@ impl<'a> MessageHandler<'a> {
                             text.push_str(&format!(" - {}", a));
                         }
 
-                        v.push(telegram_bot::types::InlineKeyboardButton::callback(
+                        v.push(InlineKeyboardButton::callback(
                             text,
-                            format!("confirm_presence {} {}", event_id, p.user_id),
+                            format!("confirm_presence {} {} {}", event_id, p.user_id, offset),
                         ));
 
                         keyboard.add_row(v);
                     }
                 }
-                let mut v: Vec<telegram_bot::types::InlineKeyboardButton> = Vec::new();
-                v.push(telegram_bot::types::InlineKeyboardButton::callback(
+                add_pagination(
+                    &mut keyboard,
+                    &format!("show_presence_list {}", event_id),
+                    participants.len() as i64,
+                    self.config.presence_page_size,
+                    offset,
+                );
+
+                let mut v: Vec<InlineKeyboardButton> = Vec::new();
+                v.push(InlineKeyboardButton::callback(
                     "Назад",
-                    format!("event {}", event_id),
+                    format!("event {} 0", event_id),
                 ));
                 keyboard.add_row(v);
 
@@ -795,5 +841,30 @@ impl<'a> MessageHandler<'a> {
             }
             Err(_e) => {}
         }
+    }
+}
+
+pub fn add_pagination(
+    keyboard: &mut InlineKeyboardMarkup,
+    cmd: &str,
+    participants: i64,
+    limit: i64,
+    offset: i64,
+) {
+    if offset > 0 || participants == limit {
+        let mut pagination: Vec<InlineKeyboardButton> = Vec::new();
+        if offset > 0 {
+            pagination.push(InlineKeyboardButton::callback(
+                "⬅️",
+                format!("{} {}", cmd, offset - 1),
+            ));
+        }
+        if participants == limit {
+            pagination.push(InlineKeyboardButton::callback(
+                "➡️",
+                format!("{} {}", cmd, offset + 1),
+            ));
+        }
+        keyboard.add_row(pagination);
     }
 }

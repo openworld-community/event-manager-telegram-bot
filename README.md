@@ -2,14 +2,14 @@
 
 # Event management bot for Telegram
 
-The bot can help with basic event management tasks: sign up, cancel, remind and process waiting lists.
+The bot can help with basic event management tasks like sign up, cancel, remind, manage waiting lists, etc.
 
 ## Install
 
--   Register a bot, configure access token and administrators, build and start.
--   Check /help for event creation format.
--   Invite your audience to sign up using the link returned in response.
+-   Register a bot, configure access token, set administrators in the config file, build and start.
+-   Check /help for controls.
+-   Invite your audience to sign up using links returned on event creation.
 
 ## To do
 
--   Internationalization. (The initial language choice was to help my Russian friends leaving in Europe organize events for children and mothers fleeing war in Ukraine.)
+-   Internationalization. (The initial language choice was made to help a european non-profit organize events for children and their mothers fleeing the war in Ukraine ![flag](https://smartlike.org/favicons/ukraine.svg).)
