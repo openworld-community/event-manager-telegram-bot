@@ -730,7 +730,7 @@ impl EventDB {
                         conn.execute("CREATE INDEX messages_event_index ON messages (event)", [])?;
                     }
                 }
-                _ => {}
+                _ => panic!("DB is corrupt.")
             },
             _ => {
                 error!("Failed to query db.");

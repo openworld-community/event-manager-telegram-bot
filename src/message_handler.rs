@@ -75,14 +75,14 @@ impl<'a> MessageHandler<'a> {
                 Ok(offset) => {
                     self.show_event_list(user.id, message, offset);
                 }
-                _ => {}
+                _ => error!("Failed to parse query: {}", data)
             },
             "event" if pars.len() == 3 => match (pars[1].parse::<i64>(), pars[2].parse::<i64>()) {
                 (Ok(event_id), Ok(offset)) => {
                     dialog_state.set_current_user_event(user.id.into(), event_id);
                     self.show_event(user, event_id, message, None, offset);
                 }
-                _ => {}
+                _ => error!("Failed to parse query: {}", data)
             },
             "sign_up" if pars.len() == 4 => match pars[1].parse::<i64>() {
                 Ok(event_id) => {
@@ -173,7 +173,7 @@ impl<'a> MessageHandler<'a> {
                             warn!("not allowed");
                         }
                     }
-                    _ => {}
+                    _ => error!("Failed to parse query: {}", data)
                 }
             }
             "show_waiting_list" if pars.len() == 3 => {
@@ -185,7 +185,7 @@ impl<'a> MessageHandler<'a> {
                             warn!("not allowed");
                         }
                     }
-                    _ => {}
+                    _ => error!("Failed to parse query: {}", data)
                 }
             }
             "show_presence_list" if pars.len() == 3 => {
@@ -193,7 +193,7 @@ impl<'a> MessageHandler<'a> {
                     (Ok(event_id), Ok(offset)) => {
                         self.show_presence_list(event_id, user, message, offset);
                     }
-                    _ => {}
+                    _ => error!("Failed to parse query: {}", data)
                 }
             }
             "confirm_presence" if pars.len() == 4 => {
@@ -226,7 +226,7 @@ impl<'a> MessageHandler<'a> {
                             self.api.spawn(user.id.text(format!("Not allowed.")));
                         }
                     }
-                    _ => {}
+                    _ => error!("Failed to parse query: {}", data)
                 }
             }
             _ => {
@@ -262,7 +262,7 @@ impl<'a> MessageHandler<'a> {
                         0,
                     );
                 }
-                _ => {}
+                _ => error!("Failed to parse attachment: {}", data)
             }
         }
     }
@@ -579,13 +579,12 @@ impl<'a> MessageHandler<'a> {
 
                     if self.config.public_lists == false {
                         match self.db.get_attachment(event_id, user.id.into()) {
-                            Ok(v) => match v {
-                                Some(attachment) => {
+                            Ok(v) => {
+                                if let Some(attachment) = v {
                                     text.push_str(&format!("\nПримечание: {}.", attachment));
                                 }
-                                _ => {}
                             },
-                            _ => {}
+                            Err(e) => error!("Failed to get attachment: {}", e)
                         }
                     }
                     if user.is_admin == false {

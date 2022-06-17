@@ -244,7 +244,7 @@ impl<'a> AdminMessageHandler<'a> {
                             }
                         }
                     }
-                    _ => {}
+                    _ => error!("Failed to parse command: {}", data)
                 }
             }
             "confirm_remove_from_black_list" if pars.len() == 2 => {
