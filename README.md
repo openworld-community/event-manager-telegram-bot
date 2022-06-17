@@ -12,4 +12,4 @@ The bot can help with basic event management tasks like sign up, cancel, remind,
 
 ## To do
 
--   Internationalization. (The initial language choice was made to help a european non-profit organize events for children and their mothers fleeing the war in Ukraine ![flag](https://smartlike.org/favicons/ukraine.svg).)
+-   Internationalization. The initial language choice was made to help a european non-profit organize events for children and their mothers fleeing the war in Ukraine. ![flag](https://smartlike.org/favicons/ukraine.svg)
