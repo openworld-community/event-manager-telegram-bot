@@ -1,5 +1,9 @@
 #[macro_use]
 extern crate serde;
+#[macro_use]
+extern crate num_derive;
+extern crate num;
+use chrono::DateTime;
 use futures::StreamExt;
 use std::collections::HashSet;
 use std::{fs::File, io::prelude::*, time::Duration};
@@ -18,6 +22,8 @@ use db::EventDB;
 use message_handler::MessageHandler;
 use types::{Configuration, DialogState, User};
 use util::{format_ts, get_unix_time};
+
+use crate::types::MessageType;
 
 #[tokio::main]
 async fn main() -> std::result::Result<(), String> {
@@ -40,17 +46,18 @@ async fn main() -> std::result::Result<(), String> {
     let mut contents = String::new();
     f.read_to_string(&mut contents).unwrap();
 
-    let config = toml::from_str::<Configuration>(&contents)
+    let mut config = toml::from_str::<Configuration>(&contents)
         .map_err(|e| format!("Error loading configuration: {}", e))
         .unwrap();
 
-    let mut admins: HashSet<i64> = HashSet::new();
-    let ids: Vec<&str> = config.admin_ids.split(',').collect();
-    for id in &ids {
-        if let Ok(v) = id.parse::<i64>() {
-            admins.insert(v);
-        }
-    }
+    parse_config(&mut config).unwrap();
+
+    let admins = config
+        .admin_ids
+        .split(',')
+        .into_iter()
+        .filter_map(|id| id.parse::<i64>().ok())
+        .collect();
 
     let api = Api::new(config.telegram_bot_token.clone());
     let db = db::EventDB::open("./events.db3")
@@ -62,7 +69,7 @@ async fn main() -> std::result::Result<(), String> {
     let mut stream = api.stream();
     let mut dialog_state = DialogState::new(1_000_000);
 
-    let mut next_break = tokio::time::Instant::now() + Duration::from_millis(6000);
+    let mut next_break = tokio::time::Instant::now() + Duration::from_millis(1000);
     loop {
         match tokio::time::timeout_at(next_break, stream.next()).await {
             Ok(update) => {
@@ -75,7 +82,7 @@ async fn main() -> std::result::Result<(), String> {
                         }
                     };
                     if let UpdateKind::Message(msg) = update.kind {
-                        debug!("message: {:?}", &msg);
+                        //debug!("message: {:?}", &msg);
                         if msg.from.is_bot {
                             warn!("Bot ignored");
                             continue;
@@ -83,12 +90,11 @@ async fn main() -> std::result::Result<(), String> {
                         let user = User::new(msg.from, &admins);
                         match &msg.kind {
                             telegram_bot::types::MessageKind::Text { data, .. } => {
-                                debug!("Text: {}", data);
+                                //debug!("Text: {}", data);
                                 if !user.is_admin
-                                    || !admin_handler.process_message(&user, data, &admins).await
+                                    || !admin_handler.process_message(&user, data, &admins)
                                 {
-                                    message_handler
-                                        .process_message(&user, data, &mut dialog_state);
+                                    message_handler.process_message(&user, data, &mut dialog_state);
                                 }
                             }
                             _ => {
@@ -96,7 +102,7 @@ async fn main() -> std::result::Result<(), String> {
                             }
                         }
                     } else if let UpdateKind::CallbackQuery(msg) = update.kind {
-                        debug!("callback: {:?}", &msg);
+                        //debug!("callback: {:?}", &msg);
                         api.spawn(msg.acknowledge());
                         let user = User::new(msg.from, &admins);
                         match msg.data {
@@ -121,76 +127,122 @@ async fn main() -> std::result::Result<(), String> {
             }
             Err(_) => {
                 // Timeout elapsed?
-                if config.perform_periodic_tasks {
-                    perform_periodic_tasks(&db, &api, &config, &admins).await;
-                }
-                next_break = tokio::time::Instant::now() + Duration::from_millis(60000);
+                next_break = tokio::time::Instant::now()
+                    + Duration::from_millis(
+                        if perform_bulk_tasks(&db, &api, &config, &admins).await {
+                            1000
+                        } else {
+                            30000
+                        },
+                    )
             }
         }
     }
 }
 
-async fn perform_periodic_tasks(
+async fn perform_bulk_tasks(
     db: &EventDB,
     api: &Api,
     config: &Configuration,
     admins: &HashSet<i64>,
-) {
-    // Time to send out reminders?
+) -> bool {
+    let mut notifications = 0;
+    let mut batch_contains_waiting_list_prompt = false;
     let ts = get_unix_time();
-    match db.get_user_reminders(ts) {
-        Ok(reminders) => {
-            for s in &reminders {
-                let mut keyboard = telegram_bot::types::InlineKeyboardMarkup::new();
-                let mut v: Vec<telegram_bot::types::InlineKeyboardButton> = Vec::new();
-                v.push(telegram_bot::types::InlineKeyboardButton::callback(
-                    "Отменить моё участие",
-                    format!("wontgo {}", s.event_id),
-                ));
-                keyboard.add_row(v);
-                debug!("sending reminder");
-                api.spawn(
-                    telegram_bot::types::UserId::new(s.user_id).text(
-                        format!("\nЗдравствуйте!\nНе забудьте, пожалуйста, что вы записались на\n<a href=\"{}\">{}</a>\
-                        \nНачало: {}\n\
-                        <b>ВНИМАНИЕ!</b> Если вы не сможете прийти и не отмените бронь заблаговременно, то не сможете больше бронировать. Извините, но бесплатные билеты не должны пропадать.\n",
-                        s.link, s.name, format_ts(s.ts), )
-                    )
-                    .parse_mode(telegram_bot::types::ParseMode::Html)
-                    .disable_preview()
-                    .reply_markup(keyboard),
-                );
-                tokio::time::sleep(Duration::from_millis(40)).await;
-                // not to hit the limits
+    let num_seconds_from_midnight = ts % 86400;
+
+    if num_seconds_from_midnight >= config.mailing_hours_from.unwrap()
+        && num_seconds_from_midnight < config.mailing_hours_to.unwrap()
+    {
+        match db.get_pending_messages(ts, config.limit_bulk_notifications_per_second) {
+            Ok(messages) => {
+                for m in messages {
+                    notifications += m.recipients.len();
+                    let mut keyboard = telegram_bot::types::InlineKeyboardMarkup::new();
+                    let v = vec![telegram_bot::types::InlineKeyboardButton::callback(
+                        "К мероприятию",
+                        format!("event {} 0", m.event_id),
+                    )];
+                    keyboard.add_row(v);
+                    for u in m.recipients {
+                        debug!("Sending notification {} to {} {}", m.message_id, u, &m.text);
+                        match api
+                            .send_timeout(
+                                telegram_bot::types::UserId::new(u)
+                                    .text(&m.text)
+                                    .parse_mode(telegram_bot::types::ParseMode::Html)
+                                    .disable_preview()
+                                    .reply_markup(keyboard.clone()),
+                                Duration::from_secs(2),
+                            )
+                            .await
+                        {
+                            Ok(result) => {
+                                if result.is_none() {
+                                    return false; // time-out - retry later
+                                }
+                            }
+                            Err(e) => {
+                                // don't retry - user might have blocked the bot
+                                error!("Failed to deliver notification: {}", e);
+                            }
+                        }
+                        if let Err(e) = db.save_receipt(m.message_id, u) {
+                            error!("Failed to save receipt: {}", e);
+                        }
+                        if m.message_type == MessageType::WaitingListPrompt {
+                            batch_contains_waiting_list_prompt = true;
+                        }
+                    }
+                }
             }
-            if db.clear_user_reminders(ts).is_ok() == false {
-                error!("Failed to clear reminders at {}", ts);
+            Err(e) => {
+                error!("Failed to get pending messages: {}", e);
             }
-        }
-        Err(_e) => {
-            error!("Failed to get reminders at {}", ts);
         }
     }
 
-    // Clean up.
-    if db
-        .clear_old_events(
-            ts - config.drop_events_after_hours * 60 * 60,
-            config.automatic_blacklisting,
-            &admins,
-        )
-        .is_ok()
-        == false
-    {
-        error!("Failed to clear old events at {}", ts);
-    }
+    if config.cleanup_old_events {
+        // Clean up.
+        if db
+            .clear_old_events(
+                ts - config.drop_events_after_hours * 60 * 60,
+                config.automatic_blacklisting,
+                config.cancel_future_reservations_on_ban,
+                &admins,
+            )
+            .is_ok()
+            == false
+        {
+            error!("Failed to clear old events at {}", ts);
+        }
 
-    // Process black lists.
-    if db
-        .clear_black_list(ts - config.delete_from_black_list_after_days * 24 * 60 * 60)
-        .is_ok()
-        == false
-    {
-        error!("Failed to clear black list at {}", ts);
+        // Age black lists.
+        if db
+            .clear_black_list(ts - config.delete_from_black_list_after_days * 24 * 60 * 60)
+            .is_ok()
+            == false
+        {
+            error!("Failed to clear black list at {}", ts);
+        }
+    }
+    notifications > 0 && batch_contains_waiting_list_prompt == false
+}
+
+fn parse_config(config: &mut Configuration) -> Result<(), String> {
+    let parts: Vec<&str> = config.mailing_hours.split('.').collect();
+    if parts.len() != 3 {
+        return Err("Wrong mailing hours format.".to_string());
+    }
+    match (
+        DateTime::parse_from_str(&format!("2022-07-06 {}", parts[0]), "%Y-%m-%d %H:%M  %z"),
+        DateTime::parse_from_str(&format!("2022-07-06 {}", parts[2]), "%Y-%m-%d %H:%M  %z"),
+    ) {
+        (Ok(from), Ok(to)) => {
+            config.mailing_hours_from = Some(from.timestamp() % 86400);
+            config.mailing_hours_to = Some(to.timestamp() % 86400);
+            Ok(())
+        }
+        _ => Err("Failed to farse mailing hours.".to_string()),
     }
 }

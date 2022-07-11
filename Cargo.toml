@@ -21,6 +21,9 @@ log = "0.4"
 env_logger = "0.9.0"
 tokio = { version =  "1.8", features = ["rt-multi-thread", "macros"] }
 fallible-streaming-iterator = "0.1.9"
+num = "0.3"
+num-traits = "0.2"
+num-derive = "0.3"
 
 [dependencies.chrono]
 features = ["serde"]

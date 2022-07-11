@@ -11,10 +11,17 @@ pub struct Configuration {
     pub drop_events_after_hours: i64,
     pub delete_from_black_list_after_days: i64,
     pub too_late_to_cancel_hours: i64,
-    pub perform_periodic_tasks: bool,
+    pub cleanup_old_events: bool,
     pub event_list_page_size: i64,
     pub event_page_size: i64,
     pub presence_page_size: i64,
+    pub cancel_future_reservations_on_ban: bool,
+    pub support: String,
+    pub help: String,
+    pub limit_bulk_notifications_per_second: i64,
+    pub mailing_hours: String,
+    pub mailing_hours_from: Option<i64>,
+    pub mailing_hours_to: Option<i64>,
 }
 
 pub type EventId = i64;
@@ -84,13 +91,14 @@ pub struct Presence {
     pub attachment: Option<String>,
 }
 
-#[derive(Debug, PartialEq)]
-pub struct Reminder {
+pub struct MessageBatch {
+    pub message_id: i64,
     pub event_id: i64,
-    pub name: String,
-    pub link: String,
-    pub ts: i64,
-    pub user_id: i64,
+    pub sender: String,
+    pub message_type: MessageType,
+    pub waiting_list: i64,
+    pub text: String,
+    pub recipients: Vec<i64>,
 }
 
 pub struct DialogState {
@@ -109,4 +117,11 @@ impl DialogState {
     pub fn set_current_user_event(&mut self, user: UserId, event: EventId) {
         self.current_user_events.put(user, event);
     }
+}
+
+#[derive(FromPrimitive, ToPrimitive, PartialEq)]
+pub enum MessageType {
+    Direct = 0,
+    Reminder = 1,
+    WaitingListPrompt = 2,
 }

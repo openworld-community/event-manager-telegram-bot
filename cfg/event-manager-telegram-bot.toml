@@ -18,5 +18,18 @@ delete_from_black_list_after_days = 30
 # how many hours before event
 too_late_to_cancel_hours = 1
 
-# send out reminders and clean up
-perform_periodic_tasks = true
+# pagination
+event_list_page_size = 20
+event_page_size = 40
+presence_page_size = 40
+
+# cancel all user reservations when banned
+cancel_future_reservations_on_ban = false
+
+# when sending bulk notifications to multiple users
+limit_bulk_notifications_per_second = 20
+
+cleanup_old_events = true
+
+# don't send messages outside these hours
+mailing_hours = "08:00 +02:00..21:00 +02:00"

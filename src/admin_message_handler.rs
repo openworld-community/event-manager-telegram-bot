@@ -1,7 +1,7 @@
 use crate::db::EventDB;
 use crate::message_handler::MessageHandler;
-use crate::types::{Configuration, Event, User};
-use crate::util::format_ts;
+use crate::types::{Configuration, Event, MessageType, User};
+use crate::util::{format_event_title, format_ts};
 use chrono::DateTime;
 use std::collections::HashSet;
 use telegram_bot::{Api, CanEditMessageText, CanSendMessage, MessageOrChannelPost};
@@ -19,6 +19,7 @@ struct NewEvent {
     max_children_per_reservation: i64,
 }
 
+/// Admin dialog handler.
 pub struct AdminMessageHandler<'a> {
     db: &'a EventDB,
     api: &'a Api,
@@ -41,7 +42,8 @@ impl<'a> AdminMessageHandler<'a> {
         }
     }
 
-    pub async fn process_message(&self, user: &User, data: &str, admins: &HashSet<i64>) -> bool {
+    /// Command line processor.
+    pub fn process_message(&self, user: &User, data: &str, admins: &HashSet<i64>) -> bool {
         let pars: Vec<&str> = data.splitn(4, ' ').collect();
         if pars.len() == 0 {
             return false;
@@ -62,53 +64,56 @@ impl<'a> AdminMessageHandler<'a> {
                         match self.db.get_event(event_id, user.id.into()) {
                             Ok(s) => {
                                 let text = format!(
-                                        "<a href=\"tg://user?id={}\">{}</a>:\nСообщение по мероприятию <a href=\"{}\">{}</a> (Начало: {})\n{}",
+                                        "<a href=\"tg://user?id={}\">{}</a>:\nСообщение по мероприятию {} (Начало: {})\n{}",
                                         user.id,
                                         user.user_name1,
-                                        s.event.link,
-                                        s.event.name,
+                                        format_event_title(&s.event),
                                         format_ts(s.event.ts),
                                         pars[3].to_string()
                                     );
-                                if let Err(e) = self.db.save_message(
-                                    event_id,
-                                    &user.user_name1,
-                                    pars[3],
-                                    waiting_list,
-                                ) {
-                                    error!("{}", e);
-                                }
 
-                                if let Ok(participants) =
-                                    self.db.get_participants(event_id, waiting_list, 0, 0)
+                                if self
+                                    .db
+                                    .enqueue_message(
+                                        event_id,
+                                        &user.user_name1,
+                                        waiting_list,
+                                        MessageType::Direct,
+                                        &text,
+                                        crate::util::get_unix_time(),
+                                    )
+                                    .is_ok()
                                 {
                                     self.api.spawn(
                                         user.id
-                                                .text(format!("The following message has been sent to {} participant(s):\n{}", participants.len(), text)).parse_mode(telegram_bot::types::ParseMode::Html).disable_preview(),
+                                                .text(format!("The following message has been scheduled for sending:\n{}", text)).parse_mode(telegram_bot::types::ParseMode::Html).disable_preview(),
                                         );
-                                    for p in &participants {
-                                        self.api.spawn(
-                                            telegram_bot::types::UserId::new(p.user_id)
-                                                .text(&text)
-                                                .parse_mode(telegram_bot::types::ParseMode::Html),
-                                        );
-                                        tokio::time::sleep(tokio::time::Duration::from_millis(40))
-                                            .await;
-                                        // not to hit the limits
-                                    }
+                                } else {
+                                    self.api.spawn(
+                                        user.id
+                                            .text(format!("Failed to send message."))
+                                            .parse_mode(telegram_bot::types::ParseMode::Html)
+                                            .disable_preview(),
+                                    );
                                 }
                             }
-                            Err(_e) => {
+                            Err(e) => {
                                 self.api.spawn(user.id.text("Failed to find event"));
+                                error!("Failed to find event: {}", e);
                             }
                         }
                     }
                 }
             }
-            "/add_to_black_list" if pars.len() == 2 => {
+            "/ban" if pars.len() == 2 => {
                 if let Ok(user_id) = pars[1].parse::<i64>() {
-                    if self.db.add_to_black_list(user_id).is_ok() == false {
-                        error!("Failed to add user {} from black list", user_id);
+                    if self
+                        .db
+                        .add_to_black_list(user_id, self.config.cancel_future_reservations_on_ban)
+                        .is_ok()
+                        == false
+                    {
+                        error!("Failed to add user {} to black list", user_id);
                     }
                     self.show_black_list(user, 0, &None);
                 }
@@ -124,7 +129,11 @@ impl<'a> AdminMessageHandler<'a> {
             "/delete_event" if pars.len() == 2 => {
                 if let Ok(event_id) = pars[1].parse::<i64>() {
                     if self.config.automatic_blacklisting {
-                        if let Err(e) = self.db.blacklist_absent_participants(event_id, admins) {
+                        if let Err(e) = self.db.blacklist_absent_participants(
+                            event_id,
+                            admins,
+                            self.config.cancel_future_reservations_on_ban,
+                        ) {
                             self.api.spawn(
                                 user.id.text(format!(
                                     "Failed to blacklist absent participants: {}.",
@@ -148,10 +157,14 @@ impl<'a> AdminMessageHandler<'a> {
                 if let (Ok(event_id), Ok(user_id)) =
                     (pars[1].parse::<i64>(), pars[2].parse::<i64>())
                 {
-                    response = self.db.delete_reservation(event_id, user_id).map_or_else(
-                        |e| format!("Failed to delete reservation: {}.", e),
-                        |_| "Reservation deleted.".to_string(),
-                    );
+                    response = match self.db.delete_reservation(event_id, user_id) {
+                        Ok(_) => {
+                            format!("Reservation deleted.")
+                        }
+                        Err(e) => {
+                            format!("Failed to delete reservation: {}.", e)
+                        }
+                    };
                 }
             }
             "/set_group_leader" if pars.len() == 3 => {
@@ -192,7 +205,7 @@ impl<'a> AdminMessageHandler<'a> {
                             \n /send confirmed <event> текст \
                             \n /send waiting <event> текст \
                             \n \nЧёрный список: \
-                            \n /add_to_black_list <user> \
+                            \n /ban <user> \
                             \n /show_black_list \
                             \n \
                             \n /delete_event <event> \
@@ -219,6 +232,7 @@ impl<'a> AdminMessageHandler<'a> {
         true
     }
 
+    /// Callback query processor.
     pub fn process_query(
         &self,
         user: &User,
@@ -244,30 +258,32 @@ impl<'a> AdminMessageHandler<'a> {
                             }
                         }
                     }
-                    _ => error!("Failed to parse command: {}", data)
+                    _ => error!("Failed to parse command: {}", data),
                 }
             }
             "confirm_remove_from_black_list" if pars.len() == 2 => {
                 if let Ok(user_id) = pars[1].parse::<i64>() {
-                    let mut keyboard = telegram_bot::types::InlineKeyboardMarkup::new();
-                    let mut v: Vec<telegram_bot::types::InlineKeyboardButton> = Vec::new();
-                    v.push(telegram_bot::types::InlineKeyboardButton::callback(
-                        "да",
-                        format!("remove_from_black_list {}", user_id),
-                    ));
-                    v.push(telegram_bot::types::InlineKeyboardButton::callback(
-                        "нет",
-                        "show_black_list 0",
-                    ));
-                    keyboard.add_row(v);
+                    if let Ok(reason) = self.db.get_ban_reason(user_id) {
+                        let mut keyboard = telegram_bot::types::InlineKeyboardMarkup::new();
+                        let mut v: Vec<telegram_bot::types::InlineKeyboardButton> = Vec::new();
+                        v.push(telegram_bot::types::InlineKeyboardButton::callback(
+                            "да",
+                            format!("remove_from_black_list {}", user_id),
+                        ));
+                        v.push(telegram_bot::types::InlineKeyboardButton::callback(
+                            "нет",
+                            "show_black_list 0",
+                        ));
+                        keyboard.add_row(v);
 
-                    if let Some(msg) = message {
-                        let header = format!("Удалить пользавателя <a href=\"tg://user?id={0}\">{0}</a> из чёрного списка?", user_id);
-                        self.api.spawn(
-                            msg.edit_text(header)
-                                .parse_mode(telegram_bot::types::ParseMode::Html)
-                                .reply_markup(keyboard),
-                        );
+                        if let Some(msg) = message {
+                            let header = format!("Причина бана: {reason}\nУдалить пользавателя <a href=\"tg://user?id={0}\">{0}</a> из чёрного списка?", user_id);
+                            self.api.spawn(
+                                msg.edit_text(header)
+                                    .parse_mode(telegram_bot::types::ParseMode::Html)
+                                    .reply_markup(keyboard),
+                            );
+                        }
                     }
                 }
             }
@@ -345,22 +361,21 @@ impl<'a> AdminMessageHandler<'a> {
         {
             Ok(participants) => {
                 let mut keyboard = telegram_bot::types::InlineKeyboardMarkup::new();
-                if participants.len() != 0 {
-                    for u in &participants {
-                        let mut v: Vec<telegram_bot::types::InlineKeyboardButton> = Vec::new();
-                        let text;
-                        if u.user_name2.len() > 0 {
-                            text = format!("{} ({}) {}", u.user_name1, u.user_name2, u.id);
-                        } else {
-                            text = format!("{} {}", u.user_name1, u.id);
-                        }
-                        v.push(telegram_bot::types::InlineKeyboardButton::callback(
-                            text,
+                participants
+                    .iter()
+                    .map(|u| {
+                        vec![telegram_bot::types::InlineKeyboardButton::callback(
+                            if u.user_name2.len() > 0 {
+                                format!("{} ({}) {}", u.user_name1, u.user_name2, u.id)
+                            } else {
+                                format!("{} {}", u.user_name1, u.id)
+                            },
                             format!("confirm_remove_from_black_list {}", u.id),
-                        ));
-                        keyboard.add_row(v);
-                    }
-                }
+                        )]
+                    })
+                    .for_each(|r| {
+                        keyboard.add_row(r);
+                    });
 
                 crate::message_handler::add_pagination(
                     &mut keyboard,
@@ -394,7 +409,9 @@ impl<'a> AdminMessageHandler<'a> {
                     );
                 }
             }
-            Err(_e) => {}
+            Err(e) => {
+                error!("Failed to get black list: {}", e);
+            }
         }
     }
 }

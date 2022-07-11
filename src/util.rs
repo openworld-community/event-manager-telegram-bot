@@ -1,5 +1,6 @@
 use chrono::{DateTime, Local, NaiveDateTime, Utc};
 use std::time::{SystemTime, UNIX_EPOCH};
+use crate::types::Event;
 
 pub fn get_unix_time() -> i64 {
     let t = SystemTime::now();
@@ -15,6 +16,18 @@ pub fn format_ts(ts: i64) -> String {
     let datetime: DateTime<Utc> = DateTime::from_utc(naive, Utc);
     let local: DateTime<Local> = datetime.into();
     local.format("%d.%m %H:%M").to_string()
+}
+
+pub fn format_event_title(event: &Event) -> String {
+    if event.link.len() > 0 {
+        format!(
+            "<a href=\"{}\">{}</a>",
+            event.link,
+            event.name,
+        )
+    } else {
+        event.name.to_string()
+    }
 }
 
 #[test]
