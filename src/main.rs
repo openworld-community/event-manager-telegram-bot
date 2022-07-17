@@ -3,13 +3,20 @@ extern crate serde;
 #[macro_use]
 extern crate num_derive;
 extern crate num;
-use chrono::DateTime;
-use futures::StreamExt;
 use std::collections::HashSet;
+use std::sync::Arc;
 use std::{fs::File, io::prelude::*, time::Duration};
-use telegram_bot::{Api, CanAnswerCallbackQuery, CanSendMessage, UpdateKind};
+use tokio::sync::Mutex;
 #[macro_use]
 extern crate log;
+extern crate r2d2;
+extern crate r2d2_sqlite;
+extern crate rusqlite;
+use teloxide::{
+    prelude::*,
+    types::{InlineKeyboardButton, InlineKeyboardMarkup, ParseMode, Update, UserId},
+    RequestError,
+};
 
 mod admin_message_handler;
 mod db;
@@ -17,16 +24,13 @@ mod message_handler;
 mod types;
 mod util;
 
-use admin_message_handler::AdminMessageHandler;
-use db::EventDB;
-use message_handler::MessageHandler;
-use types::{Configuration, DialogState, User};
+use crate::types::MessageType;
+use r2d2_sqlite::SqliteConnectionManager;
+use types::{Configuration, Context};
 use util::{format_ts, get_unix_time};
 
-use crate::types::MessageType;
-
 #[tokio::main]
-async fn main() -> std::result::Result<(), String> {
+async fn main() {
     env_logger::init();
     let matches = clap::App::new("event-manager-telegram-bot")
         .version(option_env!("CARGO_PKG_VERSION").unwrap_or(""))
@@ -50,199 +54,219 @@ async fn main() -> std::result::Result<(), String> {
         .map_err(|e| format!("Error loading configuration: {}", e))
         .unwrap();
 
-    parse_config(&mut config).unwrap();
+    config.parse().unwrap();
 
-    let admins = config
+    let admins: HashSet<u64> = config
         .admin_ids
         .split(',')
         .into_iter()
-        .filter_map(|id| id.parse::<i64>().ok())
+        .filter_map(|id| id.parse::<u64>().ok())
         .collect();
 
-    let api = Api::new(config.telegram_bot_token.clone());
-    let db = db::EventDB::open("./events.db3")
-        .map_err(|e| format!("Failed to init db: {}", e))
-        .unwrap();
+    let manager = SqliteConnectionManager::file("./events.db3");
+    let pool = r2d2::Pool::new(manager).unwrap();
+    if let Ok(conn) = pool.get() {
+        db::create(&conn).expect("Failed to create db.");
+    }
 
-    let message_handler = MessageHandler::new(&db, &api, &config);
-    let admin_handler = AdminMessageHandler::new(&db, &api, &config, &message_handler);
-    let mut stream = api.stream();
-    let mut dialog_state = DialogState::new(1_000_000);
+    let bot = Bot::new(&config.telegram_bot_token).auto_send();
 
+    let context = Arc::new(Context {
+        config,
+        pool,
+        admins,
+        sign_up_mutex: Arc::new(Mutex::new(0u64)),
+    });
+
+    tokio::spawn(perform_bulk_tasks(bot.clone(), context.clone()));
+
+    let handler = dptree::entry()
+        .branch(Update::filter_message().endpoint(message_handler))
+        .branch(Update::filter_callback_query().endpoint(callback_handler));
+
+    Dispatcher::builder(bot, handler)
+        .dependencies(dptree::deps![context])
+        .default_handler(|upd| async move {
+            log::warn!("Unhandled update: {:?}", upd);
+        })
+        .error_handler(LoggingErrorHandler::with_custom_text(
+            "An error has occurred in the dispatcher",
+        ))
+        .build()
+        .setup_ctrlc_handler()
+        .dispatch()
+        .await;
+}
+
+async fn message_handler(
+    msg: Message,
+    bot: AutoSend<Bot>,
+    context: Arc<Context>,
+) -> Result<(), RequestError> {
+    if let Some(text) = msg.text() {
+        if let Some(user) = msg.from() {
+            if user.is_bot {
+                warn!("Bot ignored");
+                return Ok(());
+            }
+            trace!("received {:?}", msg);
+            let u = crate::types::User::new(&user, &context.admins);
+            if let Ok(conn) = context.pool.get() {
+                let reply = if u.is_admin {
+                    crate::admin_message_handler::handle_message(&conn, &u, text, &context)
+                } else {
+                    crate::message_handler::handle_message(&conn, &u, text, &context)
+                };
+                match reply {
+                    Ok(reply) => {
+                        trace!("reply {:?}", reply);
+                        reply.send(&msg, &bot).await?;
+                    }
+                    Err(e) => {
+                        error!("Error in reply: {}", e);
+                        bot.send_message(msg.chat.id, e.to_string()).await?;
+                    }
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+async fn callback_handler(
+    q: CallbackQuery,
+    bot: AutoSend<Bot>,
+    context: Arc<Context>,
+) -> Result<(), RequestError> {
+    match (q.message, q.data) {
+        (Some(msg), Some(data)) => {
+            trace!("received {:?}", data);
+            let u = crate::types::User::new(&q.from, &context.admins);
+            let mut lock;
+            if data.starts_with("sign_up ") {
+                lock = context.sign_up_mutex.lock().await;
+                *lock = *lock + 1;
+                // todo: use event based locking
+            }
+            if let Ok(conn) = context.pool.get() {
+                let reply = if u.is_admin {
+                    crate::admin_message_handler::handle_callback(&conn, &u, &data, &context)
+                } else {
+                    crate::message_handler::handle_callback(&conn, &u, &data, &context)
+                };
+                match reply {
+                    Ok(reply) => {
+                        trace!("reply {:?}", reply);
+                        reply.edit(&msg, &bot).await?;
+                    }
+                    Err(e) => {
+                        error!("Error in reply: {}", e);
+                        bot.send_message(msg.chat.id, e.to_string()).await?;
+                    }
+                }
+            }
+        }
+        _ => {
+            if let Some(id) = q.inline_message_id {
+                bot.edit_message_text_inline(id, "Failed to parse inline query")
+                    .await?;
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Bulk mailing and houskeeping task
+async fn perform_bulk_tasks(bot: AutoSend<Bot>, ctx: Arc<Context>) -> Result<bool, RequestError> {
     let mut next_break = tokio::time::Instant::now() + Duration::from_millis(1000);
     loop {
-        match tokio::time::timeout_at(next_break, stream.next()).await {
-            Ok(update) => {
-                if let Some(update) = update {
-                    let update = match update {
-                        Ok(v) => v,
-                        Err(e) => {
-                            error!("Failed to parse update: {}", e);
-                            continue;
-                        }
-                    };
-                    if let UpdateKind::Message(msg) = update.kind {
-                        //debug!("message: {:?}", &msg);
-                        if msg.from.is_bot {
-                            warn!("Bot ignored");
-                            continue;
-                        }
-                        let user = User::new(msg.from, &admins);
-                        match &msg.kind {
-                            telegram_bot::types::MessageKind::Text { data, .. } => {
-                                //debug!("Text: {}", data);
-                                if !user.is_admin
-                                    || !admin_handler.process_message(&user, data, &admins)
-                                {
-                                    message_handler.process_message(&user, data, &mut dialog_state);
-                                }
-                            }
-                            _ => {
-                                error!("Failed to parse message.");
-                            }
-                        }
-                    } else if let UpdateKind::CallbackQuery(msg) = update.kind {
-                        //debug!("callback: {:?}", &msg);
-                        api.spawn(msg.acknowledge());
-                        let user = User::new(msg.from, &admins);
-                        match msg.data {
-                            Some(data) => {
-                                if !user.is_admin
-                                    || !admin_handler.process_query(&user, &data, &msg.message)
-                                {
-                                    message_handler.process_query(
-                                        &user,
-                                        &data,
-                                        &msg.message,
-                                        &mut dialog_state,
-                                    );
-                                }
-                            }
-                            None => {
-                                error!("Failed to parse callback.");
-                            }
-                        }
-                    }
+        tokio::time::sleep_until(next_break).await;
+
+        let mut notifications = 0;
+        let mut batch_contains_waiting_list_prompt = false;
+        let ts = get_unix_time();
+        let num_seconds_from_midnight = ts % 86400;
+
+        if num_seconds_from_midnight >= ctx.config.mailing_hours_from.unwrap()
+            && num_seconds_from_midnight < ctx.config.mailing_hours_to.unwrap()
+        {
+            let messages = if let Ok(conn) = ctx.pool.get() {
+                match db::get_pending_messages(
+                    &conn,
+                    ts,
+                    ctx.config.limit_bulk_notifications_per_second,
+                ) {
+                    Ok(messages) => messages,
+                    Err(_e) => return Ok(false),
                 }
-            }
-            Err(_) => {
-                // Timeout elapsed?
-                next_break = tokio::time::Instant::now()
-                    + Duration::from_millis(
-                        if perform_bulk_tasks(&db, &api, &config, &admins).await {
-                            1000
-                        } else {
-                            30000
-                        },
-                    )
-            }
-        }
-    }
-}
+            } else {
+                Vec::new()
+            };
 
-async fn perform_bulk_tasks(
-    db: &EventDB,
-    api: &Api,
-    config: &Configuration,
-    admins: &HashSet<i64>,
-) -> bool {
-    let mut notifications = 0;
-    let mut batch_contains_waiting_list_prompt = false;
-    let ts = get_unix_time();
-    let num_seconds_from_midnight = ts % 86400;
-
-    if num_seconds_from_midnight >= config.mailing_hours_from.unwrap()
-        && num_seconds_from_midnight < config.mailing_hours_to.unwrap()
-    {
-        match db.get_pending_messages(ts, config.limit_bulk_notifications_per_second) {
-            Ok(messages) => {
-                for m in messages {
-                    notifications += m.recipients.len();
-                    let mut keyboard = telegram_bot::types::InlineKeyboardMarkup::new();
-                    let v = vec![telegram_bot::types::InlineKeyboardButton::callback(
+            for m in messages {
+                notifications += m.recipients.len();
+                let keyboard: Vec<Vec<InlineKeyboardButton>> =
+                    vec![vec![InlineKeyboardButton::callback(
                         "К мероприятию",
                         format!("event {} 0", m.event_id),
-                    )];
-                    keyboard.add_row(v);
-                    for u in m.recipients {
-                        debug!("Sending notification {} to {} {}", m.message_id, u, &m.text);
-                        match api
-                            .send_timeout(
-                                telegram_bot::types::UserId::new(u)
-                                    .text(&m.text)
-                                    .parse_mode(telegram_bot::types::ParseMode::Html)
-                                    .disable_preview()
-                                    .reply_markup(keyboard.clone()),
-                                Duration::from_secs(2),
-                            )
-                            .await
-                        {
-                            Ok(result) => {
-                                if result.is_none() {
-                                    return false; // time-out - retry later
-                                }
-                            }
-                            Err(e) => {
-                                // don't retry - user might have blocked the bot
-                                error!("Failed to deliver notification: {}", e);
-                            }
-                        }
-                        if let Err(e) = db.save_receipt(m.message_id, u) {
+                    )]];
+                let keyboard = InlineKeyboardMarkup::new(keyboard);
+                for u in m.recipients {
+                    debug!("Sending notification {} to {} {}", m.message_id, u, &m.text);
+                    bot.send_message(UserId(u), &m.text)
+                        .parse_mode(ParseMode::Html)
+                        .disable_web_page_preview(true)
+                        .reply_markup(keyboard.clone())
+                        .await?;
+
+                    if let Ok(conn) = ctx.pool.get() {
+                        if let Err(e) = db::save_receipt(&conn, m.message_id, u) {
                             error!("Failed to save receipt: {}", e);
                         }
-                        if m.message_type == MessageType::WaitingListPrompt {
-                            batch_contains_waiting_list_prompt = true;
-                        }
+                    }
+                    if m.message_type == MessageType::WaitingListPrompt {
+                        batch_contains_waiting_list_prompt = true;
                     }
                 }
             }
-            Err(e) => {
-                error!("Failed to get pending messages: {}", e);
+        }
+
+        if ctx.config.cleanup_old_events {
+            if let Ok(conn) = ctx.pool.get() {
+                // Clean up.
+                if db::clear_old_events(
+                    &conn,
+                    ts - ctx.config.drop_events_after_hours * 60 * 60,
+                    ctx.config.automatic_blacklisting,
+                    ctx.config.cancel_future_reservations_on_ban,
+                    &ctx.admins,
+                )
+                .is_ok()
+                    == false
+                {
+                    error!("Failed to clear old events at {}", ts);
+                }
+
+                // Age black lists.
+                if db::clear_black_list(
+                    &conn,
+                    ts - ctx.config.delete_from_black_list_after_days * 24 * 60 * 60,
+                )
+                .is_ok()
+                    == false
+                {
+                    error!("Failed to clear black list at {}", ts);
+                }
             }
         }
-    }
 
-    if config.cleanup_old_events {
-        // Clean up.
-        if db
-            .clear_old_events(
-                ts - config.drop_events_after_hours * 60 * 60,
-                config.automatic_blacklisting,
-                config.cancel_future_reservations_on_ban,
-                &admins,
-            )
-            .is_ok()
-            == false
-        {
-            error!("Failed to clear old events at {}", ts);
-        }
-
-        // Age black lists.
-        if db
-            .clear_black_list(ts - config.delete_from_black_list_after_days * 24 * 60 * 60)
-            .is_ok()
-            == false
-        {
-            error!("Failed to clear black list at {}", ts);
-        }
-    }
-    notifications > 0 && batch_contains_waiting_list_prompt == false
-}
-
-fn parse_config(config: &mut Configuration) -> Result<(), String> {
-    let parts: Vec<&str> = config.mailing_hours.split('.').collect();
-    if parts.len() != 3 {
-        return Err("Wrong mailing hours format.".to_string());
-    }
-    match (
-        DateTime::parse_from_str(&format!("2022-07-06 {}", parts[0]), "%Y-%m-%d %H:%M  %z"),
-        DateTime::parse_from_str(&format!("2022-07-06 {}", parts[2]), "%Y-%m-%d %H:%M  %z"),
-    ) {
-        (Ok(from), Ok(to)) => {
-            config.mailing_hours_from = Some(from.timestamp() % 86400);
-            config.mailing_hours_to = Some(to.timestamp() % 86400);
-            Ok(())
-        }
-        _ => Err("Failed to farse mailing hours.".to_string()),
+        next_break = tokio::time::Instant::now()
+            + Duration::from_millis(
+                if notifications > 0 && batch_contains_waiting_list_prompt == false {
+                    1000
+                } else {
+                    30000
+                },
+            );
     }
 }

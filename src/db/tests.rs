@@ -1,14 +1,17 @@
 #[cfg(test)]
 mod tests {
     use crate::db::*;
+    use r2d2_sqlite::SqliteConnectionManager;
+    use teloxide::types::UserId;
 
     #[test]
     fn test_db() -> Result<(), rusqlite::Error> {
         let db_file = "./test.db3";
         let _ = std::fs::remove_file(db_file);
-        let db = EventDB::open(db_file)
-            .map_err(|e| format!("Failed to init db: {}", e.to_string()))
-            .unwrap();
+        let manager = SqliteConnectionManager::file(db_file);
+        let pool = r2d2::Pool::new(manager).unwrap();
+        let conn = pool.get().unwrap();
+        create(&conn).expect("Failed to create db.");
 
         let ts = 1650445814;
 
@@ -26,15 +29,16 @@ mod tests {
         let event_id = 1;
 
         // new event
-        assert_eq!(db.add_event(e.clone()), Ok(1));
+        assert_eq!(add_event(&conn, e.clone()), Ok(1));
 
         // user 1000 reserves for two children and places one on the waiting list
         for i in 0..3 {
             assert_eq!(
-                db.sign_up(
+                sign_up(
+                    &conn,
                     event_id,
                     &User {
-                        id: 1000.into(),
+                        id: UserId(1000),
                         user_name1: "user_name1_1000".to_string(),
                         user_name2: "user_name2_1000".to_string(),
                         is_admin: false
@@ -52,16 +56,17 @@ mod tests {
             );
         }
 
-        let s = db.get_event(event_id, 1000)?;
+        let s = get_event(&conn, event_id, 1000)?;
         assert_eq!(s.children.my_reservation, 2);
         assert_eq!(s.children.my_waiting, 1);
 
         // user 2000 places one child on the waiting list
         assert_eq!(
-            db.sign_up(
+            sign_up(
+                &conn,
                 event_id,
                 &User {
-                    id: 2000.into(),
+                    id: UserId(2000),
                     user_name1: "user_name1_2000".to_string(),
                     user_name2: "user_name1_2000".to_string(),
                     is_admin: false
@@ -75,19 +80,24 @@ mod tests {
             (1, false)
         );
 
-        let s = db.get_event(event_id, 2000).unwrap();
+        let s = get_event(&conn, event_id, 2000).unwrap();
         assert_eq!(s.children.my_waiting, 1);
 
-        let events = db.get_events(0, 0, 20).unwrap();
+        let events = get_events(&conn, 0, 0, 20).unwrap();
         assert_eq!(events.len(), 1);
 
         // time for cleanup
-        db.clear_old_events(ts + 20 * 60 * 60, false, false, &HashSet::<i64>::new())?;
+        clear_old_events(
+            &conn,
+            ts + 20 * 60 * 60,
+            false,
+            false,
+            &HashSet::<u64>::new(),
+        )?;
 
-        let events = db.get_events(0, 0, 20).unwrap();
+        let events = get_events(&conn, 0, 0, 20).unwrap();
         assert_eq!(events.len(), 0);
 
-        let _ = db.conn.close();
         Ok(())
     }
 
@@ -96,9 +106,10 @@ mod tests {
     fn test_waiting_list() -> Result<(), rusqlite::Error> {
         let db_file = "./test1.db3";
         let _ = std::fs::remove_file(db_file);
-        let db = EventDB::open(db_file)
-            .map_err(|e| format!("Failed to init db: {}", e.to_string()))
-            .unwrap();
+        let manager = SqliteConnectionManager::file(db_file);
+        let pool = r2d2::Pool::new(manager).unwrap();
+        let conn = pool.get().unwrap();
+        create(&conn).expect("Failed to create db.");
 
         let ts = 1650445814;
 
@@ -116,14 +127,15 @@ mod tests {
         let event_id = 1;
 
         // new event
-        assert_eq!(db.add_event(e.clone()), Ok(1));
+        assert_eq!(add_event(&conn, e.clone()), Ok(1));
 
         // sign up
         assert_eq!(
-            db.sign_up(
+            sign_up(
+                &conn,
                 event_id,
                 &User {
-                    id: 10.into(),
+                    id: UserId(10),
                     user_name1: "".to_string(),
                     user_name2: "".to_string(),
                     is_admin: false
@@ -139,10 +151,11 @@ mod tests {
 
         // add to waiting list
         assert_eq!(
-            db.sign_up(
+            sign_up(
+                &conn,
                 event_id,
                 &User {
-                    id: 20.into(),
+                    id: UserId(20),
                     user_name1: "".to_string(),
                     user_name2: "".to_string(),
                     is_admin: false
@@ -156,10 +169,11 @@ mod tests {
             (1, false)
         );
         assert_eq!(
-            db.sign_up(
+            sign_up(
+                &conn,
                 event_id,
                 &User {
-                    id: 30.into(),
+                    id: UserId(30),
                     user_name1: "".to_string(),
                     user_name2: "".to_string(),
                     is_admin: false
@@ -173,54 +187,53 @@ mod tests {
             (1, false)
         );
 
-        let s = db.get_event(event_id, 10)?;
+        let s = get_event(&conn, event_id, 10)?;
         assert_eq!(s.adults.my_reservation, 1);
 
-        let s = db.get_event(event_id, 20)?;
+        let s = get_event(&conn, event_id, 20)?;
         assert_eq!(s.adults.my_reservation, 0);
         assert_eq!(s.adults.my_waiting, 1);
 
-        let s = db.get_event(event_id, 30)?;
+        let s = get_event(&conn, event_id, 30)?;
         assert_eq!(s.adults.my_reservation, 0);
         assert_eq!(s.adults.my_waiting, 1);
 
-        db.cancel(event_id, 10, 1)?;
+        cancel(&conn, event_id, 10, 1)?;
 
-        let s = db.get_event(event_id, 10)?;
+        let s = get_event(&conn, event_id, 10)?;
         assert_eq!(s.adults.my_reservation, 0);
 
-        let s = db.get_event(event_id, 20)?;
+        let s = get_event(&conn, event_id, 20)?;
         assert_eq!(s.adults.my_reservation, 1);
         assert_eq!(s.adults.my_waiting, 0);
 
-        let s = db.get_event(event_id, 30)?;
+        let s = get_event(&conn, event_id, 30)?;
         assert_eq!(s.adults.my_reservation, 0);
         assert_eq!(s.adults.my_waiting, 1);
 
-        db.cancel(event_id, 20, 1)?;
+        cancel(&conn, event_id, 20, 1)?;
 
-        let s = db.get_event(event_id, 20)?;
+        let s = get_event(&conn, event_id, 20)?;
         assert_eq!(s.adults.my_reservation, 0);
 
-        let s = db.get_event(event_id, 30)?;
+        let s = get_event(&conn, event_id, 30)?;
         assert_eq!(s.adults.my_reservation, 1);
         assert_eq!(s.adults.my_waiting, 0);
 
-        db.cancel(event_id, 30, 1)?;
+        cancel(&conn, event_id, 30, 1)?;
 
-        let s = db.get_event(event_id, 10)?;
+        let s = get_event(&conn, event_id, 10)?;
         assert_eq!(s.adults.my_reservation, 0);
         assert_eq!(s.adults.my_waiting, 0);
 
-        let s = db.get_event(event_id, 20)?;
+        let s = get_event(&conn, event_id, 20)?;
         assert_eq!(s.adults.my_reservation, 0);
         assert_eq!(s.adults.my_waiting, 0);
 
-        let s = db.get_event(event_id, 30)?;
+        let s = get_event(&conn, event_id, 30)?;
         assert_eq!(s.adults.my_reservation, 0);
         assert_eq!(s.adults.my_waiting, 0);
 
-        let _ = db.conn.close();
         Ok(())
     }
 }
