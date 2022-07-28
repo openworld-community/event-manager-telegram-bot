@@ -10,6 +10,7 @@ use teloxide::{
 use crate::db;
 use r2d2::PooledConnection;
 use r2d2_sqlite::SqliteConnectionManager;
+use serde_compact::compact;
 
 /// User dialog handler.
 /// Command line processor.
@@ -51,6 +52,58 @@ pub fn handle_message(
     Err(anyhow!("Unknown command"))
 }
 
+#[compact]
+#[derive(Serialize, Deserialize, Clone)]
+pub enum CallbackQuery {
+    EventList {
+        offset: u64,
+    },
+    Event {
+        event_id: u64,
+        offset: u64,
+    },
+    SignUp {
+        event_id: u64,
+        is_adult: bool,
+        wait: bool,
+    },
+    Cancel {
+        event_id: u64,
+        is_adult: bool,
+    },
+    WontGo {
+        event_id: u64,
+    },
+    ShowWaitingList {
+        event_id: u64,
+        offset: u64,
+    },
+    ShowPresenceList {
+        event_id: u64,
+        offset: u64,
+    },
+    ConfirmPresence {
+        event_id: u64,
+        user_id: u64,
+        offset: u64,
+    },
+
+    // admin callbacks
+    ChangeEventState {
+        event_id: u64,
+        state: u64,
+    },
+    ShowBlackList {
+        offset: u64,
+    },
+    RemoveFromBlackList {
+        user_id: u64,
+    },
+    ConfirmRemoveFromBlackList {
+        user_id: u64,
+    },
+}
+
 /// Callback query processor.
 pub fn handle_callback(
     conn: &PooledConnection<SqliteConnectionManager>,
@@ -58,23 +111,16 @@ pub fn handle_callback(
     data: &str,
     ctx: &Context,
 ) -> anyhow::Result<Reply> {
-    let pars: Vec<&str> = data.splitn(4, ' ').collect();
-    if pars.len() == 0 {
-        return Err(anyhow!("Unknown command"));
-    }
-    match pars[0] {
-        "event_list" if pars.len() == 2 => match pars[1].parse::<u64>() {
-            Ok(offset) => show_event_list(conn, user.id.0, ctx, offset),
-            _ => Err(anyhow!("Failed to parse query: {}", data)),
-        },
-        "event" if pars.len() == 3 => match (pars[1].parse::<u64>(), pars[2].parse::<u64>()) {
-            (Ok(event_id), Ok(offset)) => show_event(conn, user, event_id, ctx, None, offset),
-            _ => Err(anyhow!("Failed to parse query: {}", data)),
-        },
-        "sign_up" if pars.len() == 4 => match pars[1].parse::<u64>() {
-            Ok(event_id) => {
-                let is_adult = pars[2] == "adult";
-                let wait = pars[3] == "wait";
+    if let Ok(q) = serde_json::from_str::<CallbackQuery>(&data) {
+        use CallbackQuery::*;
+        match q {
+            EventList { offset } => show_event_list(conn, user.id.0, ctx, offset),
+            Event { event_id, offset } => show_event(conn, user, event_id, ctx, None, offset),
+            SignUp {
+                event_id,
+                is_adult,
+                wait,
+            } => {
                 match db::sign_up(
                     conn,
                     event_id,
@@ -100,11 +146,7 @@ pub fn handle_callback(
                     Err(e) => Err(anyhow!("{}", e)),
                 }
             }
-            Err(e) => Err(anyhow!("Failed sign up: {}", e)),
-        },
-        "cancel" if pars.len() == 3 => {
-            if let Ok(event_id) = pars[1].parse::<u64>() {
-                let is_adult = pars[2] == "adult";
+            Cancel { event_id, is_adult } => {
                 let user_id = user.id.0;
                 match db::cancel(conn, event_id, user_id, is_adult as u64) {
                     Ok(_) => {
@@ -141,13 +183,9 @@ pub fn handle_callback(
                     }
                     Err(e) => Err(anyhow!("Failed to cancel reservation: {}.", e)),
                 }
-            } else {
-                Err(anyhow!("Failed to get event id."))
             }
-        }
-        "wontgo" if pars.len() == 2 => {
-            match pars[1].parse::<u64>() {
-                Ok(event_id) => match db::wontgo(conn, event_id, user.id.0) {
+            WontGo { event_id } => {
+                match db::wontgo(conn, event_id, user.id.0) {
                     Ok(_) => {
                         if is_too_late_to_cancel(conn, event_id, user, ctx) {
                             Ok(Reply::new("К сожалению, вы отказываетесь от билетов слишком поздно и не сможете больше бронировать бесплатные билеты.".to_string()))
@@ -156,71 +194,46 @@ pub fn handle_callback(
                         }
                     }
                     Err(e) => Err(anyhow!("Failed to add event: {}.", e)),
-                },
-                Err(e) => Err(anyhow!("Failed to cancel: {}", e)),
-            }
-        }
-        "change_event_state" if pars.len() == 3 => {
-            match (pars[1].parse::<u64>(), pars[2].parse::<u64>()) {
-                (Ok(event_id), Ok(state)) => {
-                    if user.is_admin != false {
-                        match db::change_event_state(conn, event_id, state) {
-                            Ok(_) => show_event(conn, user, event_id, ctx, None, 0),
-                            Err(e) => Err(anyhow!("Failed to close event: {}.", e)),
-                        }
-                    } else {
-                        Err(anyhow!("not allowed"))
-                    }
                 }
-                _ => Err(anyhow!("Failed to parse query: {}", data)),
             }
-        }
-        "show_waiting_list" if pars.len() == 3 => {
-            match (pars[1].parse::<u64>(), pars[2].parse::<u64>()) {
-                (Ok(event_id), Ok(offset)) => {
-                    if ctx.config.public_lists || user.is_admin != false {
-                        show_waiting_list(conn, user, event_id, ctx, offset)
-                    } else {
-                        Err(anyhow!("not allowed"))
-                    }
+            ShowWaitingList { event_id, offset } => {
+                if ctx.config.public_lists || user.is_admin != false {
+                    show_waiting_list(conn, user, event_id, ctx, offset)
+                } else {
+                    Err(anyhow!("not allowed"))
                 }
-                _ => Err(anyhow!("Failed to parse query: {}", data)),
             }
-        }
-        "show_presence_list" if pars.len() == 3 => {
-            match (pars[1].parse::<u64>(), pars[2].parse::<u64>()) {
-                (Ok(event_id), Ok(offset)) => show_presence_list(conn, event_id, user, ctx, offset),
-                _ => Err(anyhow!("Failed to parse query: {}", data)),
+            ShowPresenceList { event_id, offset } => {
+                show_presence_list(conn, event_id, user, ctx, offset)
             }
-        }
-        "confirm_presence" if pars.len() == 4 => {
-            match (
-                pars[1].parse::<u64>(),
-                pars[2].parse::<u64>(),
-                pars[3].parse::<u64>(),
-            ) {
-                (Ok(event_id), Ok(user_id), Ok(offset)) => {
-                    let user_has_permissions = if user.is_admin {
-                        true
-                    } else {
-                        match db::is_group_leader(conn, event_id, user.id.0) {
-                            Ok(res) => res,
-                            Err(_) => false,
-                        }
-                    };
-                    if user_has_permissions {
-                        match db::confirm_presence(conn, event_id, user_id) {
-                            Ok(_) => show_presence_list(conn, event_id, user, ctx, offset),
-                            Err(e) => Err(anyhow!("Failed to confirm presence: {}.", e)),
-                        }
-                    } else {
-                        Err(anyhow!("not allowed"))
+            ConfirmPresence {
+                event_id,
+                user_id,
+                offset,
+            } => {
+                let user_has_permissions = if user.is_admin {
+                    true
+                } else {
+                    match db::is_group_leader(conn, event_id, user.id.0) {
+                        Ok(res) => res,
+                        Err(_) => false,
                     }
+                };
+                if user_has_permissions {
+                    match db::confirm_presence(conn, event_id, user_id) {
+                        Ok(_) => show_presence_list(conn, event_id, user, ctx, offset),
+                        Err(e) => Err(anyhow!("Failed to confirm presence: {}.", e)),
+                    }
+                } else {
+                    Err(anyhow!("not allowed"))
                 }
-                _ => Err(anyhow!("Failed to parse query: {}", data)),
+            }
+            _ => {
+                Err(anyhow!("Not allowed."))
             }
         }
-        _ => Err(anyhow!("Failed to parse query.")),
+    } else {
+        Err(anyhow!("Failed to parse query."))
     }
 }
 
@@ -294,7 +307,11 @@ pub fn show_event_list(
                             },
                             s.event.name
                         ),
-                        format!("event {} 0", s.event.id),
+                        &serde_json::to_string(&CallbackQuery::Event {
+                            event_id: s.event.id,
+                            offset: 0,
+                        })
+                        .unwrap(),
                     )]
                 })
                 .collect();
@@ -305,14 +322,14 @@ pub fn show_event_list(
                 "Нет мероприятий.".to_string()
             };
 
-            add_pagination(
+            add_pagination!(
                 &mut keyboard,
-                "event_list",
+                &CallbackQuery::EventList { offset: offset - 1 },
+                &CallbackQuery::EventList { offset: offset + 1 },
                 events.len() as u64,
                 ctx.config.event_list_page_size,
-                offset,
+                offset
             );
-
             Ok(Reply::new(header_text).reply_markup(InlineKeyboardMarkup::new(keyboard)))
         }
         Err(e) => Err(anyhow!("Failed to query events: {}", e)),
@@ -345,7 +362,11 @@ pub fn show_event(
                         } else {
                             "Записать взрослого +1"
                         },
-                        format!("sign_up {} adult nowait", s.event.id),
+                        &serde_json::to_string(&CallbackQuery::SignUp {
+                            event_id: s.event.id,
+                            is_adult: true,
+                            wait: false,
+                        })?,
                     ));
                 } else if s.adults.my_reservation + s.adults.my_waiting
                     < s.event.max_adults_per_reservation
@@ -356,7 +377,11 @@ pub fn show_event(
                         } else {
                             "В лист ожидания взрослого +1"
                         },
-                        format!("sign_up {} adult wait", s.event.id),
+                        &serde_json::to_string(&CallbackQuery::SignUp {
+                            event_id: s.event.id,
+                            is_adult: true,
+                            wait: true,
+                        })?,
                     ));
                 }
             }
@@ -367,7 +392,10 @@ pub fn show_event(
                     } else {
                         "Отписать взрослого -1"
                     },
-                    format!("cancel {} adult", s.event.id),
+                    &serde_json::to_string(&CallbackQuery::Cancel {
+                        event_id: s.event.id,
+                        is_adult: true,
+                    })?,
                 ));
             }
             keyboard.push(v);
@@ -382,7 +410,11 @@ pub fn show_event(
                         } else {
                             "Записать ребёнка +1"
                         },
-                        format!("sign_up {} child nowait", s.event.id),
+                        &serde_json::to_string(&CallbackQuery::SignUp {
+                            event_id: s.event.id,
+                            is_adult: false,
+                            wait: false,
+                        })?,
                     ));
                 } else if s.children.my_reservation + s.children.my_waiting
                     < s.event.max_children_per_reservation
@@ -393,7 +425,11 @@ pub fn show_event(
                         } else {
                             "В лист ожидания ребёнка +1"
                         },
-                        format!("sign_up {} child wait", s.event.id),
+                        &serde_json::to_string(&CallbackQuery::SignUp {
+                            event_id: s.event.id,
+                            is_adult: false,
+                            wait: true,
+                        })?,
                     ));
                 }
             }
@@ -404,14 +440,17 @@ pub fn show_event(
                     } else {
                         "Отписать ребёнка -1"
                     },
-                    format!("cancel {} child", s.event.id),
+                    &serde_json::to_string(&CallbackQuery::Cancel {
+                        event_id: s.event.id,
+                        is_adult: false,
+                    })?,
                 ));
             }
             keyboard.push(v);
             let mut v: Vec<InlineKeyboardButton> = Vec::new();
             v.push(InlineKeyboardButton::callback(
                 "Список мероприятий",
-                "event_list 0",
+                serde_json::to_string(&CallbackQuery::EventList { offset: 0 })?,
             ));
             let mut list = "".to_string();
             let mut participants_len: u64 = 0;
@@ -469,22 +508,34 @@ pub fn show_event(
                 }
                 v.push(InlineKeyboardButton::callback(
                     "Список ожидания",
-                    format!("show_waiting_list {} 0", event_id),
+                    &serde_json::to_string(&CallbackQuery::ShowWaitingList {
+                        event_id,
+                        offset: 0,
+                    })?,
                 ));
                 if is_admin {
                     v.push(InlineKeyboardButton::callback(
                         "Присутствие",
-                        format!("show_presence_list {} 0", event_id),
+                        &serde_json::to_string(&CallbackQuery::ShowPresenceList {
+                            event_id,
+                            offset: 0,
+                        })?,
                     ));
                     if s.state == EventState::Open {
                         v.push(InlineKeyboardButton::callback(
                             "Остановить запись",
-                            format!("change_event_state {} 1", event_id),
+                            serde_json::to_string(&CallbackQuery::ChangeEventState {
+                                event_id,
+                                state: 1,
+                            })?,
                         ));
                     } else {
                         v.push(InlineKeyboardButton::callback(
                             "Разрешить запись",
-                            format!("change_event_state {} 0", event_id),
+                            serde_json::to_string(&CallbackQuery::ChangeEventState {
+                                event_id,
+                                state: 0,
+                            })?,
                         ));
                     }
                 } else {
@@ -492,19 +543,29 @@ pub fn show_event(
                         if check {
                             v.push(InlineKeyboardButton::callback(
                                 "Присутствие",
-                                format!("show_presence_list {} 0", event_id),
+                                &serde_json::to_string(&CallbackQuery::ShowPresenceList {
+                                    event_id,
+                                    offset: 0,
+                                })?,
                             ));
                         }
                     }
                 }
             }
             keyboard.push(v);
-            add_pagination(
+            add_pagination!(
                 &mut keyboard,
-                &format!("event {}", event_id),
+                &CallbackQuery::Event {
+                    event_id,
+                    offset: offset - 1
+                },
+                &CallbackQuery::Event {
+                    event_id,
+                    offset: offset + 1
+                },
                 participants_len,
                 ctx.config.event_page_size,
-                offset,
+                offset
             );
 
             let mut text = format!(
@@ -612,18 +673,28 @@ fn show_waiting_list(
     match db::get_participants(conn, event_id, 1, offset, ctx.config.event_page_size) {
         Ok(participants) => {
             let mut keyboard: Vec<Vec<InlineKeyboardButton>> = Vec::new();
-            add_pagination(
+            add_pagination!(
                 &mut keyboard,
-                &format!("show_waiting_list {}", event_id),
+                &CallbackQuery::ShowWaitingList {
+                    event_id,
+                    offset: offset - 1
+                },
+                &CallbackQuery::ShowWaitingList {
+                    event_id,
+                    offset: offset + 1
+                },
                 participants.len() as u64,
                 ctx.config.event_page_size,
-                offset,
+                offset
             );
 
             let mut v: Vec<InlineKeyboardButton> = Vec::new();
             v.push(InlineKeyboardButton::callback(
                 "Назад",
-                format!("event {} 0", event_id),
+                &serde_json::to_string(&CallbackQuery::Event {
+                    event_id,
+                    offset: 0,
+                })?,
             ));
             keyboard.push(v);
 
@@ -728,24 +799,39 @@ fn show_presence_list(
 
                         InlineKeyboardButton::callback(
                             text,
-                            format!("confirm_presence {} {} {}", event_id, p.user_id, offset),
+                            &serde_json::to_string(&CallbackQuery::ConfirmPresence {
+                                event_id,
+                                user_id: p.user_id,
+                                offset: offset,
+                            })
+                            .unwrap(),
                         )
                     }]
                 })
                 .collect();
 
-            add_pagination(
+            add_pagination!(
                 &mut keyboard,
-                &format!("show_presence_list {}", event_id),
+                &CallbackQuery::ShowPresenceList {
+                    event_id,
+                    offset: offset - 1
+                },
+                &CallbackQuery::ShowPresenceList {
+                    event_id,
+                    offset: offset + 1
+                },
                 participants.len() as u64,
                 ctx.config.presence_page_size,
-                offset,
+                offset
             );
 
             let mut v: Vec<InlineKeyboardButton> = Vec::new();
             v.push(InlineKeyboardButton::callback(
                 "Назад",
-                format!("event {} 0", event_id),
+                &serde_json::to_string(&CallbackQuery::Event {
+                    event_id,
+                    offset: 0,
+                })?,
             ));
             keyboard.push(v);
 
@@ -755,27 +841,24 @@ fn show_presence_list(
     }
 }
 
-pub fn add_pagination(
-    keyboard: &mut Vec<Vec<InlineKeyboardButton>>,
-    cmd: &str,
-    participants: u64,
-    limit: u64,
-    offset: u64,
-) {
-    if offset > 0 || participants == limit {
-        let mut pagination: Vec<InlineKeyboardButton> = Vec::new();
-        if offset > 0 {
-            pagination.push(InlineKeyboardButton::callback(
-                "⬅️",
-                format!("{} {}", cmd, offset - 1),
-            ));
+macro_rules! add_pagination {
+    ($keyboard:expr, $prev:expr, $next:expr, $participants:expr, $limit:expr, $offset:expr) => {
+        if $offset > 0 || $participants == $limit {
+            let mut pagination: Vec<InlineKeyboardButton> = Vec::new();
+            if $offset > 0 {
+                pagination.push(InlineKeyboardButton::callback(
+                    "⬅️",
+                    serde_json::to_string($prev)?,
+                ));
+            }
+            if $participants == $limit {
+                pagination.push(InlineKeyboardButton::callback(
+                    "➡️",
+                    serde_json::to_string($next)?,
+                ));
+            }
+            $keyboard.push(pagination);
         }
-        if participants == limit {
-            pagination.push(InlineKeyboardButton::callback(
-                "➡️",
-                format!("{} {}", cmd, offset + 1),
-            ));
-        }
-        keyboard.push(pagination);
-    }
+    };
 }
+pub(crate) use add_pagination;

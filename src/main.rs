@@ -208,7 +208,11 @@ async fn perform_bulk_tasks(bot: AutoSend<Bot>, ctx: Arc<Context>) -> Result<boo
                 let keyboard: Vec<Vec<InlineKeyboardButton>> =
                     vec![vec![InlineKeyboardButton::callback(
                         "К мероприятию",
-                        format!("event {} 0", m.event_id),
+                        &serde_json::to_string(&message_handler::CallbackQuery::Event {
+                            event_id: m.event_id,
+                            offset: 0,
+                        })
+                        .unwrap(),
                     )]];
                 let keyboard = InlineKeyboardMarkup::new(keyboard);
                 for u in m.recipients {

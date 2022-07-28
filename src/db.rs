@@ -694,7 +694,7 @@ pub fn get_pending_messages(
 
 fn set_current_event(conn: &PooledConnection<SqliteConnectionManager>, user_id: u64, event_id: u64) -> Result<(), rusqlite::Error> {
     conn.execute(
-        "insert into current_events (user, event) values (?1, ?2)",
+        "insert or replace into current_events (user, event) values (?1, ?2)",
         params![user_id, event_id],
     )?;
     Ok(())

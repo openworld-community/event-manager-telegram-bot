@@ -1,5 +1,6 @@
 use crate::db;
 use crate::message_handler;
+use crate::message_handler::CallbackQuery;
 use crate::types::{Configuration, Context, Event, MessageType, Reply, User};
 use crate::util::{format_event_title, format_ts};
 use anyhow::anyhow;
@@ -209,56 +210,47 @@ pub fn handle_callback(
     data: &str,
     ctx: &Context,
 ) -> anyhow::Result<Reply> {
-    let pars: Vec<&str> = data.splitn(3, ' ').collect();
-    if pars.len() == 0 {
-        return Err(anyhow!("Unknown command"));
-    }
-    match pars[0] {
-        "change_event_state" if pars.len() == 3 => {
-            match (pars[1].parse::<u64>(), pars[2].parse::<u64>()) {
-                (Ok(event_id), Ok(state)) => match db::change_event_state(conn, event_id, state) {
-                    Ok(_) => message_handler::show_event(conn, user, event_id, ctx, None, 0),
-                    Err(e) => Err(anyhow!("Failed to close event: {}.", e)),
-                },
-                _ => Err(anyhow!("Failed to parse command: {}", data)),
-            }
-        }
-        "confirm_remove_from_black_list" if pars.len() == 2 => {
-            if let Ok(user_id) = pars[1].parse::<u64>() {
-                if let Ok(reason) = db::get_ban_reason(conn, user_id) {
-                    let keyboard: Vec<Vec<InlineKeyboardButton>> = vec![vec![
-                        InlineKeyboardButton::callback(
-                            "да",
-                            format!("remove_from_black_list {}", user_id),
-                        ),
-                        InlineKeyboardButton::callback("нет", "show_black_list 0"),
-                    ]];
-                    Ok(Reply::new(format!("Причина бана: {reason}\nУдалить пользавателя <a href=\"tg://user?id={0}\">{0}</a> из чёрного списка?", user_id)).reply_markup(InlineKeyboardMarkup::new(keyboard)))
-                } else {
-                    Err(anyhow!("Failed to find ban reason"))
+    match serde_json::from_str::<CallbackQuery>(&data) {
+        Ok(q) => {
+            use CallbackQuery::*;
+            match q {
+                ChangeEventState { event_id, state } => {
+                    match db::change_event_state(conn, event_id, state) {
+                        Ok(_) => message_handler::show_event(conn, user, event_id, ctx, None, 0),
+                        Err(e) => Err(anyhow!("Failed to close event: {}.", e)),
+                    }
                 }
-            } else {
-                Err(anyhow!("Failed to get user id"))
-            }
-        }
-        "remove_from_black_list" if pars.len() == 2 => {
-            if let Ok(user_id) = pars[1].parse::<u64>() {
-                if db::remove_from_black_list(conn, user_id).is_ok() == false {
-                    error!("Failed to remove user {} from black list", user_id);
+                ShowBlackList { offset } => show_black_list(conn, &ctx.config, offset),
+                RemoveFromBlackList { user_id } => {
+                    if db::remove_from_black_list(conn, user_id).is_ok() == false {
+                        error!("Failed to remove user {} from black list", user_id);
+                    }
+                    show_black_list(conn, &ctx.config, 0)
                 }
-                show_black_list(conn, &ctx.config, 0)
-            } else {
-                Err(anyhow!("Failed to get user id"))
+                ConfirmRemoveFromBlackList { user_id } => {
+                    if let Ok(reason) = db::get_ban_reason(conn, user_id) {
+                        let keyboard: Vec<Vec<InlineKeyboardButton>> = vec![vec![
+                            InlineKeyboardButton::callback(
+                                "да",
+                                serde_json::to_string(&RemoveFromBlackList { user_id })?,
+                            ),
+                            InlineKeyboardButton::callback(
+                                "нет",
+                                serde_json::to_string(&ShowBlackList { offset: 0 })?,
+                            ),
+                        ]];
+                        Ok(Reply::new(format!("Причина бана: {reason}\nУдалить пользавателя <a href=\"tg://user?id={0}\">{0}</a> из чёрного списка?", user_id)).reply_markup(InlineKeyboardMarkup::new(keyboard)))
+                    } else {
+                        Err(anyhow!("Failed to find ban reason"))
+                    }
+                }
+                _ => {
+                    // Try user message.
+                    message_handler::handle_callback(conn, user, data, ctx)
+                }
             }
         }
-        "show_black_list" if pars.len() == 2 => {
-            if let Ok(offset) = pars[1].parse::<u64>() {
-                show_black_list(conn, &ctx.config, offset)
-            } else {
-                Err(anyhow!("Failed to get black list offset"))
-            }
-        }
-        _ => message_handler::handle_callback(conn, user, data, ctx),
+        Err(e) => Err(anyhow!("Failed to parse callback: {}.", e)),
     }
 }
 
@@ -326,17 +318,21 @@ fn show_black_list(
                         } else {
                             format!("{} {}", u.user_name1, u.id)
                         },
-                        format!("confirm_remove_from_black_list {}", u.id),
+                        serde_json::to_string(&CallbackQuery::ConfirmRemoveFromBlackList {
+                            user_id: u.id.0,
+                        })
+                        .unwrap(),
                     )]
                 })
                 .collect();
 
-            crate::message_handler::add_pagination(
+            crate::message_handler::add_pagination!(
                 &mut keyboard,
-                "show_black_list",
+                &CallbackQuery::ShowBlackList { offset: offset - 1 },
+                &CallbackQuery::ShowBlackList { offset: offset + 1 },
                 participants.len() as u64,
                 config.presence_page_size,
-                offset,
+                offset
             );
 
             let header = if participants.len() != 0 || offset > 0 {
