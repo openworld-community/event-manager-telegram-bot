@@ -25,6 +25,8 @@ mod tests {
             max_children_per_reservation: 3,
             ts: ts,
             remind: ts - 10,
+            adult_ticket_price: 0,
+            child_ticket_price: 0,
         };
         let event_id = 1;
 
@@ -50,6 +52,7 @@ mod tests {
                         false => 0,
                     },
                     e.ts - 20,
+                    0,
                 )
                 .unwrap(),
                 (1, false)
@@ -75,6 +78,7 @@ mod tests {
                 1,
                 1,
                 e.ts - 20,
+                0,
             )
             .unwrap(),
             (1, false)
@@ -123,6 +127,8 @@ mod tests {
             max_children_per_reservation: 3,
             ts: ts,
             remind: ts - 10,
+            adult_ticket_price: 0,
+            child_ticket_price: 0,
         };
         let event_id = 1;
 
@@ -144,6 +150,7 @@ mod tests {
                 0,
                 0,
                 e.ts - 30,
+                0,
             )
             .unwrap(),
             (1, false)
@@ -164,6 +171,7 @@ mod tests {
                 0,
                 1,
                 e.ts - 20,
+                0,
             )
             .unwrap(),
             (1, false)
@@ -182,6 +190,7 @@ mod tests {
                 0,
                 1,
                 e.ts - 10,
+                0,
             )
             .unwrap(),
             (1, false)

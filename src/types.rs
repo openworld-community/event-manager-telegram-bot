@@ -1,14 +1,11 @@
+use chrono::DateTime;
 use r2d2_sqlite::SqliteConnectionManager;
+use serde_compact::compact;
 use std::collections::HashSet;
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use chrono::DateTime;
 
-use teloxide::{
-    prelude::*,
-    types::{InlineKeyboardMarkup, ParseMode, UserId},
-    RequestError,
-};
+use teloxide::{types::{UserId}};
 
 pub type DbPool = r2d2::Pool<SqliteConnectionManager>;
 //pub type EventId = u64;
@@ -16,6 +13,7 @@ pub type DbPool = r2d2::Pool<SqliteConnectionManager>;
 #[derive(Deserialize, Serialize, Clone, Default, Debug)]
 pub struct Configuration {
     pub telegram_bot_token: String,
+    pub payment_provider_token: String,
     pub admin_ids: String,
     pub public_lists: bool,
     pub automatic_blacklisting: bool,
@@ -52,7 +50,7 @@ impl Configuration {
             }
             _ => Err("Failed to farse mailing hours.".to_string()),
         }
-    }    
+    }
 }
 
 #[derive(Clone)]
@@ -66,6 +64,8 @@ pub struct Event {
     pub max_children_per_reservation: u64,
     pub ts: u64,
     pub remind: u64,
+    pub adult_ticket_price: u64,
+    pub child_ticket_price: u64,
 }
 
 #[derive(PartialEq)]
@@ -127,6 +127,7 @@ pub struct MessageBatch {
     pub message_type: MessageType,
     pub waiting_list: u64,
     pub text: String,
+    pub is_paid: bool,
     pub recipients: Vec<u64>,
 }
 
@@ -145,65 +146,24 @@ pub struct Context {
     pub admins: HashSet<u64>,
 }
 
-#[derive(Debug)]
-pub struct Reply {
-    pub message: String,
-    pub parse_mode: ParseMode,
-    pub disable_preview: bool,
-    pub reply_markup: Option<InlineKeyboardMarkup>,
+#[compact]
+#[derive(Serialize, Deserialize, Clone)]
+pub struct Booking {
+    pub event_id: u64,
+    pub adults: u64,
+    pub children: u64,
+    pub user_id: u64,
 }
-impl Reply {
-    pub fn new(message: String) -> Self {
-        Self {
-            message,
-            parse_mode: ParseMode::Html,
-            disable_preview: true,
-            reply_markup: None,
-        }
-    }
-    pub fn parse_mode(mut self, parse_mode: ParseMode) -> Self {
-        self.parse_mode = parse_mode;
-        self
-    }
 
-    pub fn reply_markup(mut self, reply_markup: InlineKeyboardMarkup) -> Self {
-        self.reply_markup = Some(reply_markup);
-        self
-    }
+#[derive(Serialize, Deserialize, Clone)]
+pub struct OrderInfo {
+    pub id: String,
+    pub name: String,
+    pub amount: u64,
+}
 
-    pub async fn send(self, msg: &Message, bot: &AutoSend<Bot>) -> Result<(), RequestError> {
-        let fut = if let Some(reply_markup) = self.reply_markup {
-            bot.send_message(msg.chat.id, self.message)
-                .parse_mode(self.parse_mode)
-                .disable_web_page_preview(self.disable_preview)
-                .reply_markup(reply_markup)
-        } else {
-            bot.send_message(msg.chat.id, self.message)
-                .parse_mode(self.parse_mode)
-                .disable_web_page_preview(self.disable_preview)
-        };
-        fut.await.or_else(|e| {
-            error!("Failed to send message to Telegram: {}", e);
-            Err(e)
-        })?;
-        Ok(())
-    }
-
-    pub async fn edit(self, msg: &Message, bot: &AutoSend<Bot>) -> Result<(), RequestError> {
-        let fut = if let Some(reply_markup) = self.reply_markup {
-            bot.edit_message_text(msg.chat.id, msg.id, self.message)
-                .parse_mode(self.parse_mode)
-                .disable_web_page_preview(self.disable_preview)
-                .reply_markup(reply_markup)
-        } else {
-            bot.edit_message_text(msg.chat.id, msg.id, self.message)
-                .parse_mode(self.parse_mode)
-                .disable_web_page_preview(self.disable_preview)
-        };
-        fut.await.or_else(|e| {
-            error!("Failed to send message to Telegram: {}", e);
-            Err(e)
-        })?;
-        Ok(())
-    }
+pub enum ReservationState {
+    Free = 0,
+    PaymentPending = 1,
+    PaymentCompleted = 2,
 }

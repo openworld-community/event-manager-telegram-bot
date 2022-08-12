@@ -1,4 +1,5 @@
 telegram_bot_token = ""
+payment_provider_token = ""
 
 # telegram ids, comma separated
 admin_ids = ""

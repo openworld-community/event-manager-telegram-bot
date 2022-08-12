@@ -1,11 +1,13 @@
-use crate::types::{Event, EventState, MessageBatch, MessageType, Participant, Presence, User};
-use crate::util::{self, format_ts, get_unix_time};
+use crate::types::{Event, EventState, MessageBatch, MessageType, Participant, Presence, User, OrderInfo, ReservationState, Booking};
+use crate::util::{self, get_unix_time};
 use fallible_streaming_iterator::FallibleStreamingIterator;
 use rusqlite::{params, Result, Row};
 use std::collections::HashSet;
 
 use r2d2::PooledConnection;
 use r2d2_sqlite::SqliteConnectionManager;
+use anyhow::anyhow;
+use crate::format;
 
 #[cfg(test)]
 mod tests;
@@ -60,6 +62,8 @@ impl EventStats {
                 max_children_per_reservation: row.get("max_children_per_reservation")?,
                 ts: row.get("ts")?,
                 remind: 0,
+                adult_ticket_price: row.get::<&str, u64>("adult_ticket_price")?,
+                child_ticket_price: row.get::<&str, u64>("child_ticket_price")?,
             },
             adults: Counter::new(
                 row.get("adults"),
@@ -79,12 +83,19 @@ impl EventStats {
     }
 }
 
+pub struct GroupMessage {
+    pub sender: String,
+    pub text: String,
+    pub ts: u64,
+    pub waiting_list: u64,
+}
+
 
 pub fn add_event(conn: &PooledConnection<SqliteConnectionManager>, e: Event) -> Result<u64, rusqlite::Error> {
     if e.id == 0 {
         let res = conn.execute(
-            "INSERT INTO events (name, link, max_adults, max_children, max_adults_per_reservation, max_children_per_reservation, ts, remind) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
-            params![e.name, e.link, e.max_adults, e.max_children, e.max_adults_per_reservation, e.max_children_per_reservation, e.ts, e.remind],
+            "INSERT INTO events (name, link, max_adults, max_children, max_adults_per_reservation, max_children_per_reservation, ts, remind, adult_ticket_price, child_ticket_price) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+            params![e.name, e.link, e.max_adults, e.max_children, e.max_adults_per_reservation, e.max_children_per_reservation, e.ts, e.remind, e.adult_ticket_price, e.child_ticket_price],
         )?;
         if res > 0 {
             let mut stmt = conn
@@ -96,7 +107,7 @@ pub fn add_event(conn: &PooledConnection<SqliteConnectionManager>, e: Event) -> 
                 let text = format!("\nЗдравствуйте!\nНе забудьте, пожалуйста, что вы записались на\n<a href=\"{}\">{}</a>\
                             \nНачало: {}\n\
                             <b>ВНИМАНИЕ!</b> Если вы не сможете прийти и не отмените бронь заблаговременно, то не сможете больше бронировать. Извините, но бесплатные билеты не должны пропадать.\n",
-                            e.link, e.name, format_ts(e.ts), );
+                            e.link, e.name, format::ts(e.ts), );
                 enqueue_message(conn, 
                     event_id,
                     "Bot",
@@ -279,12 +290,24 @@ pub fn sign_up(
     children: u64,
     wait: u64,
     ts: u64,
+    amount: u64,
 ) -> anyhow::Result<(usize, bool)> {
     let user_id = user.id.0;
     let s = get_event(conn, event_id, user_id)?;
 
     if ts > s.event.ts || (s.state != EventState::Open && user.is_admin == false) {
-        return Err(anyhow::anyhow!("Запись остановлена."));
+        return Err(anyhow!("Запись остановлена."));
+    }
+
+    if amount > 0 {
+        // pre checkout
+        if s.event.adult_ticket_price * adults + s.event.child_ticket_price * children != amount {
+            return Err(anyhow!("Wrong tranaction amount"));
+        }
+        return Ok((conn.execute(
+            "INSERT INTO reservations (event, user, user_name1, user_name2, adults, children, waiting_list, ts, state) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+            params![event_id, user_id, user.user_name1, user.user_name2, adults, children, wait, ts, ReservationState::PaymentPending as u64],
+        )?, false))    
     }
 
     if let Ok(black_listed) = is_in_black_list(conn, user_id) {
@@ -298,7 +321,7 @@ pub fn sign_up(
         .prepare("select events.id from events join reservations as r on events.id = r.event where events.ts = ?1 and r.user = ?2 and events.id != ?3")?;
     let mut rows = stmt.query(params![s.event.ts, user_id, s.event.id])?;
     if let Some(_) = rows.next()? {
-        return Err(anyhow::anyhow!(
+        return Err(anyhow!(
             "Вы уже записаны на другое мероприятие в это время."
         ));
     }
@@ -329,6 +352,30 @@ pub fn sign_up(
         "INSERT INTO reservations (event, user, user_name1, user_name2, adults, children, waiting_list, ts) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
         params![event_id, user_id, user.user_name1, user.user_name2, adults, children, wait, ts],
     )?, false))
+}
+
+pub fn checkout(
+    conn: &PooledConnection<SqliteConnectionManager>,
+    booking: &Booking,
+    order_info: OrderInfo,
+) -> anyhow::Result<()> {
+    let s = get_event(conn, booking.event_id, booking.user_id)?;
+    if s.event.adult_ticket_price * booking.adults + s.event.child_ticket_price * booking.children != order_info.amount {
+        return Err(anyhow!("Wrong tranaction amount"));
+    }
+
+    let mut stmt = conn
+        .prepare("select id from reservations where event = ?1 and user = ?2 and state = ?3 and adults = ?4 and children = ?5 limit 1")?;
+    let mut rows = stmt.query(params![booking.event_id, booking.user_id, ReservationState::PaymentPending as u64, booking.adults, booking.children])?;
+    if let Some(row) = rows.next()? {
+        let id: u64 = row.get("id")?;
+        conn.execute("UPDATE reservations SET state = ?1, payment = ?2, user_name1 = ?3 WHERE id = ?4",
+            params![ReservationState::PaymentCompleted as u64, serde_json::to_string(&order_info)?, order_info.name, id],
+        )?;
+        Ok(())
+    } else {
+        Err(anyhow!("Failed to find reservation for event {}, user {}.", booking.event_id, booking.user_id))
+    }
 }
 
 fn move_from_waiting_list(
@@ -458,7 +505,7 @@ pub fn get_events(
 ) -> Result<Vec<EventStats>, rusqlite::Error> {
     let mut stmt = conn.prepare(
         "select a.*, b.my_adults, b.my_children, c.my_wait_adults, c.my_wait_children FROM \
-        (SELECT events.id, events.name, events.link, events.max_adults, events.max_children, events.max_adults_per_reservation, events.max_children_per_reservation, events.ts, r.adults, r.children, events.state FROM events \
+        (SELECT events.id, events.name, events.link, events.max_adults, events.max_children, events.max_adults_per_reservation, events.max_children_per_reservation, events.ts, r.adults, r.children, events.state, events.adult_ticket_price, events.child_ticket_price FROM events \
         LEFT JOIN (SELECT sum(adults) as adults, sum(children) as children, event FROM reservations WHERE waiting_list = 0 GROUP BY event) as r ON events.id = r.event ORDER BY ts LIMIT ?2 OFFSET ?3) as a \
         LEFT JOIN (SELECT sum(adults) as my_adults, sum(children) as my_children, event FROM reservations WHERE waiting_list = 0 AND user = ?1 GROUP BY event) as b ON a.id = b.event \
         LEFT JOIN (SELECT sum(adults) as my_wait_adults, sum(children) as my_wait_children, event FROM reservations WHERE waiting_list = 1 AND user = ?1 GROUP BY event) as c ON a.id = c.event"
@@ -474,7 +521,7 @@ pub fn get_events(
 pub fn get_event(conn: &PooledConnection<SqliteConnectionManager>, event_id: u64, user: u64) -> Result<EventStats, rusqlite::Error> {
     let mut stmt = conn.prepare(
         "select a.*, b.my_adults, b.my_children, c.my_wait_adults, c.my_wait_children FROM \
-        (SELECT events.id, events.name, events.link, events.max_adults, events.max_children, events.max_adults_per_reservation, events.max_children_per_reservation, events.ts, r.adults, r.children, events.state FROM events \
+        (SELECT events.id, events.name, events.link, events.max_adults, events.max_children, events.max_adults_per_reservation, events.max_children_per_reservation, events.ts, r.adults, r.children, events.state, events.adult_ticket_price, events.child_ticket_price FROM events \
         LEFT JOIN (SELECT sum(adults) as adults, sum(children) as children, event FROM reservations WHERE waiting_list = 0 GROUP BY event) as r ON events.id = r.event) as a \
         LEFT JOIN (SELECT sum(adults) as my_adults, sum(children) as my_children, event FROM reservations WHERE waiting_list = 0 AND user = ?1 GROUP BY event) as b ON a.id = b.event \
         LEFT JOIN (SELECT sum(adults) as my_wait_adults, sum(children) as my_wait_children, event FROM reservations WHERE waiting_list = 1 AND user = ?1 GROUP BY event) as c ON a.id = c.event WHERE a.id = ?2"
@@ -486,7 +533,7 @@ pub fn get_event(conn: &PooledConnection<SqliteConnectionManager>, event_id: u64
         Ok(EventStats::new(row)?)
     } else {
         Err(rusqlite::Error::InvalidParameterName(
-            "Failed to find event".to_string(),
+            format!("Failed to find event {}", event_id),
         ))
     }
 }
@@ -498,7 +545,7 @@ pub fn get_event_name(conn: &PooledConnection<SqliteConnectionManager>, event_id
     if let Some(row) = rows.next()? {
         let name: String = row.get("name")?;
         let ts: u64 = row.get("ts")?;
-        Ok(format!("{} {}", format_ts(ts), name))
+        Ok(format!("{} {}", format::ts(ts), name))
     } else {
         Err(rusqlite::Error::InvalidParameterName(
             "Failed to find event".to_string(),
@@ -512,20 +559,21 @@ pub fn get_participants(
     waiting_list: u64,
     offset: u64,
     limit: u64,
+    state: ReservationState,
 ) -> Result<Vec<Participant>, rusqlite::Error> {
     let mut stmt;
     let mut rows = if limit == 0 {
         stmt = conn.prepare(
-        "SELECT a.*, b.attachment FROM (SELECT sum(adults) as adults, sum(children) as children, user, user_name1, user_name2, event, ts FROM reservations WHERE waiting_list = ?1 AND event = ?2 group by event, user ORDER BY ts) as a \
+        "SELECT a.*, b.attachment FROM (SELECT sum(adults) as adults, sum(children) as children, user, user_name1, user_name2, event, ts FROM reservations WHERE waiting_list = ?1 AND event = ?2 AND state = ?3 group by event, user ORDER BY ts) as a \
         LEFT JOIN attachments as b ON a.event = b.event and a.user = b.user"
         )?;
-        stmt.query([waiting_list, event_id])?
+        stmt.query([waiting_list, event_id, state as u64])?
     } else {
         stmt = conn.prepare(
-            "SELECT a.*, b.attachment FROM (SELECT sum(adults) as adults, sum(children) as children, user, user_name1, user_name2, event, ts FROM reservations WHERE waiting_list = ?1 AND event = ?2 group by event, user ORDER BY ts LIMIT ?3 OFFSET ?4) as a \
+            "SELECT a.*, b.attachment FROM (SELECT sum(adults) as adults, sum(children) as children, user, user_name1, user_name2, event, ts FROM reservations WHERE waiting_list = ?1 AND event = ?2 AND state = ?3 group by event, user ORDER BY ts LIMIT ?4 OFFSET ?5) as a \
             LEFT JOIN attachments as b ON a.event = b.event and a.user = b.user"
             )?;
-        stmt.query([waiting_list, event_id, limit, offset * limit])?
+        stmt.query([waiting_list, event_id, state as u64, limit, offset * limit])?
     };
     let mut res = Vec::new();
     while let Some(row) = rows.next()? {
@@ -620,8 +668,9 @@ pub fn get_pending_messages(
 ) -> Result<Vec<MessageBatch>, rusqlite::Error> {
     //debug!("get_pending_messages {}", ts);
     let mut stmt = conn.prepare(
-        "SELECT m.*, o.send_at FROM message_outbox as o \
+        "SELECT m.*, o.send_at, e.adult_ticket_price, e.child_ticket_price FROM message_outbox as o \
         JOIN messages as m ON o.message = m.id \
+        JOIN events as e ON m.event = e.id \
         WHERE o.send_at < ?1",
     )?;
     let mut rows = stmt.query([ts])?;
@@ -635,6 +684,7 @@ pub fn get_pending_messages(
             message_type: num::FromPrimitive::from_u64(message_type).unwrap(),
             waiting_list: row.get("waiting_list")?,
             text: row.get("text")?,
+            is_paid: row.get::<&str, u64>("adult_ticket_price")? != 0 || row.get::<&str, u64>("child_ticket_price")? != 0,
             recipients: Vec::new(),
         };
         res.push(batch);
@@ -754,7 +804,9 @@ pub fn create(conn: &PooledConnection<SqliteConnectionManager>) -> Result<(), ru
                             max_children_per_reservation INTEGER NOT NULL,
                             ts              INTEGER NOT NULL,
                             remind          INTEGER NOT NULL,
-                            state           INTEGER default 0
+                            state           INTEGER default 0,
+                            adult_ticket_price INTEGER default 0,
+                            child_ticket_price INTEGER default 0
                             )",
                         [],
                     )?;
@@ -768,7 +820,9 @@ pub fn create(conn: &PooledConnection<SqliteConnectionManager>) -> Result<(), ru
                             adults          INTEGER NOT NULL,
                             children        INTEGER NOT NULL,
                             waiting_list    INTEGER DEFAULT 0 NOT NULL,
-                            ts              INTEGER NOT NULL
+                            ts              INTEGER NOT NULL,
+                            payment         TEXT DEFAULT NULL,
+                            state           INTEGER default 0
                             )",
                         [],
                     )?;
@@ -870,6 +924,51 @@ pub fn create(conn: &PooledConnection<SqliteConnectionManager>) -> Result<(), ru
         }
     }
 
+
+    let mut stmt =
+        conn.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='current_events'")?;
+    match stmt.query([]) {
+        Ok(rows) => match rows.count() {
+            Ok(count) => {
+                if count == 0 {
+                    conn.execute(
+                        "CREATE TABLE current_events (
+                            user            INTEGER NOT NULL PRIMARY KEY,
+                            event           INTEGER NOT NULL
+                            )",
+                        [],
+                    )?;
+                }
+            }
+            _ => panic!("DB is corrupt."),
+        },
+        _ => {
+            error!("Failed to query db.");
+        }
+    }
+
+    let mut stmt =
+        conn.prepare("select * from reservations limit 1")?;
+    let mut rows = stmt.query([])?;
+    if let Some(row) = rows.next()? {
+        if let Ok(_) = row.get::<&str, u64>("state") {
+        } else {
+            conn.execute("ALTER TABLE reservations ADD COLUMN state INTEGER default 0", [])?;
+            conn.execute("ALTER TABLE reservations ADD COLUMN payment TEXT default NULL", [])?;
+        }
+    }
+
+    let mut stmt =
+        conn.prepare("select * from events limit 1")?;
+    let mut rows = stmt.query([])?;
+    if let Some(row) = rows.next()? {
+        if let Ok(_) = row.get::<&str, u64>("adult_ticket_price") {
+        } else {
+            conn.execute("ALTER TABLE events ADD COLUMN adult_ticket_price INTEGER default 0", [])?;
+            conn.execute("ALTER TABLE events ADD COLUMN child_ticket_price INTEGER default 0", [])?;
+        }
+    }
+
     Ok(())
 }
 
@@ -968,6 +1067,12 @@ pub fn clear_black_list(conn: &PooledConnection<SqliteConnectionManager>, ts: u6
     Ok(())
 }
 
+pub fn clear_failed_payments(conn: &PooledConnection<SqliteConnectionManager>, ts: u64) -> Result<(), rusqlite::Error> {
+    conn
+        .execute("DELETE FROM reservations WHERE state = ?1 AND ts < ?2", params![ReservationState::PaymentPending as u64, ts])?;
+    Ok(())
+}
+
 pub fn change_event_state(conn: &PooledConnection<SqliteConnectionManager>, event_id: u64, state: u64) -> Result<(), rusqlite::Error> {
     conn.execute(
         "UPDATE events SET state = ?1 WHERE id = ?2",
@@ -994,54 +1099,38 @@ pub fn set_event_limits(
     }
 }
 
-pub fn get_messages(
+pub fn get_group_messages(
     conn: &PooledConnection<SqliteConnectionManager>,
     event_id: u64,
     waiting_list: Option<u64>,
-) -> Result<Option<String>, rusqlite::Error> {
-    let mut messages = String::new();
-
+) -> Result<Vec<GroupMessage>, rusqlite::Error> {
     let mut stmt;
     let mut rows = if let Some(waiting_list) = waiting_list {
         stmt = conn.prepare(
-            "SELECT sender, text, ts, waiting_list FROM messages WHERE event = ?1 AND type = 0 AND waiting_list = ?2 ORDER BY ts"
+            "SELECT sender, text, ts, waiting_list FROM messages WHERE event = ?1 AND type = 0 AND waiting_list = ?2 ORDER BY ts DESC LIMIT 3"
         )?;
         stmt.query(params![event_id, waiting_list])?
     } else {
         stmt = conn.prepare(
-            "SELECT sender, text, ts, waiting_list FROM messages WHERE event = ?1 AND type = 0 ORDER BY ts",
+            "SELECT sender, text, ts, waiting_list FROM messages WHERE event = ?1 AND type = 0 ORDER BY ts DESC LIMIT 3",
         )?;
         stmt.query(params![event_id])?
     };
+    let mut messages = Vec::new();
     while let Some(row) = rows.next()? {
-        let sender: String = row.get(0)?;
-        let text: String = row.get(1)?;
-        let ts: u64 = row.get(2)?;
+        let msg = GroupMessage {
+            sender: row.get("sender")?,
+            text: row.get("text")?,
+            ts: row.get("ts")?,
+            waiting_list: row.get("waiting_list")?,
+        };
         // todo: remove after message format migration
-        if sender.len() == 0 {
+        if msg.sender.len() == 0 {
             continue;
         }
-        if waiting_list.is_some() {
-            messages.push_str(&format!("{}, {}:\n{}\n\n", sender, format_ts(ts), text));
-        } else {
-            let waiting_list: u64 = row.get(3)?;
-            messages.push_str(&format!(
-                "{}, {} ({}):\n{}\n\n",
-                sender,
-                format_ts(ts),
-                if waiting_list == 0 {
-                    "для забронировавших"
-                } else {
-                    "для списка ожидания"
-                },
-                text
-            ));
-        }
+        messages.push(msg);
     }
-    if messages.len() > 0 {
-        Ok(Some(messages))
-    } else {
-        Ok(None)
-    }
+    messages.reverse();
+    Ok(messages)
 }
 

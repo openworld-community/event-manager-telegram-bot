@@ -1,14 +1,15 @@
 use crate::db;
+use crate::format;
 use crate::message_handler;
 use crate::message_handler::CallbackQuery;
-use crate::types::{Configuration, Context, Event, MessageType, Reply, User};
-use crate::util::{format_event_title, format_ts};
+use crate::types::{Configuration, Context, Event, MessageType, User};
+use crate::reply::*;
 use anyhow::anyhow;
 use chrono::DateTime;
 use r2d2::PooledConnection;
 use r2d2_sqlite::SqliteConnectionManager;
 use teloxide::{
-    types::{InlineKeyboardButton, InlineKeyboardMarkup, ParseMode},
+    types::{InlineKeyboardButton, ParseMode},
     utils::markdown,
 };
 
@@ -23,6 +24,8 @@ struct NewEvent {
     max_children: u64,
     max_adults_per_reservation: u64,
     max_children_per_reservation: u64,
+    adult_ticket_price: Option<u64>,
+    child_ticket_price: Option<u64>,
 }
 
 /// Command line processor.
@@ -54,8 +57,8 @@ pub fn handle_message(
                                     "<a href=\"tg://user?id={}\">{}</a>:\nСообщение по мероприятию {} (Начало: {})\n{}",
                                     user.id.0,
                                     user.user_name1,
-                                    format_event_title(&s.event),
-                                    format_ts(s.event.ts),
+                                    format::event_title(&s.event),
+                                    format::ts(s.event.ts),
                                     pars[3].to_string()
                                 );
 
@@ -70,12 +73,13 @@ pub fn handle_message(
                             )
                             .is_ok()
                             {
-                                return Ok(Reply::new(format!(
+                                return Ok(ReplyMessage::new(format!(
                                     "The following message has been scheduled for sending:\n{}",
                                     text
-                                )));
+                                ))
+                                .into());
                             } else {
-                                return Ok(Reply::new(format!("Failed to send message.")));
+                                return Ok(ReplyMessage::new("Failed to send message.").into());
                             }
                         }
                         Err(e) => {
@@ -122,7 +126,7 @@ pub fn handle_message(
                 }
                 match db::delete_event(conn, event_id) {
                     Ok(_) => {
-                        return Ok(Reply::new("Deleted".to_string()));
+                        return Ok(ReplyMessage::new("Deleted").into());
                     }
                     Err(e) => {
                         return Err(anyhow!("Failed to delete event: {}.", e));
@@ -134,7 +138,7 @@ pub fn handle_message(
             if let (Ok(event_id), Ok(user_id)) = (pars[1].parse::<u64>(), pars[2].parse::<u64>()) {
                 match db::delete_reservation(conn, event_id, user_id) {
                     Ok(_) => {
-                        return Ok(Reply::new(format!("Reservation deleted.")));
+                        return Ok(ReplyMessage::new("Reservation deleted.").into());
                     }
                     Err(e) => {
                         return Err(anyhow!("Failed to delete reservation: {}.", e));
@@ -146,7 +150,7 @@ pub fn handle_message(
             if let (Ok(event_id), Ok(user_id)) = (pars[1].parse::<u64>(), pars[2].parse::<u64>()) {
                 match db::set_group_leader(conn, event_id, user_id) {
                     Ok(_) => {
-                        return Ok(Reply::new(format!("Group leader set.")));
+                        return Ok(ReplyMessage::new("Group leader set.").into());
                     }
                     Err(e) => {
                         return Err(anyhow!("Failed to set group leader: {}.", e));
@@ -165,7 +169,7 @@ pub fn handle_message(
             ) {
                 match db::set_event_limits(conn, event_id, max_adults, max_children) {
                     Ok(_) => {
-                        return Ok(Reply::new(format!("Event limits updated.")));
+                        return Ok(ReplyMessage::new("Event limits updated.").into());
                     }
                     Err(e) => {
                         return Err(anyhow!("Failed to set event limits: {}.", e));
@@ -174,10 +178,11 @@ pub fn handle_message(
             }
         }
         "/help" => {
-            return Ok(Reply::new(markdown::escape(
+            return Ok(ReplyMessage::new(markdown::escape(
                         "Добавить мероприятие: \
                         \n { \"name\":\"WIENXTRA CHILDREN'S ACTIVITIES for children up to 13 y.o.\", \"link\":\"https://t.me/storiesvienna/21\", \"start\":\"2022-05-29 15:00 +02:00\", \"remind\":\"2022-05-28 15:00 +02:00\", \"max_adults\":15, \"max_children\":15, \"max_adults_per_reservation\":15, \"max_children_per_reservation\":15 }\
                         \n\n Отредактировать: добавьте \"id\":<event> в команду выше \
+                        \n\n Цены билетов: добавьте \"adult_ticket_price\"/\"child_ticket_price\" в евроцентах в команду выше \
                         \n \nПослать сообщение: \
                         \n /send confirmed <event> текст \
                         \n /send waiting <event> текст \
@@ -189,7 +194,7 @@ pub fn handle_message(
                         \n /delete_reservation <event> <user> \
                         \n /set_group_leader <event> <user> \
                         \n /set_event_limits <event> <max_adults> <max_children> \
-                        ")).parse_mode(ParseMode::MarkdownV2));
+                        ")).parse_mode(ParseMode::MarkdownV2).into());
         }
         _ => {
             if let Some(ch) = data.chars().next() {
@@ -239,7 +244,7 @@ pub fn handle_callback(
                                 serde_json::to_string(&ShowBlackList { offset: 0 })?,
                             ),
                         ]];
-                        Ok(Reply::new(format!("Причина бана: {reason}\nУдалить пользавателя <a href=\"tg://user?id={0}\">{0}</a> из чёрного списка?", user_id)).reply_markup(InlineKeyboardMarkup::new(keyboard)))
+                        Ok(ReplyMessage::new(format!("Причина бана: {reason}\nУдалить пользавателя <a href=\"tg://user?id={0}\">{0}</a> из чёрного списка?", user_id)).keyboard(keyboard).into())
                     } else {
                         Err(anyhow!("Failed to find ban reason"))
                     }
@@ -265,26 +270,32 @@ fn add_event(
                 DateTime::parse_from_str(&v.remind, "%Y-%m-%d %H:%M  %z"),
             ) {
                 (Ok(ts), Ok(remind)) => {
-                    match crate::db::add_event(
-                        conn,
-                        Event {
-                            id: v.id.unwrap_or(0),
-                            name: v.name,
-                            link: v.link,
-                            max_adults: v.max_adults,
-                            max_children: v.max_children,
-                            max_adults_per_reservation: v.max_adults_per_reservation,
-                            max_children_per_reservation: v.max_children_per_reservation,
-                            ts: ts.timestamp() as u64,
-                            remind: remind.timestamp() as u64,
-                        },
-                    ) {
+                    let event = Event {
+                        id: v.id.unwrap_or(0),
+                        name: v.name,
+                        link: v.link,
+                        max_adults: v.max_adults,
+                        max_children: v.max_children,
+                        max_adults_per_reservation: v.max_adults_per_reservation,
+                        max_children_per_reservation: v.max_children_per_reservation,
+                        ts: ts.timestamp() as u64,
+                        remind: remind.timestamp() as u64,
+                        adult_ticket_price: v.adult_ticket_price.unwrap_or(0u64),
+                        child_ticket_price: v.child_ticket_price.unwrap_or(0u64),
+                    };
+
+                    if event.adult_ticket_price != 0 && event.max_adults == 0
+                        || event.child_ticket_price != 0 && event.max_children == 0
+                    {
+                        return Err(anyhow!("Wrong event format"));
+                    }
+                    match crate::db::add_event(conn, event) {
                         Ok(id) => {
-                            return Ok(Reply::new(if id > 0 {
+                            return Ok(ReplyMessage::new(if id > 0 {
                                 format!("Direct event link: https://t.me/sign_up_for_event_bot?start={}", id)
                             } else {
                                 format!("Failed to add event.")
-                            }));
+                            }).into());
                         }
                         Err(e) => {
                             return Err(anyhow!("Failed to add event: {}.", e));
@@ -309,38 +320,44 @@ fn show_black_list(
 ) -> anyhow::Result<Reply> {
     match db::get_black_list(conn, offset, config.presence_page_size) {
         Ok(participants) => {
-            let mut keyboard: Vec<Vec<InlineKeyboardButton>> = participants
-                .iter()
-                .map(|u| {
-                    vec![InlineKeyboardButton::callback(
-                        if u.user_name2.len() > 0 {
-                            format!("{} ({}) {}", u.user_name1, u.user_name2, u.id)
-                        } else {
-                            format!("{} {}", u.user_name1, u.id)
-                        },
-                        serde_json::to_string(&CallbackQuery::ConfirmRemoveFromBlackList {
-                            user_id: u.id.0,
-                        })
-                        .unwrap(),
-                    )]
+            Ok(
+                // header
+                ReplyMessage::new(if participants.len() != 0 || offset > 0 {
+                    "Чёрный список. Нажмите кнопку чтобы удалить из списка."
+                } else {
+                    "Чёрный список пуст."
                 })
-                .collect();
-
-            crate::message_handler::add_pagination!(
-                &mut keyboard,
-                &CallbackQuery::ShowBlackList { offset: offset - 1 },
-                &CallbackQuery::ShowBlackList { offset: offset + 1 },
-                participants.len() as u64,
-                config.presence_page_size,
-                offset
-            );
-
-            let header = if participants.len() != 0 || offset > 0 {
-                "Чёрный список. Нажмите кнопку чтобы удалить из списка."
-            } else {
-                "Чёрный список пуст."
-            };
-            Ok(Reply::new(header.to_string()).reply_markup(InlineKeyboardMarkup::new(keyboard)))
+                // list
+                .keyboard(
+                    participants
+                        .iter()
+                        .map(|u| {
+                            vec![InlineKeyboardButton::callback(
+                                if u.user_name2.len() > 0 {
+                                    format!("{} ({}) {}", u.user_name1, u.user_name2, u.id)
+                                } else {
+                                    format!("{} {}", u.user_name1, u.id)
+                                },
+                                serde_json::to_string(&CallbackQuery::ConfirmRemoveFromBlackList {
+                                    user_id: u.id.0,
+                                })
+                                .unwrap(),
+                            )]
+                        })
+                        .collect(),
+                )
+                // pagination
+                .pagination(
+                    &CallbackQuery::ShowBlackList {
+                        offset: offset.saturating_sub(1),
+                    },
+                    &CallbackQuery::ShowBlackList { offset: offset + 1 },
+                    participants.len() as u64,
+                    config.presence_page_size,
+                    offset,
+                )?
+                .into(),
+            )
         }
         Err(e) => Err(anyhow!("Failed to get black list: {}", e)),
     }

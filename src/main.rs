@@ -14,20 +14,27 @@ extern crate r2d2_sqlite;
 extern crate rusqlite;
 use teloxide::{
     prelude::*,
-    types::{InlineKeyboardButton, InlineKeyboardMarkup, ParseMode, Update, UserId},
+    types::{
+        InlineKeyboardButton, InlineKeyboardMarkup, LabeledPrice, MessageKind,
+        MessageSuccessfulPayment, ParseMode, PreCheckoutQuery, Update, UserId,
+    },
     RequestError,
 };
 
 mod admin_message_handler;
 mod db;
+mod format;
 mod message_handler;
+mod payments;
+mod reply;
 mod types;
 mod util;
 
+use crate::reply::*;
 use crate::types::MessageType;
 use r2d2_sqlite::SqliteConnectionManager;
 use types::{Configuration, Context};
-use util::{format_ts, get_unix_time};
+use util::get_unix_time;
 
 #[tokio::main]
 async fn main() {
@@ -81,6 +88,7 @@ async fn main() {
     tokio::spawn(perform_bulk_tasks(bot.clone(), context.clone()));
 
     let handler = dptree::entry()
+        .branch(Update::filter_pre_checkout_query().endpoint(pre_checkout_handler))
         .branch(Update::filter_message().endpoint(message_handler))
         .branch(Update::filter_callback_query().endpoint(callback_handler));
 
@@ -103,31 +111,52 @@ async fn message_handler(
     bot: AutoSend<Bot>,
     context: Arc<Context>,
 ) -> Result<(), RequestError> {
-    if let Some(text) = msg.text() {
-        if let Some(user) = msg.from() {
-            if user.is_bot {
-                warn!("Bot ignored");
-                return Ok(());
-            }
-            trace!("received {:?}", msg);
-            let u = crate::types::User::new(&user, &context.admins);
-            if let Ok(conn) = context.pool.get() {
-                let reply = if u.is_admin {
-                    crate::admin_message_handler::handle_message(&conn, &u, text, &context)
-                } else {
-                    crate::message_handler::handle_message(&conn, &u, text, &context)
-                };
-                match reply {
-                    Ok(reply) => {
-                        trace!("reply {:?}", reply);
-                        reply.send(&msg, &bot).await?;
+    trace!("received {:?}", msg);
+
+    match &msg.kind {
+        MessageKind::Common(_) => {
+            if let Some(text) = msg.text() {
+                if let Some(user) = msg.from() {
+                    if user.is_bot {
+                        warn!("Bot ignored");
+                        return Ok(());
                     }
-                    Err(e) => {
-                        error!("Error in reply: {}", e);
-                        bot.send_message(msg.chat.id, e.to_string()).await?;
+                    trace!("received {:?}", msg);
+                    let u = crate::types::User::new(&user, &context.admins);
+                    if let Ok(conn) = context.pool.get() {
+                        let reply = if u.is_admin {
+                            crate::admin_message_handler::handle_message(&conn, &u, text, &context)
+                        } else {
+                            crate::message_handler::handle_message(&conn, &u, text, &context)
+                        };
+                        match reply {
+                            Ok(reply) => match reply {
+                                Reply::Message(r) => {
+                                    r.send(&msg, &bot).await?;
+                                }
+                                _ => {}
+                            },
+                            Err(e) => {
+                                error!("Error in reply: {}", e);
+                                bot.send_message(msg.chat.id, e.to_string()).await?;
+                            }
+                        }
                     }
                 }
             }
+        }
+        MessageKind::SuccessfulPayment(MessageSuccessfulPayment { successful_payment }) => {
+            trace!("successful_payment {:?}", &successful_payment);
+            if let Ok(conn) = context.pool.get() {
+                let res = crate::payments::checkout(&conn, successful_payment, &context);
+                if let Err(e) = res {
+                    error!("Failed to check out: {}", e);
+                    bot.send_message(msg.chat.id, e.to_string()).await?;
+                }
+            }
+        }
+        _ => {
+            warn!("unknown message");
         }
     }
     Ok(())
@@ -140,7 +169,7 @@ async fn callback_handler(
 ) -> Result<(), RequestError> {
     match (q.message, q.data) {
         (Some(msg), Some(data)) => {
-            trace!("received {:?}", data);
+            trace!("received {:?} {:?}", &msg, &data);
             let u = crate::types::User::new(&q.from, &context.admins);
             let mut lock;
             if data.starts_with("sign_up ") {
@@ -155,10 +184,41 @@ async fn callback_handler(
                     crate::message_handler::handle_callback(&conn, &u, &data, &context)
                 };
                 match reply {
-                    Ok(reply) => {
-                        trace!("reply {:?}", reply);
-                        reply.edit(&msg, &bot).await?;
-                    }
+                    Ok(reply) => match reply {
+                        Reply::Message(r) => {
+                            trace!("reply {:?}", r);
+                            r.edit(&msg, &bot).await?;
+                        }
+                        Reply::Invoice {
+                            title,
+                            description,
+                            payload,
+                            currency,
+                            amount,
+                        } => {
+                            match bot
+                                .send_invoice(
+                                    msg.chat.id,
+                                    title,
+                                    description,
+                                    payload,
+                                    &context.config.payment_provider_token,
+                                    &currency,
+                                    vec![LabeledPrice {
+                                        label: currency.to_owned(),
+                                        amount: amount as i32,
+                                    }],
+                                )
+                                .need_name(true)
+                                .await
+                            {
+                                Ok(_) => {}
+                                Err(e) => {
+                                    error!("failed to send invoice {:?}", e);
+                                }
+                            }
+                        }
+                    },
                     Err(e) => {
                         error!("Error in reply: {}", e);
                         bot.send_message(msg.chat.id, e.to_string()).await?;
@@ -170,6 +230,32 @@ async fn callback_handler(
             if let Some(id) = q.inline_message_id {
                 bot.edit_message_text_inline(id, "Failed to parse inline query")
                     .await?;
+            }
+        }
+    }
+    Ok(())
+}
+
+async fn pre_checkout_handler(
+    pre_checkout: PreCheckoutQuery,
+    bot: AutoSend<Bot>,
+    context: Arc<Context>,
+) -> Result<(), RequestError> {
+    trace!("pre_checkout_handler::received {:?}", pre_checkout);
+    let u = crate::types::User::new(&pre_checkout.from, &context.admins);
+    if let Ok(conn) = context.pool.get() {
+        let mut lock = context.sign_up_mutex.lock().await;
+        *lock = *lock + 1;
+
+        let reply = crate::payments::pre_checkout(&conn, &u, &pre_checkout, &context);
+        match reply {
+            Ok(_) => {
+                bot.answer_pre_checkout_query(pre_checkout.id, true).await?;
+            }
+            Err(e) => {
+                bot.answer_pre_checkout_query(pre_checkout.id, false)
+                    .await?;
+                bot.send_message(u.id, e.to_string()).await?;
             }
         }
     }
@@ -208,10 +294,19 @@ async fn perform_bulk_tasks(bot: AutoSend<Bot>, ctx: Arc<Context>) -> Result<boo
                 let keyboard: Vec<Vec<InlineKeyboardButton>> =
                     vec![vec![InlineKeyboardButton::callback(
                         "К мероприятию",
-                        &serde_json::to_string(&message_handler::CallbackQuery::Event {
-                            event_id: m.event_id,
-                            offset: 0,
-                        })
+                        if m.is_paid {
+                            serde_json::to_string(&message_handler::CallbackQuery::PaidEvent {
+                                event_id: m.event_id,
+                                adults: 0,
+                                children: 0,
+                                offset: 0,
+                            })
+                        } else {
+                            serde_json::to_string(&message_handler::CallbackQuery::Event {
+                                event_id: m.event_id,
+                                offset: 0,
+                            })
+                        }
                         .unwrap(),
                     )]];
                 let keyboard = InlineKeyboardMarkup::new(keyboard);
@@ -261,6 +356,13 @@ async fn perform_bulk_tasks(bot: AutoSend<Bot>, ctx: Arc<Context>) -> Result<boo
                 {
                     error!("Failed to clear black list at {}", ts);
                 }
+            }
+        }
+
+        // Clear failed payments.
+        if let Ok(conn) = ctx.pool.get() {
+            if db::clear_failed_payments(&conn, ts - 5 * 60).is_ok() == false {
+                error!("Failed to clear failed payments at {}", ts);
             }
         }
 
