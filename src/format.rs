@@ -58,14 +58,14 @@ pub fn header(
 }
 
 pub fn participants(
-    _s: &EventStats,
+    s: &EventStats,
     participants: &Vec<Participant>,
     is_admin: bool,
     no_age_distinction: bool,
 ) -> String {
     let mut list = "".to_string();
     if participants.len() != 0 {
-        list.push_str(&format!("\n\nЗаписались {}:", participants.len()));
+        list.push_str(&format!("\n\nЗаписались {}({}):", s.adults.reserved, s.children.reserved));
     }
 
     list.push_str(
@@ -92,7 +92,7 @@ pub fn participants(
                 if no_age_distinction {
                     entry.push_str(&format!(" {}", p.adults + p.children));
                 } else {
-                    entry.push_str(&format!(" {} {}", p.adults, p.children));
+                    entry.push_str(&format!(" {}({})", p.adults, p.children));
                 }
                 if let Some(a) = &p.attachment {
                     entry.push_str(&format!(" {}", a));
@@ -118,17 +118,16 @@ pub fn messages(
 
     if let Ok(messages) = db::get_group_messages(conn, event_id, waiting_list) {
         if messages.len() > 0 {
-            let mut text = "\n\n<b>Cообщения по мероприятию</b>".to_string();
-            for msg in messages {
+            let formatted_list: String = messages.iter().map(|msg| {
                 if waiting_list.is_some() {
-                    text.push_str(&format!(
+                    format!(
                         "\n{}, {}:\n{}\n",
                         msg.sender,
                         ts(msg.ts),
                         msg.text
-                    ));
+                    )
                 } else {
-                    text.push_str(&format!(
+                    format!(
                         "\n{}, {} ({}):\n{}\n",
                         msg.sender,
                         ts(msg.ts),
@@ -138,10 +137,10 @@ pub fn messages(
                             "для списка ожидания"
                         },
                         msg.text
-                    ));
-                }
-            }
-            return Some(text);
+                    )
+                }                
+            }).collect();
+            return Some(format!("\n\n<b>Cообщения по мероприятию</b>{}", formatted_list));
         }
     }
     None

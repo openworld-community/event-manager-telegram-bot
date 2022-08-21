@@ -170,7 +170,7 @@ pub fn show_paid_event(
                 // order
                 .text(
                     if adults + children > 0 {
-                        let mut order = "Купить: ".to_string();
+                        let mut order = "Сбор за бронирование: ".to_string();
                         if no_age_distinction {
                             order.push_str(&format!("{}", adults));
                         } else {
@@ -240,7 +240,7 @@ fn get_controls(
     free_adults: i64,
     free_children: i64,
     no_age_distinction: bool,
-    _is_admin: bool,
+    is_admin: bool,
     _user_id: u64,
     _conn: &PooledConnection<SqliteConnectionManager>,
 ) -> anyhow::Result<Vec<Vec<InlineKeyboardButton>>> {
@@ -248,80 +248,96 @@ fn get_controls(
     let mut row: Vec<InlineKeyboardButton> = Vec::new();
     let event_id = s.event.id;
 
-    if s.adults.my_reservation + adults < s.event.max_adults_per_reservation {
-        if free_adults > 0 {
+    if s.state == EventState::Open {
+        if s.adults.my_reservation + adults < s.event.max_adults_per_reservation {
+            if free_adults > 0 {
+                row.push(InlineKeyboardButton::callback(
+                    if no_age_distinction {
+                        "Забронировать +1"
+                    } else {
+                        "Забронировать взрослый +1"
+                    },
+                    &serde_json::to_string(&CallbackQuery::PaidEvent {
+                        event_id,
+                        adults: adults + 1,
+                        children,
+                        offset,
+                    })?,
+                ));
+            }
+        }
+        if adults > 0 {
             row.push(InlineKeyboardButton::callback(
                 if no_age_distinction {
-                    "Забронировать +1"
+                    "Отменить -1"
                 } else {
-                    "Забронировать взрослый +1"
+                    "Отменить взрослый -1"
                 },
                 &serde_json::to_string(&CallbackQuery::PaidEvent {
                     event_id,
-                    adults: adults + 1,
+                    adults: adults - 1,
                     children,
                     offset,
                 })?,
             ));
         }
-    }
-    if adults > 0 {
-        row.push(InlineKeyboardButton::callback(
-            if no_age_distinction {
-                "Отменить -1"
-            } else {
-                "Отменить взрослый -1"
-            },
-            &serde_json::to_string(&CallbackQuery::PaidEvent {
-                event_id,
-                adults: adults - 1,
-                children,
-                offset,
-            })?,
-        ));
-    }
-    keyboard.push(row);
-    row = Vec::new();
-    if s.state == EventState::Open
-        && s.children.my_reservation + children < s.event.max_children_per_reservation
-    {
-        if free_children > 0 {
+        keyboard.push(row);
+        row = Vec::new();
+        if s.children.my_reservation + children < s.event.max_children_per_reservation
+        {
+            if free_children > 0 {
+                row.push(InlineKeyboardButton::callback(
+                    if no_age_distinction {
+                        "Забронировать +1"
+                    } else {
+                        "Забронировать детский +1"
+                    },
+                    &serde_json::to_string(&CallbackQuery::PaidEvent {
+                        event_id,
+                        adults,
+                        children: children + 1,
+                        offset,
+                    })?,
+                ));
+            }
+        }
+        if children > 0 {
             row.push(InlineKeyboardButton::callback(
                 if no_age_distinction {
-                    "Забронировать +1"
+                    "Отменить -1"
                 } else {
-                    "Забронировать детский +1"
+                    "Отменить детский -1"
                 },
                 &serde_json::to_string(&CallbackQuery::PaidEvent {
                     event_id,
                     adults,
-                    children: children + 1,
+                    children: children - 1,
                     offset,
                 })?,
             ));
         }
+        keyboard.push(row);
     }
-    if children > 0 {
-        row.push(InlineKeyboardButton::callback(
-            if no_age_distinction {
-                "Отменить -1"
-            } else {
-                "Отменить детский -1"
-            },
-            &serde_json::to_string(&CallbackQuery::PaidEvent {
-                event_id,
-                adults,
-                children: children - 1,
-                offset,
-            })?,
-        ));
-    }
-    keyboard.push(row);
     row = Vec::new();
     row.push(InlineKeyboardButton::callback(
         "Список мероприятий",
         serde_json::to_string(&CallbackQuery::EventList { offset: 0 })?,
     ));
+
+    if is_admin {
+        if s.state == EventState::Open {
+            row.push(InlineKeyboardButton::callback(
+                "Остановить запись",
+                serde_json::to_string(&CallbackQuery::ChangeEventState { event_id, state: 1 })?,
+            ));
+        } else {
+            row.push(InlineKeyboardButton::callback(
+                "Разрешить запись",
+                serde_json::to_string(&CallbackQuery::ChangeEventState { event_id, state: 0 })?,
+            ));
+        }
+    }
+
     if adults + children > 0 {
         row.push(InlineKeyboardButton::callback(
             "К оплате",

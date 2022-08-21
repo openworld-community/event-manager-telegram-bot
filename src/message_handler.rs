@@ -610,22 +610,26 @@ fn get_signup_controls(
     ));
 
     let event_id = s.event.id;
-    row.push(InlineKeyboardButton::callback(
-        "Список ожидания",
-        &serde_json::to_string(&CallbackQuery::ShowWaitingList {
-            event_id,
-            offset: 0,
-        })?,
-    ));
-
-    if is_admin {
+    if s.adults.reserved > 0 || s.children.reserved > 0 {
         row.push(InlineKeyboardButton::callback(
-            "Присутствие",
-            &serde_json::to_string(&CallbackQuery::ShowPresenceList {
+            "Список ожидания",
+            &serde_json::to_string(&CallbackQuery::ShowWaitingList {
                 event_id,
                 offset: 0,
             })?,
         ));
+    }
+    
+    if is_admin {
+        if s.adults.reserved > 0 || s.children.reserved > 0 {
+            row.push(InlineKeyboardButton::callback(
+                "Присутствие",
+                &serde_json::to_string(&CallbackQuery::ShowPresenceList {
+                    event_id,
+                    offset: 0,
+                })?,
+            ));
+        }
         if s.state == EventState::Open {
             row.push(InlineKeyboardButton::callback(
                 "Остановить запись",
@@ -638,15 +642,17 @@ fn get_signup_controls(
             ));
         }
     } else {
-        if let Ok(check) = db::is_group_leader(conn, event_id, user_id) {
-            if check {
-                row.push(InlineKeyboardButton::callback(
-                    "Присутствие",
-                    &serde_json::to_string(&CallbackQuery::ShowPresenceList {
-                        event_id,
-                        offset: 0,
-                    })?,
-                ));
+        if s.adults.reserved > 0 || s.children.reserved > 0 {
+            if let Ok(check) = db::is_group_leader(conn, event_id, user_id) {
+                if check {
+                    row.push(InlineKeyboardButton::callback(
+                        "Присутствие",
+                        &serde_json::to_string(&CallbackQuery::ShowPresenceList {
+                            event_id,
+                            offset: 0,
+                        })?,
+                    ));
+                }
             }
         }
     }
@@ -715,7 +721,7 @@ fn show_waiting_list(
                                 if no_age_distinction {
                                     entry.push_str(&format!(" {}", p.adults + p.children));
                                 } else {
-                                    entry.push_str(&format!(" {} {}", p.adults, p.children));
+                                    entry.push_str(&format!(" {}({})", p.adults, p.children));
                                 }
                                 if let Some(a) = &p.attachment {
                                     entry.push_str(&format!(" {}", a));

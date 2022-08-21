@@ -247,7 +247,28 @@ pub fn get_ban_reason(conn: &PooledConnection<SqliteConnectionManager>, user_id:
     }
 }
 
-pub fn delete_event(conn: &PooledConnection<SqliteConnectionManager>, event_id: u64) -> Result<(), rusqlite::Error> {
+pub fn delete_event(
+    conn: &PooledConnection<SqliteConnectionManager>,
+    event_id: u64,
+    automatic_blacklisting: bool,
+    cancel_future_reservations_on_ban: bool,
+    admins: &HashSet<u64>
+) -> Result<(), rusqlite::Error> {
+    let s = get_event(conn, event_id, 0)?;
+    if automatic_blacklisting && s.event.adult_ticket_price == 0 && s.event.child_ticket_price == 0 {
+        if let Err(e) = blacklist_absent_participants(
+            conn,
+            event_id,
+            admins,
+            cancel_future_reservations_on_ban,
+        ) {
+            // todo: fix error
+            return Err(rusqlite::Error::InvalidParameterName(
+                format!("Failed to blacklist absent participants: {}.", e),
+            ));
+        }
+    }
+
     if let Err(e) = conn
         .execute("DELETE FROM reservations WHERE event=?1", params![event_id])
     {
@@ -299,32 +320,37 @@ pub fn sign_up(
         return Err(anyhow!("Запись остановлена."));
     }
 
-    if amount > 0 {
+    // Check event limits
+    if adults as i64 > s.event.max_adults as i64 - s.adults.reserved as i64 || 
+        children as i64 > s.event.max_children as i64 - s.children.reserved as i64 {
+        return Err(anyhow!("К сожалению, свободные места закончились."));
+    }
+
+    let state = if amount == 0 { 
+        // Free event
+        if let Ok(black_listed) = is_in_black_list(conn, user_id) {
+            if black_listed {
+                return Ok((0, true));
+            }
+        }
+
+        // Check conflicting time
+        let mut stmt = conn
+            .prepare("select events.id from events join reservations as r on events.id = r.event where events.ts = ?1 and r.user = ?2 and events.id != ?3")?;
+        let mut rows = stmt.query(params![s.event.ts, user_id, s.event.id])?;
+        if let Some(_) = rows.next()? {
+            return Err(anyhow!(
+                "Вы уже записаны на другое мероприятие в это время."
+            ));
+        }
+        ReservationState::Free
+    } else {
         // pre checkout
         if s.event.adult_ticket_price * adults + s.event.child_ticket_price * children != amount {
             return Err(anyhow!("Wrong tranaction amount"));
         }
-        return Ok((conn.execute(
-            "INSERT INTO reservations (event, user, user_name1, user_name2, adults, children, waiting_list, ts, state) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
-            params![event_id, user_id, user.user_name1, user.user_name2, adults, children, wait, ts, ReservationState::PaymentPending as u64],
-        )?, false))    
-    }
-
-    if let Ok(black_listed) = is_in_black_list(conn, user_id) {
-        if black_listed {
-            return Ok((0, true));
-        }
-    }
-
-    // Check conflicting time
-    let mut stmt = conn
-        .prepare("select events.id from events join reservations as r on events.id = r.event where events.ts = ?1 and r.user = ?2 and events.id != ?3")?;
-    let mut rows = stmt.query(params![s.event.ts, user_id, s.event.id])?;
-    if let Some(_) = rows.next()? {
-        return Err(anyhow!(
-            "Вы уже записаны на другое мероприятие в это время."
-        ));
-    }
+        ReservationState::PaymentPending
+    };
 
     // Check user limits
     if s.adults.my_reservation + s.adults.my_waiting + adults
@@ -349,9 +375,9 @@ pub fn sign_up(
     }
 
     Ok((conn.execute(
-        "INSERT INTO reservations (event, user, user_name1, user_name2, adults, children, waiting_list, ts) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
-        params![event_id, user_id, user.user_name1, user.user_name2, adults, children, wait, ts],
-    )?, false))
+        "INSERT INTO reservations (event, user, user_name1, user_name2, adults, children, waiting_list, ts, state) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+        params![event_id, user_id, user.user_name1, user.user_name2, adults, children, wait, ts, state as u64],
+    )?, false))    
 }
 
 pub fn checkout(
@@ -773,14 +799,7 @@ pub fn clear_old_events(
     let mut rows = stmt.query([ts - util::get_seconds_before_midnight(ts)])?;
     while let Some(row) = rows.next()? {
         let event_id: u64 = row.get(0)?;
-        if automatic_blacklisting {
-            if let Err(e) =
-                blacklist_absent_participants(conn, event_id, admins, cancel_future_reservations)
-            {
-                error!("{}", e);
-            }
-        }
-        delete_event(conn, event_id)?;
+        delete_event(conn, event_id, automatic_blacklisting, cancel_future_reservations, admins)?;
     }
     Ok(())
 }
@@ -923,52 +942,6 @@ pub fn create(conn: &PooledConnection<SqliteConnectionManager>) -> Result<(), ru
             error!("Failed to query db.");
         }
     }
-
-
-    let mut stmt =
-        conn.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='current_events'")?;
-    match stmt.query([]) {
-        Ok(rows) => match rows.count() {
-            Ok(count) => {
-                if count == 0 {
-                    conn.execute(
-                        "CREATE TABLE current_events (
-                            user            INTEGER NOT NULL PRIMARY KEY,
-                            event           INTEGER NOT NULL
-                            )",
-                        [],
-                    )?;
-                }
-            }
-            _ => panic!("DB is corrupt."),
-        },
-        _ => {
-            error!("Failed to query db.");
-        }
-    }
-
-    let mut stmt =
-        conn.prepare("select * from reservations limit 1")?;
-    let mut rows = stmt.query([])?;
-    if let Some(row) = rows.next()? {
-        if let Ok(_) = row.get::<&str, u64>("state") {
-        } else {
-            conn.execute("ALTER TABLE reservations ADD COLUMN state INTEGER default 0", [])?;
-            conn.execute("ALTER TABLE reservations ADD COLUMN payment TEXT default NULL", [])?;
-        }
-    }
-
-    let mut stmt =
-        conn.prepare("select * from events limit 1")?;
-    let mut rows = stmt.query([])?;
-    if let Some(row) = rows.next()? {
-        if let Ok(_) = row.get::<&str, u64>("adult_ticket_price") {
-        } else {
-            conn.execute("ALTER TABLE events ADD COLUMN adult_ticket_price INTEGER default 0", [])?;
-            conn.execute("ALTER TABLE events ADD COLUMN child_ticket_price INTEGER default 0", [])?;
-        }
-    }
-
     Ok(())
 }
 

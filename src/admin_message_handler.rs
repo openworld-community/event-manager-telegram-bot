@@ -2,8 +2,8 @@ use crate::db;
 use crate::format;
 use crate::message_handler;
 use crate::message_handler::CallbackQuery;
-use crate::types::{Configuration, Context, Event, MessageType, User};
 use crate::reply::*;
+use crate::types::{Configuration, Context, Event, MessageType, User};
 use anyhow::anyhow;
 use chrono::DateTime;
 use r2d2::PooledConnection;
@@ -114,17 +114,9 @@ pub fn handle_message(
         }
         "/delete_event" if pars.len() == 2 => {
             if let Ok(event_id) = pars[1].parse::<u64>() {
-                if ctx.config.automatic_blacklisting {
-                    if let Err(e) = db::blacklist_absent_participants(
-                        conn,
-                        event_id,
-                        &ctx.admins,
-                        ctx.config.cancel_future_reservations_on_ban,
-                    ) {
-                        return Err(anyhow!("Failed to blacklist absent participants: {}.", e));
-                    }
-                }
-                match db::delete_event(conn, event_id) {
+                match db::delete_event(conn, event_id, ctx.config.automatic_blacklisting,
+                    ctx.config.cancel_future_reservations_on_ban,
+                    &ctx.admins) {
                     Ok(_) => {
                         return Ok(ReplyMessage::new("Deleted").into());
                     }
@@ -180,9 +172,9 @@ pub fn handle_message(
         "/help" => {
             return Ok(ReplyMessage::new(markdown::escape(
                         "Добавить мероприятие: \
-                        \n { \"name\":\"WIENXTRA CHILDREN'S ACTIVITIES for children up to 13 y.o.\", \"link\":\"https://t.me/storiesvienna/21\", \"start\":\"2022-05-29 15:00 +02:00\", \"remind\":\"2022-05-28 15:00 +02:00\", \"max_adults\":15, \"max_children\":15, \"max_adults_per_reservation\":15, \"max_children_per_reservation\":15 }\
+                        \n { \"name\":\"тест\", \"link\":\"https://t.me/storiesvienna/21\", \"start\":\"2022-05-29 15:00 +02:00\", \"remind\":\"2022-05-28 15:00 +02:00\", \"max_adults\":15, \"max_children\":15, \"max_adults_per_reservation\":15, \"max_children_per_reservation\":15 }\
                         \n\n Отредактировать: добавьте \"id\":<event> в команду выше \
-                        \n\n Цены билетов: добавьте \"adult_ticket_price\"/\"child_ticket_price\" в евроцентах в команду выше \
+                        \n\n Цены билетов: добавьте \"adult_ticket_price\":200, \"child_ticket_price\":100 в евроцентах в команду выше \
                         \n \nПослать сообщение: \
                         \n /send confirmed <event> текст \
                         \n /send waiting <event> текст \

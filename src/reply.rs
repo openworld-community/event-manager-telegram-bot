@@ -37,10 +37,10 @@ impl ReplyMessage {
 
     pub fn text<T>(mut self, text: Option<T>) -> Self
     where
-        T: Into<String>,
+        T: AsRef<str>,
     {
         if let Some(text) = text {
-            self.message.push_str(&text.into());
+            self.message.push_str(text.as_ref());
         }
         self
     }
