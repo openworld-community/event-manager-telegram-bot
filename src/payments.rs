@@ -27,18 +27,23 @@ pub fn pre_checkout(
     }
     if let Some(_) = &pre_checkout.order_info.name {
         let booking: Booking = serde_json::from_str(&pre_checkout.invoice_payload)?;
-        match db::sign_up(
-            conn,
-            booking.event_id,
-            user,
-            booking.adults,
-            booking.children,
-            0,
-            get_unix_time(),
-            pre_checkout.total_amount as u64,
-        ) {
-            Ok(_) => Ok(()),
-            Err(e) => Err(anyhow!("{}", e)),
+        if booking.event_id == 0 {
+            // Donation
+            Ok(())
+        } else {
+            match db::sign_up(
+                conn,
+                booking.event_id,
+                user,
+                booking.adults,
+                booking.children,
+                0,
+                get_unix_time(),
+                pre_checkout.total_amount as u64,
+            ) {
+                Ok(_) => Ok(()),
+                Err(e) => Err(anyhow!("{}", e)),
+            }
         }
     } else {
         Err(anyhow!("Name not found"))
@@ -52,17 +57,24 @@ pub fn checkout(
     _ctx: &Context,
 ) -> anyhow::Result<()> {
     if let Some(name) = &payment.order_info.name {
-        match db::checkout(
-            conn,
-            &serde_json::from_str(&payment.invoice_payload)?,
-            OrderInfo {
-                id: payment.telegram_payment_charge_id.to_owned(),
-                name: name.to_owned(),
-                amount: payment.total_amount as u64,
-            },
-        ) {
-            Ok(_) => Ok(()),
-            Err(e) => Err(anyhow!("{}", e)),
+        let booking: Booking = serde_json::from_str(&payment.invoice_payload)?;
+        if booking.event_id == 0 {
+            // Donation
+            // todo: save to donations table
+            Ok(())
+        } else {
+            match db::checkout(
+                conn,
+                &booking,
+                OrderInfo {
+                    id: payment.telegram_payment_charge_id.to_owned(),
+                    name: name.to_owned(),
+                    amount: payment.total_amount as u64,
+                },
+            ) {
+                Ok(_) => Ok(()),
+                Err(e) => Err(anyhow!("{}", e)),
+            }
         }
     } else {
         Err(anyhow!("Name not found"))
@@ -400,4 +412,23 @@ pub fn prepare_invoice(
         }
         Err(e) => Err(anyhow!("Failed to fetch event: {}", e)),
     }
+}
+
+pub fn donate(
+    user: &User,
+    amount: u64,
+    _ctx: &Context,
+) -> anyhow::Result<Reply> {
+        Ok(Reply::Invoice {
+            title: "Донат".to_string(),
+            description: "Поддержать работу канала \"Венские Истории\"".to_string(),
+            currency: "EUR".to_string(),
+            amount,
+            payload: serde_json::to_string(&Booking {
+                event_id: 0,
+                adults: 0,
+                children: 0,
+                user_id: user.id.0,
+            })?,
+        })
 }

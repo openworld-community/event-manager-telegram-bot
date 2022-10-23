@@ -1,8 +1,9 @@
-use crate::types::{Event, EventState, MessageBatch, MessageType, Participant, Presence, User, OrderInfo, ReservationState, Booking};
+use crate::types::{Event, EventState, EventType, MessageBatch, MessageType, Participant, Presence, User, OrderInfo, ReservationState, Booking};
 use crate::util::{self, get_unix_time};
 use fallible_streaming_iterator::FallibleStreamingIterator;
 use rusqlite::{params, Result, Row};
 use std::collections::HashSet;
+use url::Url;
 
 use r2d2::PooledConnection;
 use r2d2_sqlite::SqliteConnectionManager;
@@ -92,6 +93,16 @@ pub struct GroupMessage {
 
 
 pub fn add_event(conn: &PooledConnection<SqliteConnectionManager>, e: Event) -> Result<u64, rusqlite::Error> {
+    let event_type = e.get_type();
+    if event_type == EventType::Announcement {
+        if let Err(err) = Url::parse(&e.link) {
+            // todo: fix error
+            return Err(rusqlite::Error::InvalidParameterName(
+                format!("Failed to parse url: {}. {}", e.link, err),
+            ));
+        }
+    }
+    let mut event_id = e.id;
     if e.id == 0 {
         let res = conn.execute(
             "INSERT INTO events (name, link, max_adults, max_children, max_adults_per_reservation, max_children_per_reservation, ts, remind, adult_ticket_price, child_ticket_price) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
@@ -102,21 +113,7 @@ pub fn add_event(conn: &PooledConnection<SqliteConnectionManager>, e: Event) -> 
                 .prepare("SELECT id FROM events WHERE name = ?1 AND link = ?2 AND ts = ?3")?;
             let mut rows = stmt.query(params![e.name, e.link, e.ts])?;
             if let Some(row) = rows.next()? {
-                let event_id: u64 = row.get(0)?;
-
-                let text = format!("\nЗдравствуйте!\nНе забудьте, пожалуйста, что вы записались на\n<a href=\"{}\">{}</a>\
-                            \nНачало: {}\n\
-                            <b>ВНИМАНИЕ!</b> Если вы не сможете прийти и не отмените бронь заблаговременно, то не сможете больше бронировать. Извините, но бесплатные билеты не должны пропадать.\n",
-                            e.link, e.name, format::ts(e.ts), );
-                enqueue_message(conn, 
-                    event_id,
-                    "Bot",
-                    0,
-                    MessageType::Reminder,
-                    &text,
-                    e.remind,
-                )?;
-                return Ok(event_id);
+                event_id = row.get::<&str, u64>("id")?;
             }
         }
     } else {
@@ -125,9 +122,23 @@ pub fn add_event(conn: &PooledConnection<SqliteConnectionManager>, e: Event) -> 
                 WHERE id = ?9",
             params![e.name, e.link, e.max_adults, e.max_children, e.max_adults_per_reservation, e.max_children_per_reservation, e.ts, e.remind, e.id],
         )?;
-        // todo: update reminder
+        delete_enqueued_messages(conn, e.id, MessageType::Reminder)?;
     }
-    Ok(0)
+
+    if event_id != 0 && event_type != EventType::Announcement {
+        let text = format!("\nЗдравствуйте!\nНе забудьте, пожалуйста, что вы записались на\n<a href=\"{}\">{}</a>\
+            \nНачало: {}\nПожалуйста, вовремя откажитесь от мест, если ваши планы изменились.\n",
+            e.link, e.name, format::ts(e.ts), );
+        enqueue_message(conn, 
+            event_id,
+            "Bot",
+            0,
+            MessageType::Reminder,
+            &text,
+            e.remind,
+        )?;
+    }
+    Ok(event_id)
 }
 
 pub fn enqueue_message(
@@ -151,6 +162,27 @@ pub fn enqueue_message(
         conn.execute(
             "INSERT INTO message_outbox (message, send_at) VALUES (?1, ?2)",
             params![message_id, send_at],
+        )?;
+    }
+    Ok(())
+}
+
+pub fn delete_enqueued_messages(
+    conn: &PooledConnection<SqliteConnectionManager>,
+    event_id: u64,
+    message_type: MessageType,
+) -> Result<(), rusqlite::Error> {
+    let mut stmt = conn.prepare("SELECT id FROM messages WHERE event = ?1 AND type = ?2")?;
+    let mut rows = stmt.query([event_id, message_type as u64])?;
+    while let Some(row) = rows.next()? {
+        let message_id: u64 = row.get(0)?;
+        conn.execute(
+            "DELETE FROM message_outbox WHERE message = ?1",
+            params![message_id],
+        )?;
+        conn.execute(
+            "DELETE FROM messages WHERE id = ?1",
+            params![message_id],
         )?;
     }
     Ok(())
@@ -303,6 +335,20 @@ pub fn delete_event(
     Ok(())
 }
 
+pub fn delete_link(
+    conn: &PooledConnection<SqliteConnectionManager>,
+    link: &str,
+) -> Result<(), rusqlite::Error> {
+    let mut stmt = conn.prepare("select id from events where link = ?1")?;
+    let mut rows = stmt.query(params![link])?;
+    if let Some(row) = rows.next()? {
+        let event_id: u64 = row.get("id")?;
+        delete_event(conn, event_id, false, false, &HashSet::new())
+    } else {
+        Ok(())
+    }
+}
+
 pub fn sign_up(
     conn: &PooledConnection<SqliteConnectionManager>,
     event_id: u64,
@@ -315,41 +361,48 @@ pub fn sign_up(
 ) -> anyhow::Result<(usize, bool)> {
     let user_id = user.id.0;
     let s = get_event(conn, event_id, user_id)?;
+    let event_type = s.event.get_type();
 
     if ts > s.event.ts || (s.state != EventState::Open && user.is_admin == false) {
         return Err(anyhow!("Запись остановлена."));
     }
 
     // Check event limits
-    if adults as i64 > s.event.max_adults as i64 - s.adults.reserved as i64 || 
-        children as i64 > s.event.max_children as i64 - s.children.reserved as i64 {
+    if (wait == 0 || event_type == EventType::Paid) &&
+        (adults as i64 > s.event.max_adults as i64 - s.adults.reserved as i64 || 
+        children as i64 > s.event.max_children as i64 - s.children.reserved as i64) {
         return Err(anyhow!("К сожалению, свободные места закончились."));
     }
 
-    let state = if amount == 0 { 
-        // Free event
-        if let Ok(black_listed) = is_in_black_list(conn, user_id) {
-            if black_listed {
-                return Ok((0, true));
+    let state = match event_type {
+        EventType::Free => { 
+            if let Ok(black_listed) = is_in_black_list(conn, user_id) {
+                if black_listed {
+                    return Ok((0, true));
+                }
             }
-        }
 
-        // Check conflicting time
-        let mut stmt = conn
-            .prepare("select events.id from events join reservations as r on events.id = r.event where events.ts = ?1 and r.user = ?2 and events.id != ?3")?;
-        let mut rows = stmt.query(params![s.event.ts, user_id, s.event.id])?;
-        if let Some(_) = rows.next()? {
-            return Err(anyhow!(
-                "Вы уже записаны на другое мероприятие в это время."
-            ));
+            // Check conflicting time
+            let mut stmt = conn
+                .prepare("select events.id from events join reservations as r on events.id = r.event where events.ts = ?1 and r.user = ?2 and events.id != ?3")?;
+            let mut rows = stmt.query(params![s.event.ts, user_id, s.event.id])?;
+            if let Some(_) = rows.next()? {
+                return Err(anyhow!(
+                    "Вы уже записаны на другое мероприятие в это время."
+                ));
+            }
+            ReservationState::Free
         }
-        ReservationState::Free
-    } else {
-        // pre checkout
-        if s.event.adult_ticket_price * adults + s.event.child_ticket_price * children != amount {
-            return Err(anyhow!("Wrong tranaction amount"));
+        EventType::Paid => {
+            // pre checkout?
+            if s.event.adult_ticket_price * adults + s.event.child_ticket_price * children != amount {
+                return Err(anyhow!("Wrong tranaction amount"));
+            }
+            ReservationState::PaymentPending
         }
-        ReservationState::PaymentPending
+        _ => {
+            return Err(anyhow!("Wrong event type"));
+        }
     };
 
     // Check user limits

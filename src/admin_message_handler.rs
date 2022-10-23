@@ -126,6 +126,16 @@ pub fn handle_message(
                 }
             }
         }
+        "/delete_link" if pars.len() == 2 => {
+            match db::delete_link(conn, pars[1]) {
+                Ok(_) => {
+                    return Ok(ReplyMessage::new("Deleted").into());
+                }
+                Err(e) => {
+                    return Err(anyhow!("Failed to delete link: {}.", e));
+                }
+            }
+        }
         "/delete_reservation" if pars.len() == 3 => {
             if let (Ok(event_id), Ok(user_id)) = (pars[1].parse::<u64>(), pars[2].parse::<u64>()) {
                 match db::delete_reservation(conn, event_id, user_id) {
@@ -183,6 +193,7 @@ pub fn handle_message(
                         \n /show_black_list \
                         \n \
                         \n /delete_event <event> \
+                        \n /delete_link <url> \
                         \n /delete_reservation <event> <user> \
                         \n /set_group_leader <event> <user> \
                         \n /set_event_limits <event> <max_adults> <max_children> \

@@ -1,12 +1,13 @@
 use crate::get_unix_time;
-use crate::payments::{prepare_invoice, show_paid_event};
-use crate::types::{Context, EventState, ReservationState, User};
+use crate::payments::{prepare_invoice, show_paid_event, donate};
+use crate::types::{Context, EventState, EventType, ReservationState, User};
 use crate::reply::*;
 use anyhow::anyhow;
 use teloxide::{
     types::{InlineKeyboardButton},
     utils::html,
 };
+use url::Url;
 
 use crate::db;
 use crate::format;
@@ -31,19 +32,29 @@ pub fn handle_message(
         "/start" => {
             if pars.len() == 2 {
                 // Direct link
-                if let Ok(event_id) = pars[1].parse::<u64>() {
-                    return show_event(conn, user, event_id, ctx, None, 0);
+                if pars[1].starts_with("donate_") {
+                    if let Ok(amount) = pars[1][7..].parse::<u64>() {
+                        return donate(user, amount, ctx);
+                    }
+                } else {
+                    if let Ok(event_id) = pars[1].parse::<u64>() {
+                        return show_event(conn, user, event_id, ctx, None, 0);
+                    }
                 }
             } else {
                 return show_event_list(conn, user.id.0, ctx, 0);
             }
+        }
+        "/donate" => {
+                return donate(user, 500, ctx);
         }
         "/help" => {
             return Ok(ReplyMessage::new(format!(
                 "Здесь вы можете бронировать места на мероприятия.\n \
                             \n /start - показать список мероприятий \
                             \n /help - эта подсказка \
-                            \n <a href=\"{}\">Подробная инструкция</a>.",
+                            \n <a href=\"{}\">Подробная инструкция</a> \
+                            \n /donate - поддержать канал.",
                 ctx.config.help
             ))
             .into());
@@ -169,7 +180,7 @@ pub fn handle_callback(
                         let mut ps = None;
                         if is_too_late_to_cancel(conn, event_id, user, ctx) {
                             if let Ok(s) = db::get_event(conn, event_id, user_id) {
-                                if s.adults.my_reservation + s.children.my_reservation == 0 {
+                                if s.adults.my_reservation + s.children.my_reservation == 0 && s.event.adult_ticket_price == 0 && s.event.child_ticket_price == 0 {
                                     // Complete cancellation
                                     if db::ban_user(
                                         conn,
@@ -305,7 +316,7 @@ pub fn show_event_list(
                 // header
                 ReplyMessage::new(
                     if offset != 0 || events.len() != 0 {
-                        format!("Программа\nвремя / взросл.(детск.) места  / мероприятие\n<a href=\"{}\">инструкция</a>", ctx.config.help)
+                        format!("Программа\nвремя / взросл.(детск.) места  / мероприятие\n<a href=\"{}\">инструкция</a> /donate", ctx.config.help)
                     } else {
                         "Нет мероприятий.".to_string()
                     }                      
@@ -314,53 +325,60 @@ pub fn show_event_list(
                     events
                     .iter()
                     .map(|s| {
-                        let is_paid =
-                            s.event.adult_ticket_price != 0 || s.event.child_ticket_price != 0;
-                        vec![InlineKeyboardButton::callback(
-                            format!(
-                                "{} {} / {} / {}",
-                                if s.adults.my_reservation != 0 || s.children.my_reservation != 0 {
-                                    "✅"
-                                } else if s.adults.my_waiting != 0 || s.children.my_waiting != 0 {
-                                    "⏳"
-                                } else if !is_paid {
-                                    "✨" // todo: find a better emoji for free events
-                                } else {
-                                    ""
-                                },
-                                format::ts(s.event.ts),
-                                if s.state == EventState::Open {
-                                    if s.event.max_adults == 0 || s.event.max_children == 0 {
-                                        (s.event.max_adults - s.adults.reserved + s.event.max_children
-                                            - s.children.reserved)
-                                            .to_string()
-                                    } else {
-                                        format!(
-                                            "{}({})",
-                                            s.event.max_adults - s.adults.reserved,
-                                            s.event.max_children - s.children.reserved
-                                        )
-                                    }
-                                } else {
-                                    "-".to_string()
-                                },
-                                s.event.name
-                            ),
-                            if is_paid {
-                                serde_json::to_string(&CallbackQuery::PaidEvent {
-                                    event_id: s.event.id,
-                                    adults: 0,
-                                    children: 0,
-                                    offset: 0,
-                                })
+                        let event_type = s.event.get_type();
+                        if event_type == EventType::Announcement {
+                            if let Ok(url) = Url::parse(&s.event.link) {
+                                vec![InlineKeyboardButton::url(format!("ℹ️ {} {}", format::ts(s.event.ts), s.event.name), url)]
                             } else {
-                                serde_json::to_string(&CallbackQuery::Event {
-                                    event_id: s.event.id,
-                                    offset: 0,
-                                })
+                                vec![]
                             }
-                            .unwrap(),
-                        )]
+                        } else {
+                            vec![InlineKeyboardButton::callback(
+                                format!(
+                                    "{} {} / {} / {}",
+                                    if s.adults.my_reservation != 0 || s.children.my_reservation != 0 {
+                                        "✅"
+                                    } else if s.adults.my_waiting != 0 || s.children.my_waiting != 0 {
+                                        "⏳"
+                                    } else if event_type != EventType::Paid {
+                                        "✨" // todo: find a better emoji for free events
+                                    } else {
+                                        ""
+                                    },
+                                    format::ts(s.event.ts),
+                                    if s.state == EventState::Open {
+                                        if s.event.max_adults == 0 || s.event.max_children == 0 {
+                                            (s.event.max_adults - s.adults.reserved + s.event.max_children
+                                                - s.children.reserved)
+                                                .to_string()
+                                        } else {
+                                            format!(
+                                                "{}({})",
+                                                s.event.max_adults - s.adults.reserved,
+                                                s.event.max_children - s.children.reserved
+                                            )
+                                        }
+                                    } else {
+                                        "-".to_string()
+                                    },
+                                    s.event.name
+                                ),
+                                if event_type == EventType::Paid {
+                                    serde_json::to_string(&CallbackQuery::PaidEvent {
+                                        event_id: s.event.id,
+                                        adults: 0,
+                                        children: 0,
+                                        offset: 0,
+                                    })
+                                } else {
+                                    serde_json::to_string(&CallbackQuery::Event {
+                                        event_id: s.event.id,
+                                        offset: 0,
+                                    })
+                                }
+                                .unwrap(),
+                            )]
+                        }
                     })
                     .collect()                   
                 )
@@ -512,7 +530,7 @@ fn get_signup_controls(
 ) -> anyhow::Result<Vec<Vec<InlineKeyboardButton>>> {
     let mut keyboard: Vec<Vec<InlineKeyboardButton>> = Vec::new();
     let mut row: Vec<InlineKeyboardButton> = Vec::new();
-    if s.adults.my_reservation < s.event.max_adults_per_reservation {
+    if s.state == EventState::Open && s.adults.my_reservation < s.event.max_adults_per_reservation {
         if free_adults > 0 {
             row.push(InlineKeyboardButton::callback(
                 if no_age_distinction {
@@ -557,7 +575,7 @@ fn get_signup_controls(
     }
     keyboard.push(row);
     row = Vec::new();
-    if s.children.my_reservation < s.event.max_children_per_reservation {
+    if s.state == EventState::Open && s.children.my_reservation < s.event.max_children_per_reservation {
         if free_children > 0 {
             row.push(InlineKeyboardButton::callback(
                 if no_age_distinction {

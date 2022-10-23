@@ -134,7 +134,35 @@ async fn message_handler(
                                 Reply::Message(r) => {
                                     r.send(&msg, &bot).await?;
                                 }
-                                _ => {}
+                                Reply::Invoice {
+                                    title,
+                                    description,
+                                    payload,
+                                    currency,
+                                    amount,
+                                } => {
+                                    match bot
+                                        .send_invoice(
+                                            msg.chat.id,
+                                            title,
+                                            description,
+                                            payload,
+                                            &context.config.payment_provider_token,
+                                            &currency,
+                                            vec![LabeledPrice {
+                                                label: currency.to_owned(),
+                                                amount: amount as i32,
+                                            }],
+                                        )
+                                        .need_name(false)
+                                        .await
+                                    {
+                                        Ok(_) => {}
+                                        Err(e) => {
+                                            error!("failed to send invoice {:?}", e);
+                                        }
+                                    }
+                                }
                             },
                             Err(e) => {
                                 error!("Error in reply: {}", e);
@@ -236,6 +264,35 @@ async fn callback_handler(
     Ok(())
 }
 
+/*async fn send_invoice(
+    bot: AutoSend<Bot>,
+    context: Arc<Context>,
+    invoice: Reply,
+    need_name: bool,
+) -> Result<(), RequestError> {
+    match bot
+        .send_invoice(
+            msg.chat.id,
+            invoice.title,
+            invoice.description,
+            invoice.payload,
+            &context.config.payment_provider_token,
+            &invoice.currency,
+            vec![LabeledPrice {
+                label: invoice.currency.to_owned(),
+                amount: invoice.amount as i32,
+            }],
+        )
+        .need_name(need_name)
+        .await
+    {
+        Ok(_) => {}
+        Err(e) => {
+            error!("failed to send invoice {:?}", e);
+        }
+    }
+    Ok(())
+}*/
 async fn pre_checkout_handler(
     pre_checkout: PreCheckoutQuery,
     bot: AutoSend<Bot>,

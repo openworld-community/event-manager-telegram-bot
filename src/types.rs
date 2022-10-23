@@ -53,6 +53,13 @@ impl Configuration {
     }
 }
 
+#[derive(PartialEq)]
+pub enum EventType {
+    Announcement = 0,
+    Free = 1,
+    Paid = 2,
+}
+
 #[derive(Clone)]
 pub struct Event {
     pub id: u64,
@@ -66,6 +73,19 @@ pub struct Event {
     pub remind: u64,
     pub adult_ticket_price: u64,
     pub child_ticket_price: u64,
+}
+
+impl Event {
+    pub fn get_type(&self) -> EventType {
+        // todo: move to constructor
+        if self.adult_ticket_price != 0 || self.child_ticket_price != 0 {
+            EventType::Paid
+        } else if self.max_adults != 0 || self.max_children != 0 {
+            EventType::Free
+        } else {
+            EventType::Announcement
+        }
+    }
 }
 
 #[derive(PartialEq)]
