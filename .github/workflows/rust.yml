@@ -16,8 +16,10 @@ jobs:
 
     steps:
       - uses: actions/checkout@v3
+      - name: Install libssl-dev
+        run: sudo apt-get install libssl-dev pkg-config -y
       - name: Build
-        run: RUSTFLAGS='--cfg procmacro2_semver_exempt' cargo build --release
+        run: cargo build --release
       #      - name: Run tests
       #        run: cargo test --verbose
       - name: Set outputs
