@@ -19,6 +19,8 @@ jobs:
       - name: Install libssl-dev
         run: sudo apt-get install libssl-dev pkg-config -y
       - name: Build
+        env:
+          RUSTFLAGS: "-C target-feature=+crt-static"
         run: cargo build --release
       #      - name: Run tests
       #        run: cargo test --verbose
