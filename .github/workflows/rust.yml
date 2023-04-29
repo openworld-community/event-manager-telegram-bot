@@ -43,6 +43,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./target/debug/event-manager-telegram-bot
+          asset_path: ./target/release/event-manager-telegram-bot
           asset_name: event-manager-telegram-bot
           asset_content_type: application/octet-stream
