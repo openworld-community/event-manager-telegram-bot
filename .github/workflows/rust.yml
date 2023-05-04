@@ -10,6 +10,7 @@ on:
       - "main"
       - "prerelease"
 
+#TODO: добавить отслеживание изменений по директориям
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
