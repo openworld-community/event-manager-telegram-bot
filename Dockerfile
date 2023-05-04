@@ -1,4 +1,5 @@
 FROM ubuntu:20.04
 RUN apt-get update && apt-get install libssl-dev ca-certificates -y && update-ca-certificates
-RUN wget
-CMD ["event-manager-telegram-bot","-c","/usr/local/etc/event-manager-telegram-bot.toml"]
+COPY cfg/$ASSET_NAME.toml /usr/local/etc/
+ADD $REPOSITORY_ADDRESS/releases/download/$RELEASE_VERSION/$ASSET_NAME /usr/local/bin/
+CMD ["$ASSET_NAME","-c","/usr/local/etc/$ASSET_NAME.toml"]
