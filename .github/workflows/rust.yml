@@ -47,7 +47,7 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Replace version in Cargo.toml
-        run: sed -i s/"^version .*$"/"version = ${{ steps.tag_version.outputs.new_version }}"/g Cargo.toml
+        run: sed -i s/"^version .*$"/"version = \"${{ steps.tag_version.outputs.new_version }}\""/g Cargo.toml
         #if: steps.filter.outputs.app_src_path == 'true'
 
       - name: Build
