@@ -48,7 +48,7 @@ jobs:
         uses: mathieudutour/github-tag-action@v6.1
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          default_bump: false
+          #default_bump: false
 
       - name: Replace version in Cargo.toml
         run: sed -i s/"^version .*$"/"version = \"${{ steps.tag_version.outputs.new_version }}\""/g Cargo.toml
