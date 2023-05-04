@@ -108,6 +108,6 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args:
-            - REPOSITORY_ADDRESS=${{ github.server_url }}/${{ github.repository }}
-            - RELEASE_VERSION=${{ steps.tag_version.outputs.new_tag }}
-            - ASSET_NAME=${{ steps.upload_release_asset.outputs.name }}
+            - "REPOSITORY_ADDRESS=${{ github.server_url }}/${{ github.repository }}"
+            - "RELEASE_VERSION=${{ steps.tag_version.outputs.new_tag }}"
+            - "ASSET_NAME=${{ steps.upload_release_asset.outputs.name }}"
