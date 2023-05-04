@@ -11,6 +11,7 @@ on:
       - "prerelease"
 
 #TODO: добавить отслеживание изменений по директориям
+#Разобраться с версионированием при ПР
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
