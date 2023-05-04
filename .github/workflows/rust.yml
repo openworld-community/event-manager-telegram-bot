@@ -2,9 +2,13 @@ name: Rust
 
 on:
   push:
-    branches: [ "main" ]
+    branches:
+      - "main"
+      - "prerelease"
   pull_request:
-    branches: [ "main" ]
+    branches:
+      - "main"
+      - "prerelease"
 
 env:
   REGISTRY: ghcr.io
@@ -19,8 +23,22 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
+      - uses: dorny/paths-filter@v2
+        id: filter
+        with:
+          filters: |
+            app_src_path:
+              - 'src/**'
+            app_cfg_path:
+              - 'cfg/**'
+            dockerfile_path:
+              - 'Dockerfile'
+            iaac_path:
+              - 'iaac'
+
       - name: Install libssl-dev
         run: sudo apt-get install libssl-dev pkg-config -y
+        if: steps.filter.outputs.app_src_path == 'true'
 
       - name: Bump version and push tag
         id: tag_version
@@ -32,6 +50,7 @@ jobs:
         env:
           RUSTFLAGS: "-C target-feature=-crt-static"
         run: cargo build --release
+        if: steps.filter.outputs.app_src_path == 'true'
 
       - name: Create Release
         uses: actions/create-release@v1
@@ -43,6 +62,7 @@ jobs:
           release_name: Release ${{ steps.tag_version.outputs.new_tag }}
           draft: false
           prerelease: false
+        if: steps.filter.outputs.app_src_path == 'true'
 
       - name: Upload Release Asset
         uses: actions/upload-release-asset@v1
@@ -53,6 +73,7 @@ jobs:
           asset_path: ./target/release/event-manager-telegram-bot
           asset_name: event-manager-telegram-bot
           asset_content_type: application/octet-stream
+        if: steps.filter.outputs.app_src_path == 'true'
 
       - name: Run latest-tag
         uses: EndBug/latest-tag@latest
