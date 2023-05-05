@@ -11,10 +11,18 @@
         src: event-manager-telegram-bot.toml.j2
         dest: "/usr/local/etc/event-manager-telegram-bot.{{ docker_image_version }}.toml"
 
+    - name: Create dir
+      file:
+        path: "/opt/{{ docker_image_version }}"
+        state: directory
+        recurse: yes
+        owner: docker
+        group: docker
+
     - name: Generate docker-compose file for current version
       template:
         src: docker-compose.yml.j2
-        dest: "/opt/docker-compose.{{ docker_image_version }}.yml"
+        dest: "/opt/{{ docker_image_version }}/docker-compose.{{ docker_image_version }}.yml"
 
     - name: Install pip
       package:
@@ -35,15 +43,15 @@
 
     - name: Stop docker-compose for current version
       docker_compose:
-        project_src: /opt
+        project_src: "/opt/{{ docker_image_version }}"
         stopped: yes
         remove_orphans: yes
         files:
-          - "/opt/docker-compose.{{ docker_image_version }}.yml"
+          - "docker-compose.{{ docker_image_version }}.yml"
 
     - name: Start docker-compose for current version
       docker_compose:
-        project_src: /opt
+        project_src: "/opt/{{ docker_image_version }}"
         state: present
         files:
-          - "/opt/docker-compose.{{ docker_image_version }}.yml"
+          - "docker-compose.{{ docker_image_version }}.yml"
