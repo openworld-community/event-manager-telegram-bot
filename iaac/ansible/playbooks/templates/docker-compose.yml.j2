@@ -1,5 +1,5 @@
 services:
-  telegram_bot_container:
+  telegram_bot_container_{{ docker_image_version }}:
     image: "ghcr.io/kosmos-954/event-manager-telegram-bot:{{ docker_image_version }}"
     container_name: event-manager-telegram-{{ docker_image_version }}
     command: "event-manager-telegram-bot -c /usr/local/etc/event-manager-telegram-bot.{{ docker_image_version }}.toml"

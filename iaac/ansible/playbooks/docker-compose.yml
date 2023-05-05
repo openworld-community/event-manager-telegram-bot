@@ -37,6 +37,7 @@
       docker_compose:
         project_src: /opt
         stopped: yes
+        remove_orphans: yes
         files:
           - "/opt/docker-compose.{{ docker_image_version }}.yml"
 
