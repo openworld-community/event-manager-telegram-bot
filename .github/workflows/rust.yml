@@ -15,7 +15,7 @@ env:
 
 jobs:
   build-and-push-image:
-    environment: ${{ github.ref_name }}
+    environment: ${{ github.base_ref }}
     runs-on: ubuntu-20.04
     permissions: write-all
 
