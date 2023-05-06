@@ -3,8 +3,10 @@ name: Rust
 on:
   push:
     branches:
-      - "main"
       - "prerelease"
+  pull_request:
+    branches:
+      - "main"
 
 #TODO: добавить отслеживание изменений по директориям
 #Разобраться с версионированием при ПР
