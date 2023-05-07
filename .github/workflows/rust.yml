@@ -3,11 +3,14 @@ name: Rust
 on:
   pull_request:
     types:
-        - "opened"
-        - "reopened"
+      - "opened"
+      - "reopened"
     branches:
-        - "main"
-        - "prerelease"
+      - "main"
+      - "prerelease"
+  push:
+    branches:
+      - "prerelease"
 
 #TODO: добавить отслеживание изменений по директориям
 #Разобраться с версионированием при ПР
