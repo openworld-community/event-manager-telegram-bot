@@ -106,7 +106,6 @@ jobs:
       - name: Set outputs
         id: binary_version
         run: if ${{ steps.filter.outputs.app_src_path }}; then echo "binary_version_tag=${{ steps.tag_version.outputs.old_tag }}"; else  echo "binary_version_tag=${{ steps.tag_version.outputs.new_tag }}"; fi >> $GITHUB_OUTPUT
-        if: steps.filter.outputs.app_src_path == 'false'
 
       - name: Build and push Docker image
         uses: docker/build-push-action@f2a1d5e99d037542a71f64918e516c093c6f3fc4
