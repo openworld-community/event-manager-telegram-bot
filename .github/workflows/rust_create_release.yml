@@ -7,7 +7,7 @@ on:
     paths:
       - 'src/**'
       - 'Cargo.yml'
-      - '.github/workflows/rust_create_release.yml'
+      - '.github/workflows/**'
   push:
     branches:
       - "prerelease"

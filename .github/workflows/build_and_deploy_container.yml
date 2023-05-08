@@ -8,8 +8,7 @@ on:
     paths:
       - 'Dockerfile'
   workflow_run:
-    workflows:
-      - Build-and-release
+    workflows: [Build-and-release]
     types:
       - completed
 
