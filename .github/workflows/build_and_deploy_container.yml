@@ -10,7 +10,7 @@ on:
       - '.github/workflows/build_and_deploy_container.yml'
   workflow_run:
     workflow:
-      - Rust build and create Release
+      - "Rust build and create Release"
     types:
       - completed
 
