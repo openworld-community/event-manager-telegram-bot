@@ -1,4 +1,4 @@
-name: Rust build and create Release
+name: Build-and-release
 
 on:
   pull_request:

@@ -1,4 +1,4 @@
-name: Build and deploy container
+name: Build-and-deploy-container
 
 on:
   push:
@@ -9,7 +9,7 @@ on:
       - 'Dockerfile'
   workflow_run:
     workflows:
-      - "Rust build and create Release"
+      - Build-and-release
     types:
       - completed
 

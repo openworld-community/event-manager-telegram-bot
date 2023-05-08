@@ -1,4 +1,4 @@
-name: Deliver container to hosts
+name: Deliver-container-to-hosts
 
 on:
   push:
@@ -12,7 +12,7 @@ on:
   registry_package:
   workflow_run:
     workflows:
-      - "Build and deploy container"
+      - "Build-and-deploy-container"
     types:
       - completed
 
