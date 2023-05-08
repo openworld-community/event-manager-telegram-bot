@@ -71,7 +71,7 @@ async fn main() {
         .filter_map(|id| id.parse::<u64>().ok())
         .collect();
 
-    let manager = SqliteConnectionManager::file("./events.db3");
+    let manager = SqliteConnectionManager::file("/data/events.db3");
     let pool = r2d2::Pool::new(manager).unwrap();
     if let Ok(conn) = pool.get() {
         db::create(&conn).expect("Failed to create db.");

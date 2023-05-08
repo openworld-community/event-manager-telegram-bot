@@ -8,7 +8,7 @@
   tasks:
     - name: Create dir
       file:
-        path: "/opt/{{ docker_image_version }}"
+        path: "/opt/{{ docker_image_version }}/data"
         state: directory
         recurse: yes
         owner: docker

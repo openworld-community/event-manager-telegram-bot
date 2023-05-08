@@ -5,4 +5,5 @@ services:
     command: "event-manager-telegram-bot -c /usr/local/etc/event-manager-telegram-bot.{{ docker_image_version }}.toml"
     volumes:
     - /usr/local/etc/event-manager-telegram-bot.{{ docker_image_version }}.toml:/usr/local/etc/event-manager-telegram-bot.{{ docker_image_version }}.toml
+    - /opt/{{ docker_image_version }}/data/:/data/
     restart: unless-stopped

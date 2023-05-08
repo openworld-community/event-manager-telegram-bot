@@ -1,11 +1,10 @@
 name: Build-and-deploy-container
 
 on:
-  workflow_run:
-    workflows:
-      - "Build-and-push-binary"
+  release:
     types:
-      - completed_with_success
+      - released
+      - prereleased
 
 env:
   REGISTRY: ghcr.io
