@@ -2,9 +2,6 @@
 - hosts: "docker_compose"
   gather_facts: yes
   become: true
-  roles:
-    - githubixx.docker
-    - andrewrothstein.docker-compose
   tasks:
     - name: Generate config file for current version
       template:
