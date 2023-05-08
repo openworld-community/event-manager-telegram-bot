@@ -27,6 +27,8 @@ jobs:
 
       - name: Checkout repository
         uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
 
       - name: Install libssl-dev
         run: sudo apt-get install libssl-dev pkg-config -y
@@ -36,7 +38,6 @@ jobs:
         uses: paulhatch/semantic-version@v5.0.2
         with:
           change_path: "src/ Cargo.toml"
-          fetch-depth: 0
 
       - name: Replace version in Cargo.toml
         run: sed -i s/"^version .*$"/"version = \"${{ steps.version.outputs.version }}\""/g Cargo.toml
