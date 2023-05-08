@@ -56,6 +56,10 @@ jobs:
       - name: Extract metadata (tags, labels) for Docker
         id: meta
         uses: docker/metadata-action@v4
+        tags: |
+          type=raw,value=${{ steps.last_release.outputs.tag_name }}
+          type=raw,value=latest,enable=${{ github.ref == format('refs/heads/{0}', 'main') }}
+          type=raw,value=prerelease,enable=${{ github.ref == format('refs/heads/{0}', 'prerelease') }}
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
 
@@ -64,10 +68,7 @@ jobs:
         with:
           context: .
           push: true
-          tags: |
-            type=raw,value=${{ steps.last_release.outputs.tag_name }}
-            type=raw,value=latest,enable=${{ github.ref == format('refs/heads/{0}', 'main') }}
-            type=raw,value=prerelease,enable=${{ github.ref == format('refs/heads/{0}', 'prerelease') }}
+          tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             "REPOSITORY_ADDRESS=${{ github.server_url }}/${{ github.repository }}"
