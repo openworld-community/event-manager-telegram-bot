@@ -65,7 +65,7 @@ jobs:
           automatic_release_tag: prerelease
         if: ${{ github.base_ref_name == 'prerelease' }}
 
-      - name: Create Release
+      - name: Create Prerelease
         uses: marvinpinto/action-automatic-releases@latest
         id: create_release_latest
         with:
@@ -76,7 +76,7 @@ jobs:
           automatic_release_tag: latest
         if: ${{ github.base_ref_name == 'main' }}
 
-      - name: Upload Release Asset
+      - name: Upload prerelease Asset
         uses: actions/upload-release-asset@v1
         id: upload_release_asset_prerelease
         env:
