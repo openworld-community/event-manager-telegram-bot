@@ -40,7 +40,7 @@ jobs:
         run: sudo apt-get install libssl-dev pkg-config -y
 
       - name: Bump version and push tag
-        uses: anothrNick/github-tag-action@1.61.0 # Don't use @master unless you're happy to test the latest version
+        uses: anothrNick/github-tag-action@1.61.0
         id: version
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
