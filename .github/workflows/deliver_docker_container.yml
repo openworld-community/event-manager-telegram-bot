@@ -11,6 +11,11 @@ on:
       - 'iaac/ansible/templates/**'
       - '.github/workflows/deliver_docker_container.yml'
   registry_package:
+  workflow_run:
+    workflow:
+      - "Build and deploy container"
+    types:
+      - completed
 
 env:
   REGISTRY: ghcr.io

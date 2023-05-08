@@ -8,11 +8,11 @@ on:
     paths:
       - 'Dockerfile'
       - '.github/workflows/build_and_deploy_container.yml'
-  release:
+  workflow_run:
+    workflow:
+      - "Rust build and create Release"
     types:
-      - created
-      - published
-
+      - completed
 
 env:
   REGISTRY: ghcr.io
