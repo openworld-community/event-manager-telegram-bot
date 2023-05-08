@@ -2,8 +2,7 @@ name: Rust build and create Release
 
 on:
   pull_request_target:
-    branches:
-      - "prerelease"
+    branched:
       - "main"
     paths:
       - 'src/**'
@@ -56,13 +55,12 @@ jobs:
         run: cargo build --release
 
       - name: Create Release
-        uses: actions/create-release@v1
+        uses: marvinpinto/action-automatic-releases@latest
         id: create_release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tag_name: ${{ steps.version.outputs.version_tag }}
-          release_name: Release ${{ steps.version.outputs.version_tag }}
+          title: Release ${{ steps.version.outputs.version_tag }}
           draft: false
           prerelease: ${{ github.base_ref_name == 'prerelease' }}
 
