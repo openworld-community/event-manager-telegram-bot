@@ -2,7 +2,7 @@ name: Rust build and create Release
 
 on:
   pull_request_target:
-    branched:
+    branches:
       - "main"
       - "prerelease"
     paths:
