@@ -49,7 +49,7 @@ jobs:
         run: sed -i s/"^version .*$"/"version = \"${{ steps.version.outputs.version }}\""/g Cargo.toml
 
       - name: Test
-        run: echo ${{ github.base_ref_name }}
+        run: echo ${{ github.base_ref_name }} >> $GITHUB_OUTPUT
 
       - name: Build
         env:
