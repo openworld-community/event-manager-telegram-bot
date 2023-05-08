@@ -77,6 +77,8 @@ async fn main() {
         db::create(&conn).expect("Failed to create db.");
     }
 
+    let default_bot_name = format!("test_bot_name");
+
     let bot = Bot::new(&config.telegram_bot_token).auto_send();
 
     let bot_info = bot.get_me().await.unwrap();
