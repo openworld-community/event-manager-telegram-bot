@@ -56,6 +56,9 @@ jobs:
           RUSTFLAGS: "-C target-feature=-crt-static"
         run: cargo build --release
 
+      - name: Test
+        run: cargo test --verbose
+
       - name: Create Release
         uses: actions/create-release@v1
         id: create_release
