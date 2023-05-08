@@ -1,12 +1,6 @@
 name: Build-and-deploy-container
 
 on:
-  push:
-    branches:
-      - "prerelease"
-      - "main"
-    paths:
-      - 'Dockerfile'
   workflow_run:
     workflows: [Build-and-release]
     types:
