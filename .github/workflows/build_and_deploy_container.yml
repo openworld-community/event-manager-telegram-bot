@@ -25,8 +25,9 @@ jobs:
     permissions: write-all
 
     steps:
-      - id: latest_releases
-        uses: pozetroninc/github-action-get-latest-release@d1dafdb6e338bdab109e6afce581a01858680dfb
+      - name: Get Latest Release
+        id: get_latest_release
+        uses: pozetroninc/github-action-get-latest-release@v0.7.0
 
       - name: Log in to the Container registry
         uses: docker/login-action@65b78e6e13532edd9afa3aa52ac7964289d1a9c1
