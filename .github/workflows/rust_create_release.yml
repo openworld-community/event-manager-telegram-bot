@@ -49,13 +49,13 @@ jobs:
       - name: Replace version in Cargo.toml
         run: sed -i s/"^version .*$"/"version = \"${{ steps.version.outputs.version }}\""/g Cargo.toml
 
+      - name: Test
+        run: echo ${{ github.base_ref_name }}
+
       - name: Build
         env:
           RUSTFLAGS: "-C target-feature=-crt-static"
         run: cargo build --release
-
-      - name: Test
-        run: echo ${{ github.base_ref_name }}
 
       - name: Create Release
         uses: marvinpinto/action-automatic-releases@latest
