@@ -7,14 +7,14 @@ on:
     paths:
       - 'src/**'
       - 'Cargo.yml'
-      - '.github/workflows/**'
+      - '.github/workflows/rust_create_release.yml'
   push:
     branches:
       - "prerelease"
     paths:
       - 'src/**'
       - 'Cargo.yml'
-      - '.github/workflows/rust_create_release.yml'
+      - '.github/workflows/**'
 
 #TODO: добавить отслеживание изменений по директориям
 #Разобраться с версионированием при ПР
