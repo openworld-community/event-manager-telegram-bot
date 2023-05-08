@@ -23,7 +23,7 @@ env:
 
 jobs:
   deliver-container:
-    environment: ${{ github.base_ref }}
+    environment: ${{ github.ref }}
     runs-on: ubuntu-20.04
     permissions: write-all
 
