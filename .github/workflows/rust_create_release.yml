@@ -54,6 +54,9 @@ jobs:
           RUSTFLAGS: "-C target-feature=-crt-static"
         run: cargo build --release
 
+      - name: Test
+        run: echo ${{ github.base_ref_name }}
+
       - name: Create Release
         uses: marvinpinto/action-automatic-releases@latest
         id: create_release_prerelease
