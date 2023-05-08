@@ -38,7 +38,7 @@ jobs:
           change_path: "src/** Cargo.toml"
 
       - name: Replace version in Cargo.toml
-        run: sed -i s/"^version .*$"/"version = \"${{ steps.tag_version.outputs.new_version }}\""/g Cargo.toml
+        run: sed -i s/"^version .*$"/"version = \"${{ steps.version.outputs.version }}\""/g Cargo.toml
 
       - name: Build
         env:
@@ -52,7 +52,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tag_name: ${{ steps.tag_version.outputs.new_tag }}
-          release_name: Release ${{ steps.tag_version.outputs.new_tag }}
+          release_name: Release ${{ steps.version.outputs.version_tag }}
           draft: false
           prerelease: false
 
