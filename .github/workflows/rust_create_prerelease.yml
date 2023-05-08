@@ -39,7 +39,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           WITH_V: true
           DEFAULT_BUMP: patch
-          PRERELEASE: ${{ github.base_ref_name == 'prerelease' }}
+          PRERELEASE: ${{ github.ref_name == 'prerelease' }}
 
       - name: Replace version in Cargo.toml
         run: sed -i s/"^version .*$"/"version = \"$(echo ${{ steps.version.outputs.new_tag }} | sed s/v//g)\""/g Cargo.toml
