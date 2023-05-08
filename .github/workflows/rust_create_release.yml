@@ -7,14 +7,12 @@ on:
     paths:
       - 'src/**'
       - 'Cargo.yml'
-      - '.github/workflows/rust_create_release.yml'
   push:
     branches:
       - "prerelease"
     paths:
       - 'src/**'
       - 'Cargo.yml'
-      - '.github/workflows/rust_create_release.yml'
 
 #TODO: добавить отслеживание изменений по директориям
 #Разобраться с версионированием при ПР
@@ -25,7 +23,7 @@ env:
 
 jobs:
   build-and-push-binary:
-    environment: ${{ github.base_ref }}
+    environment: ${{ github.ref_name }}
     runs-on: ubuntu-20.04
     permissions: write-all
 

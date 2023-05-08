@@ -9,7 +9,6 @@ on:
       - 'cfg/**'
       - 'iaac/ansible/playbooks/docker-compose.yml'
       - 'iaac/ansible/templates/**'
-      - '.github/workflows/deliver_docker_container.yml'
   registry_package:
   workflow_run:
     workflows:
@@ -23,7 +22,7 @@ env:
 
 jobs:
   deliver-container:
-    environment: ${{ github.ref }}
+    environment: ${{ github.ref_name }}
     runs-on: ubuntu-20.04
     permissions: write-all
 
