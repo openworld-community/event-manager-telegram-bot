@@ -9,6 +9,7 @@ on:
       - 'cfg/**'
       - 'iaac/ansible/playbooks/docker-compose.yml'
       - 'iaac/ansible/templates/**'
+      - '.github/workflows/deliver_docker_container.yml'
   registry_package:
 
 env:

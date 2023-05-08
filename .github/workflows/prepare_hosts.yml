@@ -9,6 +9,7 @@ on:
       - 'iaac/ansible/inventory/**'
       - 'iaac/ansible/playbooks/prepare_hosts.yml'
       - 'iaac/ansible/roles/requirements.yml'
+      - '.github/workflows/prepare_hosts.yml'
 
 env:
   REGISTRY: ghcr.io
