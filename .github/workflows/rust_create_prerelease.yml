@@ -58,7 +58,7 @@ jobs:
           tag_name: ${{ steps.version.outputs.new_tag }}
           release_name: Release ${{ steps.version.outputs.new_tag }}
           draft: false
-          prerelease: ${{ github.base_ref_name == 'prerelease' }}
+          prerelease: ${{ github.ref_name == 'prerelease' }}
 
       - name: Upload Release Asset
         uses: actions/upload-release-asset@v1
