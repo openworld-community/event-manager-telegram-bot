@@ -42,7 +42,7 @@ jobs:
           PRERELEASE: ${{ github.base_ref_name == 'prerelease' }}
 
       - name: Replace version in Cargo.toml
-        run: sed -i s/"^version .*$"/"version = \"${{ steps.version.outputs.new_tag }}\""/g Cargo.toml
+        run: sed -i s/"^version .*$"/"version = \"$(echo ${{ steps.version.outputs.new_tag }}/v//g)\""/g Cargo.toml
 
       - name: Build
         env:
