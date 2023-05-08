@@ -64,8 +64,11 @@ jobs:
         with:
           context: .
           push: true
-          tags: ${{ steps.meta.outputs.tags }}
+          tags: |
+            type=raw,value=${{ steps.last_release.outputs.tag_name }}
+            type=raw,value=latest,enable=${{ github.ref == format('refs/heads/{0}', 'main') }}
+            type=raw,value=prerelease,enable=${{ github.ref == format('refs/heads/{0}', 'prerelease') }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             "REPOSITORY_ADDRESS=${{ github.server_url }}/${{ github.repository }}"
-            "RELEASE_VERSION=${{ steps.binary_version.outputs.binary_version_tag }}"
+            "RELEASE_VERSION=${{ steps.last_release.outputs.tag_name }}"
