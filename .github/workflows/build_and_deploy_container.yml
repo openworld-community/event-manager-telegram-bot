@@ -10,7 +10,7 @@ on:
       - '.github/workflows/build_and_deploy_container.yml'
   workflow_run:
     workflows:
-      - Rust build and create Release
+      - "Rust build and create Release"
     types:
       - completed
 
@@ -20,7 +20,7 @@ env:
 
 jobs:
   build-and-deploy-container:
-    environment: ${{ github.base_ref }}
+    environment: ${{ github.ref }}
     runs-on: ubuntu-20.04
     permissions: write-all
 
