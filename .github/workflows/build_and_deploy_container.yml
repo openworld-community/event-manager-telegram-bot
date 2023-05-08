@@ -2,9 +2,10 @@ name: Build-and-deploy-container
 
 on:
   workflow_run:
-    workflows: [Build-and-release]
+    workflows:
+      - "Build-and-push-binary"
     types:
-      - completed
+      - completed_with_success
 
 env:
   REGISTRY: ghcr.io
