@@ -28,6 +28,36 @@ jobs:
     permissions: write-all
 
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: "call action"
+        id: last_release
+        uses: InsonusK/get-latest-release@v1.0.1
+        with:
+          myToken: ${{ github.token }}
+          view_top: 1
+      - name: "Print result"
+        run: |
+          echo "id: ${{ steps.last_release.outputs.id }}"
+          echo "name: ${{ steps.last_release.outputs.name }}"
+          echo "tag_name: ${{ steps.last_release.outputs.tag_name }}"
+          echo "created_at: ${{ steps.last_release.outputs.created_atd }}"
+          echo "draft: ${{ steps.last_release.outputs.draft }}"
+          echo "prerelease: ${{ steps.last_release.outputs.prerelease }}"
+
+      - name: Extract metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@v4
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value=${{ steps.last_release.outputs.tag_name }}
+            type=raw,value=latest,enable=${{ github.ref == format('refs/heads/{0}', 'main') }}
+            type=raw,value=prerelease,enable=${{ github.ref == format('refs/heads/{0}', 'prerelease') }}
+
       - name: Install docker and docker-compose on target instance
         run: |
           ansible-galaxy install -r iaac/ansible/roles/requirements.yml
