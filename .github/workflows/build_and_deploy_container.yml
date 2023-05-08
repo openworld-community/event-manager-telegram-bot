@@ -9,8 +9,6 @@ on:
       - 'Dockerfile'
       - '.github/workflows/build_and_deploy_container.yml'
   release:
-    types:
-      - published
 
 env:
   REGISTRY: ghcr.io

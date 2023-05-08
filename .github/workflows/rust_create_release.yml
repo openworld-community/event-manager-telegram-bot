@@ -38,6 +38,7 @@ jobs:
         uses: paulhatch/semantic-version@v5.0.2
         with:
           change_path: "src/ Cargo.toml"
+          version_format: "${major}.${minor}.${patch}-prerelease${increment}"
 
       - name: Replace version in Cargo.toml
         run: sed -i s/"^version .*$"/"version = \"${{ steps.version.outputs.version }}\""/g Cargo.toml
