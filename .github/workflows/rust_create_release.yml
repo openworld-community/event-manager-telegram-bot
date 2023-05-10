@@ -25,11 +25,12 @@ env:
 
 jobs:
   build-and-push-binary:
-    environment: ${{ github.ref_name }}
+    environment: ${{ fromJSON('["main", "prerelease"]')[github.ref_name == 'prerelease'] }}
     runs-on: ubuntu-20.04
     permissions: write-all
 
     steps:
+      - uses: hmarr/debug-action@v2
 
       - name: Checkout repository
         uses: actions/checkout@v3
