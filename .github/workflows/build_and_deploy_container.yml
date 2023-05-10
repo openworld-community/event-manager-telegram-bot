@@ -1,20 +1,6 @@
 name: Build-and-deploy-container
 
 on:
-  pull_request:
-    branches:
-      - "main"
-    paths:
-      - 'iaac/ansible/playbooks/templates/**'
-      - 'iaac/ansible/playbooks/docker-compose.yml'
-      - 'Dockerfile'
-  push:
-    branches:
-      - "prerelase"
-    paths:
-      - 'iaac/ansible/playbooks/templates/**'
-      - 'iaac/ansible/playbooks/docker-compose.yml'
-      - 'Dockerfile'
   release:
     types:
       - released
