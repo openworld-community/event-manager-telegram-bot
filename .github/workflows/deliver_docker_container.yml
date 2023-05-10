@@ -10,11 +10,6 @@ on:
       - 'iaac/ansible/playbooks/docker-compose.yml'
       - 'iaac/ansible/templates/**'
   registry_package:
-  workflow_run:
-    workflows:
-      - "Build-and-deploy-container"
-    types:
-      - completed
 
 env:
   REGISTRY: ghcr.io
