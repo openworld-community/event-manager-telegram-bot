@@ -8,6 +8,14 @@
         src: event-manager-telegram-bot.toml.j2
         dest: "/usr/local/etc/event-manager-telegram-bot.{{ docker_image_version }}.toml"
 
+    - name: Create dir
+      file:
+        path: "/opt/{{ docker_image_version }}/data"
+        state: directory
+        recurse: yes
+        owner: docker
+        group: docker
+
     - name: Generate docker-compose file for current version
       template:
         src: docker-compose.yml.j2
@@ -18,7 +26,7 @@
         project_src: "/opt/{{ docker_image_version }}"
         state: present
         recreate: always
-        restarted: yes
+        pull: yes
         remove_orphans: yes
         files:
           - "docker-compose.{{ docker_image_version }}.yml"

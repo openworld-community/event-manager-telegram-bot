@@ -67,5 +67,18 @@ jobs:
           build-args: |
             "REPOSITORY_ADDRESS=${{ github.server_url }}/${{ github.repository }}"
             "RELEASE_VERSION=${{ steps.last_release.outputs.tag_name }}"
-          secrets: |
-            GIT_AUTH_TOKEN=${{ secrets.PAT_SECRET }}
+
+      - name: Run docker-compose with current docker image on target instance
+        run: |
+          ansible-galaxy install -r iaac/ansible/roles/requirements.yml
+          eval "$(ssh-agent -s)"
+          echo -n ${{ secrets.DEPLOY_SSH_KEY }} | base64 -d | ssh-add -
+          ansible-playbook --user ${{ secrets.DEPLOY_SSH_USER }} -i iaac/ansible/inventory \
+          iaac/ansible/playbooks/docker-compose.yml --extra-vars "\
+          target_host=\"${{ secrets.DOCKER_HOST_ADDRESS }}\" \
+          ansible_sudo_pass=\"${{ secrets.DEPLOY_USER_PASSWORD }}\" \
+          docker_compose_install_fq_link=\"/usr/bin/docker-compose\" \
+          docker_image_version=\"${{ fromJSON('["latest", "prerelease"]')[github.event.release.prerelease] }}\" \
+          TELEGRAM_BOT_TOKEN=\"${{ secrets.TELEGRAM_BOT_TOKEN }}\" \
+          PAYMENT_PROVIDER_TOKEN=\"${{ secrets.PAYMENT_PROVIDER_TOKEN }}\"
+          telegram_admin_ids_list=\"${{ vars.TELEGRAM_ADMIN_IDS_LIST }}\""
