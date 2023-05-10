@@ -12,14 +12,13 @@ env:
 
 jobs:
   build-and-deploy-container:
-    environment: ${{ github.ref_name }}
+    environment: fromJSON('["prerelease", "main"]')[github.event.release.prerelease]
     runs-on: ubuntu-20.04
     permissions: write-all
 
     steps:
       - uses: hmarr/debug-action@v2
-      - run: echo "event type is:" ${{ github.event.action }}
-      - run: echo "event type is:" ${{ github.event.release.prerelease }}
+
       - name: Checkout repository
         uses: actions/checkout@v3
         with:
@@ -46,7 +45,7 @@ jobs:
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
-          password: ${{ secrets.PAT_SECRET }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Extract metadata (tags, labels) for Docker
         id: meta
@@ -68,3 +67,5 @@ jobs:
           build-args: |
             "REPOSITORY_ADDRESS=${{ github.server_url }}/${{ github.repository }}"
             "RELEASE_VERSION=${{ steps.last_release.outputs.tag_name }}"
+          secrets: |
+            GIT_AUTH_TOKEN=${{ secrets.PAT_SECRET }}

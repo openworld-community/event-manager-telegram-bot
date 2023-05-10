@@ -17,7 +17,7 @@ env:
 
 jobs:
   deliver-container:
-    environment: ${{ github.ref_name }}
+    environment: fromJSON('["prerelease", "main"]')[github.event.release.prerelease]
     runs-on: ubuntu-20.04
     permissions: write-all
 
