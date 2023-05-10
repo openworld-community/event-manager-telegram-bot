@@ -1,7 +1,7 @@
 name: Prepary host
 
 on:
-  push:
+  pull_request:
     branches:
       - "prerelease"
       - "main"
@@ -9,7 +9,13 @@ on:
       - 'iaac/ansible/inventory/**'
       - 'iaac/ansible/playbooks/prepare_hosts.yml'
       - 'iaac/ansible/roles/requirements.yml'
-      - '.github/workflows/prepare_hosts.yml'
+  push:
+    branches:
+      - "prerelease"
+    paths:
+      - 'iaac/ansible/inventory/**'
+      - 'iaac/ansible/playbooks/prepare_hosts.yml'
+      - 'iaac/ansible/roles/requirements.yml'
 
 env:
   REGISTRY: ghcr.io
