@@ -19,6 +19,7 @@
         state: present
         recreate: always
         restarted: yes
+        pull: yes
         remove_orphans: yes
         files:
           - "docker-compose.{{ docker_image_version }}.yml"
