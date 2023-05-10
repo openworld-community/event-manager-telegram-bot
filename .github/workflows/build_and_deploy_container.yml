@@ -8,6 +8,13 @@ on:
       - 'iaac/ansible/playbooks/templates/**'
       - 'iaac/ansible/playbooks/docker-compose.yml'
       - 'Dockerfile'
+  push:
+    branches:
+      - "prerelase"
+    paths:
+      - 'iaac/ansible/playbooks/templates/**'
+      - 'iaac/ansible/playbooks/docker-compose.yml'
+      - 'Dockerfile'
   release:
     types:
       - released
