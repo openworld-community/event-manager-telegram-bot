@@ -1,0 +1,32 @@
+---
+- hosts: "docker_compose"
+  gather_facts: yes
+  become: true
+  roles:
+    - githubixx.docker
+    - andrewrothstein.docker-compose
+  tasks:
+    - name: Create dir
+      file:
+        path: "/opt/{{ docker_image_version }}/data"
+        state: directory
+        recurse: yes
+        owner: docker
+        group: docker
+
+    - name: Install pip
+      package:
+        name: pip
+        state: present
+
+    - name: Pip remove requests
+      pip:
+        name:
+          - requests
+        state: absent
+
+    - name: Pip install docker-compose and requests
+      pip:
+        name:
+          - docker-compose
+          - requests==2.28.1

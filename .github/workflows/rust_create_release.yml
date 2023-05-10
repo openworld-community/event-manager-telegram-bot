@@ -1,0 +1,83 @@
+name: Build-and-release
+
+on:
+  pull_request:
+    branches:
+      - "main"
+    paths:
+      - 'src/**'
+      - 'Cargo.yml'
+      - '.github/workflows/rust_create_release.yml'
+  push:
+    branches:
+      - "prerelease"
+    paths:
+      - 'src/**'
+      - 'Cargo.yml'
+      - '.github/workflows/**'
+
+#TODO: добавить отслеживание изменений по директориям
+#Разобраться с версионированием при ПР
+# Записать правила версионирования (ключевые слова в коммитах)
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  build-and-push-binary:
+    environment: ${{ github.ref_name }}
+    runs-on: ubuntu-20.04
+    permissions: write-all
+
+    steps:
+
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Install libssl-dev
+        run: sudo apt-get install libssl-dev pkg-config -y
+
+      - name: Bump version and push tag
+        uses: anothrNick/github-tag-action@1.61.0
+        id: version
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          WITH_V: true
+          DEFAULT_BUMP: patch
+          PRERELEASE: ${{ github.ref_name == 'prerelease' }}
+
+      - name: Replace version in Cargo.toml
+        run: sed -i s/"^version .*$"/"version = \"$(echo ${{ steps.version.outputs.new_tag }} | sed s/v//g)\""/g Cargo.toml
+
+      - name: Build
+        env:
+          RUSTFLAGS: "-C target-feature=-crt-static"
+        run: cargo build --release
+
+#      - name: Test
+#        run: cargo test --verbose
+
+      - name: Create Release
+        uses: actions/create-release@v1
+        id: create_release
+        env:
+          GITHUB_TOKEN: ${{ secrets.PAT_SECRET }}
+        with:
+          tag_name: ${{ steps.version.outputs.new_tag }}
+          release_name: Release ${{ steps.version.outputs.new_tag }}
+          draft: false
+          prerelease: ${{ github.ref_name == 'prerelease' }}
+
+      - name: Upload Release Asset
+        uses: actions/upload-release-asset@v1
+        id: upload_release_asset
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./target/release/event-manager-telegram-bot
+          asset_name: event-manager-telegram-bot
+          asset_content_type: application/octet-stream
+

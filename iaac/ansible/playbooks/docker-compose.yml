@@ -2,44 +2,16 @@
 - hosts: "docker_compose"
   gather_facts: yes
   become: true
-  roles:
-    - githubixx.docker
-    - andrewrothstein.docker-compose
   tasks:
     - name: Generate config file for current version
       template:
         src: event-manager-telegram-bot.toml.j2
         dest: "/usr/local/etc/event-manager-telegram-bot.{{ docker_image_version }}.toml"
 
-    - name: Create dir
-      file:
-        path: "/opt/{{ docker_image_version }}"
-        state: directory
-        recurse: yes
-        owner: docker
-        group: docker
-
     - name: Generate docker-compose file for current version
       template:
         src: docker-compose.yml.j2
         dest: "/opt/{{ docker_image_version }}/docker-compose.{{ docker_image_version }}.yml"
-
-    - name: Install pip
-      package:
-        name: pip
-        state: present
-
-    - name: Pip remove requests
-      pip:
-        name:
-          - requests
-        state: absent
-
-    - name: Pip install docker-compose and requests
-      pip:
-        name:
-          - docker-compose
-          - requests==2.28.1
 
     - name: Restart docker-compose for current version
       docker_compose:

@@ -4,7 +4,7 @@ payment_provider_token = "{{ PAYMENT_PROVIDER_TOKEN }}"
 support = "{{ support_param | default('') }}"
 help = "{{ help_param | default('') }}"
 # telegram ids, comma separated
-admin_ids = "{{ telegram_admin_ids_list | join(',') }}"
+admin_ids = "{{ telegram_admin_ids_list | split(',') | join(',') }}"
 
 # show participant lists to all participants
 public_lists = {{ is_public_lists | default('false') }}

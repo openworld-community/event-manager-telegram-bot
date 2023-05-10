@@ -6,6 +6,7 @@ extern crate num;
 use std::collections::HashSet;
 use std::sync::Arc;
 use std::{fs::File, io::prelude::*, time::Duration};
+use std::env;
 use tokio::sync::Mutex;
 #[macro_use]
 extern crate log;
@@ -70,13 +71,19 @@ async fn main() {
         .filter_map(|id| id.parse::<u64>().ok())
         .collect();
 
-    let manager = SqliteConnectionManager::file("./events.db3");
+    let manager = SqliteConnectionManager::file("/data/events.db3");
     let pool = r2d2::Pool::new(manager).unwrap();
     if let Ok(conn) = pool.get() {
         db::create(&conn).expect("Failed to create db.");
     }
 
     let bot = Bot::new(&config.telegram_bot_token).auto_send();
+
+    let bot_info = bot.get_me().await.unwrap();
+
+    let bot_name = bot_info.user.username.unwrap_or("default_bot_name".to_string());
+
+    env::set_var("BOT_NAME", bot_name);
 
     let context = Arc::new(Context {
         config,
