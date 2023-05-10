@@ -11,8 +11,8 @@ on:
       - 'iaac/ansible/templates/**'
   registry_package:
     types:
-        - "published"
-        - "updated"
+      - "published"
+      - "updated"
 
 
 env:
