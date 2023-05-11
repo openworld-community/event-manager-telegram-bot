@@ -27,6 +27,7 @@ struct NewEvent {
     max_children_per_reservation: u64,
     adult_ticket_price: Option<u64>,
     child_ticket_price: Option<u64>,
+    currency: String,
 }
 
 /// Command line processor.
