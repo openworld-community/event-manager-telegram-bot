@@ -17,7 +17,7 @@ The bot can help with basic event management tasks like sign up, cancel, remind,
 
 # Change log
 **v0.0.3**
-added sqlite3 database from docker for storing events and users
+added mounting volume for sqlite3 database from docker for storing events and users
 
 **v0.0.2** 
 added dockerfile and docker-compose for running application, fixed message when event added
