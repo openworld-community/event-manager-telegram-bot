@@ -287,7 +287,7 @@ fn add_event(
                         remind: remind.timestamp() as u64,
                         adult_ticket_price: v.adult_ticket_price.unwrap_or(0u64),
                         child_ticket_price: v.child_ticket_price.unwrap_or(0u64),
-                        currency: v.currency.unwrap_or("EUR".to_string()),
+                        currency: v.currency,
                     };
 
                     if event.adult_ticket_price != 0 && event.max_adults == 0
