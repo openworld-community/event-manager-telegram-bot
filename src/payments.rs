@@ -196,8 +196,7 @@ pub fn show_paid_event(
         
                         let total_amount = (adults * s.event.adult_ticket_price
                             + children * s.event.child_ticket_price)
-                            as f32
-                            / 100f32;
+                            as f32;
                         Some(format!(
                             "\n<b>{}, всего {} {}</b>",
                             order, total_amount, s.event.currency
