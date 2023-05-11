@@ -65,6 +65,7 @@ impl EventStats {
                 remind: 0,
                 adult_ticket_price: row.get::<&str, u64>("adult_ticket_price")?,
                 child_ticket_price: row.get::<&str, u64>("child_ticket_price")?,
+                currency: row.get("currency")?,
             },
             adults: Counter::new(
                 row.get("adults"),
