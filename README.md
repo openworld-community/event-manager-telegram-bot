@@ -30,9 +30,11 @@ PAT_SECRET - personal access token for github actions
 ## Github actions secrets
 ### prerelease env
 PAYMENT_PROVIDER_TOKEN - token for payment provider for prerelease env
+
 TELEGRAM_BOT_TOKEN - token for telegram bot for prerelease env
 ### main env
 PAYMENT_PROVIDER_TOKEN - token for payment provider for main env
+
 TELEGRAM_BOT_TOKEN - token for telegram bot for main env
 
 # Event management bot for Telegram
