@@ -879,7 +879,8 @@ pub fn create(conn: &PooledConnection<SqliteConnectionManager>) -> Result<(), ru
                             remind          INTEGER NOT NULL,
                             state           INTEGER default 0,
                             adult_ticket_price INTEGER default 0,
-                            child_ticket_price INTEGER default 0
+                            child_ticket_price INTEGER default 0,
+                            currency        TEXT default 'EUR'
                             )",
                         [],
                     )?;
