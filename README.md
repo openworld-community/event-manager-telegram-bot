@@ -9,6 +9,7 @@ added dockerfile and docker-compose for running application, fixed message when 
 added playbook for deploying application to the server and preparing it for running
 added release workflow for creating release and deploying it to the server
 added registry publication workflow for publishing docker image to the github registry
+
 **v0.0.1**
 added basic functionality for creating events and signing up for them
 # Infrastructure
