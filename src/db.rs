@@ -106,8 +106,8 @@ pub fn add_event(conn: &PooledConnection<SqliteConnectionManager>, e: Event) -> 
     let mut event_id = e.id;
     if e.id == 0 {
         let res = conn.execute(
-            "INSERT INTO events (name, link, max_adults, max_children, max_adults_per_reservation, max_children_per_reservation, ts, remind, adult_ticket_price, child_ticket_price) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
-            params![e.name, e.link, e.max_adults, e.max_children, e.max_adults_per_reservation, e.max_children_per_reservation, e.ts, e.remind, e.adult_ticket_price, e.child_ticket_price],
+            "INSERT INTO events (name, link, max_adults, max_children, max_adults_per_reservation, max_children_per_reservation, ts, remind, adult_ticket_price, child_ticket_price, currency) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
+            params![e.name, e.link, e.max_adults, e.max_children, e.max_adults_per_reservation, e.max_children_per_reservation, e.ts, e.remind, e.adult_ticket_price, e.child_ticket_price, e.currency],
         )?;
         if res > 0 {
             let mut stmt = conn
