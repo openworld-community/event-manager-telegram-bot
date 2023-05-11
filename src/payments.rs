@@ -199,7 +199,7 @@ pub fn show_paid_event(
                             as f32
                             / 100f32;
                         Some(format!(
-                            "\n<b>{}, всего {} {}}</b>",
+                            "\n<b>{}, всего {} {}</b>",
                             order, total_amount, s.event.currency
                         ))
                     } else {
