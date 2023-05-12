@@ -63,8 +63,8 @@ impl EventStats {
                 max_children_per_reservation: row.get("max_children_per_reservation")?,
                 ts: row.get("ts")?,
                 remind: 0,
-                adult_ticket_price: row.get::<&str, f32>("adult_ticket_price")?,
-                child_ticket_price: row.get::<&str, f32>("child_ticket_price")?,
+                adult_ticket_price: row.get::<&str, u64>("adult_ticket_price")?,
+                child_ticket_price: row.get::<&str, u64>("child_ticket_price")?,
                 currency: row.get("currency")?,
             },
             adults: Counter::new(
@@ -764,7 +764,7 @@ pub fn get_pending_messages(
             message_type: num::FromPrimitive::from_u64(message_type).unwrap(),
             waiting_list: row.get("waiting_list")?,
             text: row.get("text")?,
-            is_paid: row.get::<&str, f32>("adult_ticket_price")? != 0 || row.get::<&str, f32>("child_ticket_price")? != 0,
+            is_paid: row.get::<&str, u64>("adult_ticket_price")? != 0 || row.get::<&str, u64>("child_ticket_price")? != 0,
             recipients: Vec::new(),
         };
         res.push(batch);
@@ -878,8 +878,8 @@ pub fn create(conn: &PooledConnection<SqliteConnectionManager>) -> Result<(), ru
                             ts              INTEGER NOT NULL,
                             remind          INTEGER NOT NULL,
                             state           INTEGER default 0,
-                            adult_ticket_price REAL default 0,
-                            child_ticket_price REAL default 0,
+                            adult_ticket_price INTEGER default 0,
+                            child_ticket_price INTEGER default 0,
                             currency        TEXT default 'EUR'
                             )",
                         [],
