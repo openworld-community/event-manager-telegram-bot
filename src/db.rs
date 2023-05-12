@@ -396,7 +396,7 @@ pub fn sign_up(
         }
         EventType::Paid => {
             // pre checkout?
-            if s.event.adult_ticket_price * adults as f32 + s.event.child_ticket_price * children as f32 != amount {
+            if s.event.adult_ticket_price * adults  + s.event.child_ticket_price * children  != amount {
                 return Err(anyhow!("Wrong tranaction amount"));
             }
             ReservationState::PaymentPending
@@ -440,7 +440,7 @@ pub fn checkout(
     order_info: OrderInfo,
 ) -> anyhow::Result<()> {
     let s = get_event(conn, booking.event_id, booking.user_id)?;
-    if s.event.adult_ticket_price * booking.adults as f32 + s.event.child_ticket_price * booking.children as f32 != order_info.amount {
+    if s.event.adult_ticket_price * booking.adults  + s.event.child_ticket_price * booking.children  != order_info.amount {
         return Err(anyhow!("Wrong tranaction amount"));
     }
 
