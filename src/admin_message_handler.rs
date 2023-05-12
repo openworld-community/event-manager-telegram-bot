@@ -285,8 +285,8 @@ fn add_event(
                         max_children_per_reservation: v.max_children_per_reservation,
                         ts: ts.timestamp() as u64,
                         remind: remind.timestamp() as u64,
-                        adult_ticket_price: v.adult_ticket_price.unwrap_or(0u64),
-                        child_ticket_price: v.child_ticket_price.unwrap_or(0u64),
+                        adult_ticket_price: v.adult_ticket_price.unwrap_or(0u64) * 100 as u64,
+                        child_ticket_price: v.child_ticket_price.unwrap_or(0u64) * 100 as u64,
                         currency: v.currency,
                     };
 
