@@ -25,8 +25,8 @@ mod tests {
             max_children_per_reservation: 3,
             ts: ts,
             remind: ts - 10,
-            adult_ticket_price: 0,
-            child_ticket_price: 0,
+            adult_ticket_price: 0.00,
+            child_ticket_price: 0.00,
         };
         let event_id = 1;
 
