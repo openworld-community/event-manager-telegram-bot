@@ -113,7 +113,7 @@ pub fn messages(
     let waiting_list = if is_admin {
         None
     } else {
-        Some((s.adults.my_reservation == 0 && s.children.my_reservation == 0) as u64)
+        Some((s.adults.my_reservation == 0 && s.children.my_reservation == 0) as u32)
     };
 
     if let Ok(messages) = db::get_group_messages(conn, event_id, waiting_list) {

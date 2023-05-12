@@ -39,7 +39,7 @@ pub fn pre_checkout(
                 booking.children,
                 0,
                 get_unix_time(),
-                pre_checkout.total_amount as u64,
+                pre_checkout.total_amount as f32,
             ) {
                 Ok(_) => Ok(()),
                 Err(e) => Err(anyhow!("{}", e)),
@@ -69,7 +69,7 @@ pub fn checkout(
                 OrderInfo {
                     id: payment.telegram_payment_charge_id.to_owned(),
                     name: name.to_owned(),
-                    amount: payment.total_amount as u64,
+                    amount: payment.total_amount as f32,
                 },
             ) {
                 Ok(_) => Ok(()),
@@ -83,8 +83,8 @@ pub fn checkout(
 
 pub fn show_paid_event(
     event_id: u64,
-    adults: u64,
-    children: u64,
+    adults: u32,
+    children: u32,
     offset: u64,
     conn: &PooledConnection<SqliteConnectionManager>,
     user: &User,
@@ -245,11 +245,11 @@ pub fn show_paid_event(
 
 fn get_controls(
     s: &EventStats,
-    adults: u64,
-    children: u64,
+    adults: u32,
+    children: u32,
     offset: u64,
-    free_adults: i64,
-    free_children: i64,
+    free_adults: i32,
+    free_children: i32,
     no_age_distinction: bool,
     is_admin: bool,
     _user_id: u64,
