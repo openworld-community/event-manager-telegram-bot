@@ -194,8 +194,8 @@ pub fn show_paid_event(
                             }
                         }
         
-                        let total_amount = (adults as f64 * s.event.adult_ticket_price
-                            + children as f64 * s.event.child_ticket_price )
+                        let total_amount = (adults * s.event.adult_ticket_price as f32
+                            + children * s.event.child_ticket_price as f32)
                             as f32;
                         Some(format!(
                             "\n<b>{}, всего {} {}</b>",
@@ -398,8 +398,8 @@ pub fn prepare_invoice(
                     title,
                     description: format!("{} - {}", s.event.name, format::ts(s.event.ts)),
                     currency: s.event.currency,
-                    amount: adults as f64 * s.event.adult_ticket_price
-                        + children as f64 * s.event.child_ticket_price ,
+                    amount: adults * s.event.adult_ticket_price as f32
+                        + children * s.event.child_ticket_price as f32,
                     payload: serde_json::to_string(&Booking {
                         event_id,
                         adults,
