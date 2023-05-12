@@ -22,9 +22,9 @@ pub fn pre_checkout(
     pre_checkout: &PreCheckoutQuery,
     _ctx: &Context,
 ) -> anyhow::Result<()> {
-    if pre_checkout.currency != Currency::EUR {
-        return Err(anyhow!("Only EUR is currently accepted"));
-    }
+    // if pre_checkout.currency != Currency::EUR {
+    //     return Err(anyhow!("Only EUR is currently accepted"));
+    // }
     if let Some(_) = &pre_checkout.order_info.name {
         let booking: Booking = serde_json::from_str(&pre_checkout.invoice_payload)?;
         if booking.event_id == 0 {
@@ -199,8 +199,8 @@ pub fn show_paid_event(
                             as f32
                             / 100f32;
                         Some(format!(
-                            "\n<b>{}, всего {:.2} EUR</b>",
-                            order, total_amount
+                            "\n<b>{}, всего {} {}</b>",
+                            order, total_amount, s.event.currency
                         ))
                     } else {
                         Some("\nВыберите необходимое количество билетов и нажмите \"К оплате\". Введённое имя будет на билете.".to_string())
@@ -398,7 +398,7 @@ pub fn prepare_invoice(
                 Ok(Reply::Invoice {
                     title,
                     description: format!("{} - {}", s.event.name, format::ts(s.event.ts)),
-                    currency: "EUR".to_string(),
+                    currency: s.event.currency,
                     amount: adults * s.event.adult_ticket_price
                         + children * s.event.child_ticket_price,
                     payload: serde_json::to_string(&Booking {

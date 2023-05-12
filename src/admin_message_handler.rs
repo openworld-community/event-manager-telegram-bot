@@ -25,8 +25,9 @@ struct NewEvent {
     max_children: u64,
     max_adults_per_reservation: u64,
     max_children_per_reservation: u64,
-    adult_ticket_price: Option<u64>,
-    child_ticket_price: Option<u64>,
+    adult_ticket_price: Option<f64>,
+    child_ticket_price: Option<f64>,
+    currency: String,
 }
 
 /// Command line processor.
@@ -183,9 +184,9 @@ pub fn handle_message(
         "/help" => {
             return Ok(ReplyMessage::new(markdown::escape(
                         "Добавить мероприятие: \
-                        \n { \"name\":\"тест\", \"link\":\"https://t.me/storiesvienna/21\", \"start\":\"2022-05-29 15:00 +02:00\", \"remind\":\"2022-05-28 15:00 +02:00\", \"max_adults\":15, \"max_children\":15, \"max_adults_per_reservation\":15, \"max_children_per_reservation\":15 }\
+                        \n { \"name\":\"тест\", \"link\":\"https://t.me/storiesvienna/21\", \"start\":\"2022-05-29 15:00 +02:00\", \"remind\":\"2022-05-28 15:00 +02:00\", \"max_adults\":15, \"max_children\":15, \"max_adults_per_reservation\":15, \"max_children_per_reservation\":15, \"currency\":\"EUR\" }\
                         \n\n Отредактировать: добавьте \"id\":<event> в команду выше \
-                        \n\n Цены билетов: добавьте \"adult_ticket_price\":200, \"child_ticket_price\":100 в евроцентах в команду выше \
+                        \n\n Цены билетов: добавьте \"adult_ticket_price\":200, \"child_ticket_price\":100 в выбранной валюте в команду выше \
                         \n \nПослать сообщение: \
                         \n /send confirmed <event> текст \
                         \n /send waiting <event> текст \
@@ -284,8 +285,9 @@ fn add_event(
                         max_children_per_reservation: v.max_children_per_reservation,
                         ts: ts.timestamp() as u64,
                         remind: remind.timestamp() as u64,
-                        adult_ticket_price: v.adult_ticket_price.unwrap_or(0u64),
-                        child_ticket_price: v.child_ticket_price.unwrap_or(0u64),
+                        adult_ticket_price: (v.adult_ticket_price.unwrap_or(0.00f64) * 100.0) as u64,
+                        child_ticket_price: (v.child_ticket_price.unwrap_or(0.00f64) * 100.0) as u64,
+                        currency: v.currency,
                     };
 
                     if event.adult_ticket_price != 0 && event.max_adults == 0

@@ -65,6 +65,7 @@ impl EventStats {
                 remind: 0,
                 adult_ticket_price: row.get::<&str, u64>("adult_ticket_price")?,
                 child_ticket_price: row.get::<&str, u64>("child_ticket_price")?,
+                currency: row.get("currency")?,
             },
             adults: Counter::new(
                 row.get("adults"),
@@ -105,8 +106,8 @@ pub fn add_event(conn: &PooledConnection<SqliteConnectionManager>, e: Event) -> 
     let mut event_id = e.id;
     if e.id == 0 {
         let res = conn.execute(
-            "INSERT INTO events (name, link, max_adults, max_children, max_adults_per_reservation, max_children_per_reservation, ts, remind, adult_ticket_price, child_ticket_price) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
-            params![e.name, e.link, e.max_adults, e.max_children, e.max_adults_per_reservation, e.max_children_per_reservation, e.ts, e.remind, e.adult_ticket_price, e.child_ticket_price],
+            "INSERT INTO events (name, link, max_adults, max_children, max_adults_per_reservation, max_children_per_reservation, ts, remind, adult_ticket_price, child_ticket_price, currency) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
+            params![e.name, e.link, e.max_adults, e.max_children, e.max_adults_per_reservation, e.max_children_per_reservation, e.ts, e.remind, e.adult_ticket_price, e.child_ticket_price, e.currency],
         )?;
         if res > 0 {
             let mut stmt = conn
@@ -584,7 +585,7 @@ pub fn get_events(
 ) -> Result<Vec<EventStats>, rusqlite::Error> {
     let mut stmt = conn.prepare(
         "select a.*, b.my_adults, b.my_children, c.my_wait_adults, c.my_wait_children FROM \
-        (SELECT events.id, events.name, events.link, events.max_adults, events.max_children, events.max_adults_per_reservation, events.max_children_per_reservation, events.ts, r.adults, r.children, events.state, events.adult_ticket_price, events.child_ticket_price FROM events \
+        (SELECT events.id, events.name, events.link, events.max_adults, events.max_children, events.max_adults_per_reservation, events.max_children_per_reservation, events.ts, r.adults, r.children, events.state, events.adult_ticket_price, events.child_ticket_price, events.currency FROM events \
         LEFT JOIN (SELECT sum(adults) as adults, sum(children) as children, event FROM reservations WHERE waiting_list = 0 GROUP BY event) as r ON events.id = r.event ORDER BY ts LIMIT ?2 OFFSET ?3) as a \
         LEFT JOIN (SELECT sum(adults) as my_adults, sum(children) as my_children, event FROM reservations WHERE waiting_list = 0 AND user = ?1 GROUP BY event) as b ON a.id = b.event \
         LEFT JOIN (SELECT sum(adults) as my_wait_adults, sum(children) as my_wait_children, event FROM reservations WHERE waiting_list = 1 AND user = ?1 GROUP BY event) as c ON a.id = c.event"
@@ -600,7 +601,7 @@ pub fn get_events(
 pub fn get_event(conn: &PooledConnection<SqliteConnectionManager>, event_id: u64, user: u64) -> Result<EventStats, rusqlite::Error> {
     let mut stmt = conn.prepare(
         "select a.*, b.my_adults, b.my_children, c.my_wait_adults, c.my_wait_children FROM \
-        (SELECT events.id, events.name, events.link, events.max_adults, events.max_children, events.max_adults_per_reservation, events.max_children_per_reservation, events.ts, r.adults, r.children, events.state, events.adult_ticket_price, events.child_ticket_price FROM events \
+        (SELECT events.id, events.name, events.link, events.max_adults, events.max_children, events.max_adults_per_reservation, events.max_children_per_reservation, events.ts, r.adults, r.children, events.state, events.adult_ticket_price, events.child_ticket_price, events.currency FROM events \
         LEFT JOIN (SELECT sum(adults) as adults, sum(children) as children, event FROM reservations WHERE waiting_list = 0 GROUP BY event) as r ON events.id = r.event) as a \
         LEFT JOIN (SELECT sum(adults) as my_adults, sum(children) as my_children, event FROM reservations WHERE waiting_list = 0 AND user = ?1 GROUP BY event) as b ON a.id = b.event \
         LEFT JOIN (SELECT sum(adults) as my_wait_adults, sum(children) as my_wait_children, event FROM reservations WHERE waiting_list = 1 AND user = ?1 GROUP BY event) as c ON a.id = c.event WHERE a.id = ?2"
@@ -878,7 +879,8 @@ pub fn create(conn: &PooledConnection<SqliteConnectionManager>) -> Result<(), ru
                             remind          INTEGER NOT NULL,
                             state           INTEGER default 0,
                             adult_ticket_price INTEGER default 0,
-                            child_ticket_price INTEGER default 0
+                            child_ticket_price INTEGER default 0,
+                            currency        TEXT default 'EUR'
                             )",
                         [],
                     )?;
