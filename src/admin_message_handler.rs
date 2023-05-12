@@ -285,13 +285,13 @@ fn add_event(
                         max_children_per_reservation: v.max_children_per_reservation,
                         ts: ts.timestamp() as u64,
                         remind: remind.timestamp() as u64,
-                        adult_ticket_price: v.adult_ticket_price.unwrap_or(0.00f32),
-                        child_ticket_price: v.child_ticket_price.unwrap_or(0.00f32),
+                        adult_ticket_price: v.adult_ticket_price.unwrap_or(0f32),
+                        child_ticket_price: v.child_ticket_price.unwrap_or(0f32),
                         currency: v.currency,
                     };
 
-                    if event.adult_ticket_price != 0.00 && event.max_adults == 0
-                        || event.child_ticket_price != 0.00 && event.max_children == 0
+                    if event.adult_ticket_price != 0 && event.max_adults == 0
+                        || event.child_ticket_price != 0 && event.max_children == 0
                     {
                         return Err(anyhow!("Wrong event format"));
                     }

@@ -79,7 +79,7 @@ pub struct Event {
 impl Event {
     pub fn get_type(&self) -> EventType {
         // todo: move to constructor
-        if self.adult_ticket_price != 0.00 || self.child_ticket_price != 0.00 {
+        if self.adult_ticket_price != 0 || self.child_ticket_price != 0 {
             EventType::Paid
         } else if self.max_adults != 0 || self.max_children != 0 {
             EventType::Free

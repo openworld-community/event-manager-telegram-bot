@@ -180,7 +180,7 @@ pub fn handle_callback(
                         let mut ps = None;
                         if is_too_late_to_cancel(conn, event_id, user, ctx) {
                             if let Ok(s) = db::get_event(conn, event_id, user_id) {
-                                if s.adults.my_reservation + s.children.my_reservation == 0 && s.event.adult_ticket_price == 0.00 && s.event.child_ticket_price == 0.00 {
+                                if s.adults.my_reservation + s.children.my_reservation == 0 && s.event.adult_ticket_price == 0 && s.event.child_ticket_price == 0 {
                                     // Complete cancellation
                                     if db::ban_user(
                                         conn,

@@ -288,7 +288,7 @@ pub fn delete_event(
     admins: &HashSet<u64>
 ) -> Result<(), rusqlite::Error> {
     let s = get_event(conn, event_id, 0)?;
-    if automatic_blacklisting && s.event.adult_ticket_price == 0.00 && s.event.child_ticket_price == 0.00 {
+    if automatic_blacklisting && s.event.adult_ticket_price == 0 && s.event.child_ticket_price == 0 {
         if let Err(e) = blacklist_absent_participants(
             conn,
             event_id,
@@ -764,7 +764,7 @@ pub fn get_pending_messages(
             message_type: num::FromPrimitive::from_u64(message_type).unwrap(),
             waiting_list: row.get("waiting_list")?,
             text: row.get("text")?,
-            is_paid: row.get::<&str, f32>("adult_ticket_price")? != 0.00 || row.get::<&str, f32>("child_ticket_price")? != 0.0,
+            is_paid: row.get::<&str, f32>("adult_ticket_price")? != 0 || row.get::<&str, f32>("child_ticket_price")? != 0,
             recipients: Vec::new(),
         };
         res.push(batch);
@@ -878,8 +878,8 @@ pub fn create(conn: &PooledConnection<SqliteConnectionManager>) -> Result<(), ru
                             ts              INTEGER NOT NULL,
                             remind          INTEGER NOT NULL,
                             state           INTEGER default 0,
-                            adult_ticket_price REAL default 0.00,
-                            child_ticket_price REAL default 0.00,
+                            adult_ticket_price REAL default 0,
+                            child_ticket_price REAL default 0,
                             currency        TEXT default 'EUR'
                             )",
                         [],
