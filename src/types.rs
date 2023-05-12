@@ -71,8 +71,8 @@ pub struct Event {
     pub max_children_per_reservation: u64,
     pub ts: u64,
     pub remind: u64,
-    pub adult_ticket_price: u64,
-    pub child_ticket_price: u64,
+    pub adult_ticket_price: f32,
+    pub child_ticket_price: f32,
     pub currency: String,
 }
 
