@@ -39,7 +39,7 @@ pub fn pre_checkout(
                 booking.children,
                 0,
                 get_unix_time(),
-                pre_checkout.total_amount as u64,
+                pre_checkout.total_amount as f64,
             ) {
                 Ok(_) => Ok(()),
                 Err(e) => Err(anyhow!("{}", e)),
@@ -69,7 +69,7 @@ pub fn checkout(
                 OrderInfo {
                     id: payment.telegram_payment_charge_id.to_owned(),
                     name: name.to_owned(),
-                    amount: payment.total_amount as u64,
+                    amount: payment.total_amount as f64,
                 },
             ) {
                 Ok(_) => Ok(()),
@@ -196,7 +196,7 @@ pub fn show_paid_event(
         
                         let total_amount = (adults as f64 * s.event.adult_ticket_price
                             + children as f64 * s.event.child_ticket_price )
-                            as f32;
+                            as f64;
                         Some(format!(
                             "\n<b>{}, всего {} {}</b>",
                             order, total_amount, s.event.currency
@@ -415,7 +415,7 @@ pub fn prepare_invoice(
 
 pub fn donate(
     user: &User,
-    amount: u64,
+    amount: f64,
     _ctx: &Context,
 ) -> anyhow::Result<Reply> {
         Ok(Reply::Invoice {

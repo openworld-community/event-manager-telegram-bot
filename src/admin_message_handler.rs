@@ -25,8 +25,8 @@ struct NewEvent {
     max_children: u64,
     max_adults_per_reservation: u64,
     max_children_per_reservation: u64,
-    adult_ticket_price: Option<f32>,
-    child_ticket_price: Option<f32>,
+    adult_ticket_price: Option<f6>,
+    child_ticket_price: Option<f64>,
     currency: String,
 }
 
@@ -285,8 +285,8 @@ fn add_event(
                         max_children_per_reservation: v.max_children_per_reservation,
                         ts: ts.timestamp() as u64,
                         remind: remind.timestamp() as u64,
-                        adult_ticket_price: v.adult_ticket_price.unwrap_or(0.00f32),
-                        child_ticket_price: v.child_ticket_price.unwrap_or(0.00f32),
+                        adult_ticket_price: v.adult_ticket_price.unwrap_or(0.00f64),
+                        child_ticket_price: v.child_ticket_price.unwrap_or(0.00f64),
                         currency: v.currency,
                     };
 

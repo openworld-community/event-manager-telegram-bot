@@ -71,8 +71,8 @@ pub struct Event {
     pub max_children_per_reservation: u64,
     pub ts: u64,
     pub remind: u64,
-    pub adult_ticket_price: f32,
-    pub child_ticket_price: f32,
+    pub adult_ticket_price: f64,
+    pub child_ticket_price: f64,
     pub currency: String,
 }
 
@@ -180,7 +180,7 @@ pub struct Booking {
 pub struct OrderInfo {
     pub id: String,
     pub name: String,
-    pub amount: u64,
+    pub amount: f64,
 }
 
 pub enum ReservationState {

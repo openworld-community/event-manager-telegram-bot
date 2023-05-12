@@ -33,7 +33,7 @@ pub fn handle_message(
             if pars.len() == 2 {
                 // Direct link
                 if pars[1].starts_with("donate_") {
-                    if let Ok(amount) = pars[1][7..].parse::<u64>() {
+                    if let Ok(amount) = pars[1][7..].parse::<f64>() {
                         return donate(user, amount, ctx);
                     }
                 } else {

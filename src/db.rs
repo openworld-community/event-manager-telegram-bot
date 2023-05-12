@@ -63,8 +63,8 @@ impl EventStats {
                 max_children_per_reservation: row.get("max_children_per_reservation")?,
                 ts: row.get("ts")?,
                 remind: 0,
-                adult_ticket_price: row.get::<&str, f32>("adult_ticket_price")?,
-                child_ticket_price: row.get::<&str, f32>("child_ticket_price")?,
+                adult_ticket_price: row.get::<&str, f64>("adult_ticket_price")?,
+                child_ticket_price: row.get::<&str, f64>("child_ticket_price")?,
                 currency: row.get("currency")?,
             },
             adults: Counter::new(
@@ -358,7 +358,7 @@ pub fn sign_up(
     children: u64,
     wait: u64,
     ts: u64,
-    amount: u64,
+    amount: f64,
 ) -> anyhow::Result<(usize, bool)> {
     let user_id = user.id.0;
     let s = get_event(conn, event_id, user_id)?;
@@ -764,7 +764,7 @@ pub fn get_pending_messages(
             message_type: num::FromPrimitive::from_u64(message_type).unwrap(),
             waiting_list: row.get("waiting_list")?,
             text: row.get("text")?,
-            is_paid: row.get::<&str, f32>("adult_ticket_price")? != 0.00 || row.get::<&str, f32>("child_ticket_price")? != 0.0,
+            is_paid: row.get::<&str, f64>("adult_ticket_price")? != 0.00 || row.get::<&str, f64>("child_ticket_price")? != 0.0,
             recipients: Vec::new(),
         };
         res.push(batch);
