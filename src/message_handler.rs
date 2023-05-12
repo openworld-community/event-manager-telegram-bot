@@ -33,7 +33,7 @@ pub fn handle_message(
             if pars.len() == 2 {
                 // Direct link
                 if pars[1].starts_with("donate_") {
-                    if let Ok(amount) = pars[1][7..].parse::<f32>() {
+                    if let Ok(amount) = pars[1][7..].parse::<u64>() {
                         return donate(user, amount, ctx);
                     }
                 } else {
@@ -104,14 +104,14 @@ pub enum CallbackQuery {
     },
     PaidEvent {
         event_id: u64,
-        adults: u32,
-        children: u32,
+        adults: u64,
+        children: u64,
         offset: u64,
     },
     SendInvoice {
         event_id: u64,
-        adults: u32,
-        children: u32,
+        adults: u64,
+        children: u64,
     },
 
     // admin callbacks

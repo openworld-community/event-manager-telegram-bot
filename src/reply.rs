@@ -12,7 +12,7 @@ pub enum Reply {
         description: String,
         payload: String,
         currency: String,
-        amount: f32,
+        amount: u64,
     },
 }
 #[derive(Debug)]
