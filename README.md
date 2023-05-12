@@ -16,6 +16,9 @@ The bot can help with basic event management tasks like sign up, cancel, remind,
 -   Internationalization. The initial language choice was made to help a european non-profit organize events for children and their mothers fleeing the war in Ukraine. ![flag](https://smartlike.org/favicons/ukraine.svg)
 
 # Change log
+**v0.1.0**
+added custom currency setting for price of the event
+
 **v0.0.3**
 added mounting volume for sqlite3 database from docker for storing events and users
 
