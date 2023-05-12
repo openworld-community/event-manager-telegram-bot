@@ -21,9 +21,9 @@ pub struct Counter {
 
 impl Counter {
     pub fn new(
-        reserved: Result<u64, rusqlite::Error>,
-        my_reservation: Result<u64, rusqlite::Error>,
-        my_waiting: Result<u64, rusqlite::Error>,
+        reserved: Result<u32, rusqlite::Error>,
+        my_reservation: Result<u32, rusqlite::Error>,
+        my_waiting: Result<u32, rusqlite::Error>,
     ) -> Result<Counter, rusqlite::Error> {
         Ok(Counter {
             reserved: match reserved {
@@ -89,7 +89,7 @@ pub struct GroupMessage {
     pub sender: String,
     pub text: String,
     pub ts: u64,
-    pub waiting_list: u64,
+    pub waiting_list: u32,
 }
 
 
@@ -146,7 +146,7 @@ pub fn enqueue_message(
     conn: &PooledConnection<SqliteConnectionManager>,
     event_id: u64,
     sender: &str,
-    waiting_list: u64,
+    waiting_list: u32,
     message_type: MessageType,
     text: &str,
     send_at: u64,
