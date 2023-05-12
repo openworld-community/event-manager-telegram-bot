@@ -184,9 +184,9 @@ pub fn handle_message(
         "/help" => {
             return Ok(ReplyMessage::new(markdown::escape(
                         "Добавить мероприятие: \
-                        \n { \"name\":\"тест\", \"link\":\"https://t.me/storiesvienna/21\", \"start\":\"2022-05-29 15:00 +02:00\", \"remind\":\"2022-05-28 15:00 +02:00\", \"max_adults\":15, \"max_children\":15, \"max_adults_per_reservation\":15, \"max_children_per_reservation\":15 }\
+                        \n { \"name\":\"тест\", \"link\":\"https://t.me/storiesvienna/21\", \"start\":\"2022-05-29 15:00 +02:00\", \"remind\":\"2022-05-28 15:00 +02:00\", \"max_adults\":15, \"max_children\":15, \"max_adults_per_reservation\":15, \"max_children_per_reservation\":15, \"currency\":\"EUR\" }\
                         \n\n Отредактировать: добавьте \"id\":<event> в команду выше \
-                        \n\n Цены билетов: добавьте \"adult_ticket_price\":200, \"child_ticket_price\":100 в евроцентах в команду выше \
+                        \n\n Цены билетов: добавьте \"adult_ticket_price\":200, \"child_ticket_price\":100 в выбранной валюте в команду выше \
                         \n \nПослать сообщение: \
                         \n /send confirmed <event> текст \
                         \n /send waiting <event> текст \
