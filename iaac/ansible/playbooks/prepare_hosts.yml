@@ -6,21 +6,6 @@
     - githubixx.docker
     - andrewrothstein.docker-compose
   tasks:
-
-    - name: Create group docker
-      group:
-        name: docker
-        state: present
-
-    - name: Create user docker
-      user:
-        name: docker
-        group: docker
-        shell: /bin/bash
-        createhome: yes
-        state: present
-        id: 1001
-
     - name: Create dir
       file:
         path: "/opt/{{ docker_image_version }}/data"
