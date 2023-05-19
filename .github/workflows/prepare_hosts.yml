@@ -9,7 +9,6 @@ on:
       - 'iaac/ansible/inventory/**'
       - 'iaac/ansible/playbooks/prepare_hosts.yml'
       - 'iaac/ansible/roles/requirements.yml'
-      - '.workflow/prepary_host.yml'
   push:
     branches:
       - "prerelease"
@@ -17,6 +16,7 @@ on:
       - 'iaac/ansible/inventory/**'
       - 'iaac/ansible/playbooks/prepare_hosts.yml'
       - 'iaac/ansible/roles/requirements.yml'
+      - '.workflow/prepary_host.yml'
 
 env:
   REGISTRY: ghcr.io
