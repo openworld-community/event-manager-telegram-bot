@@ -8,20 +8,6 @@
         src: event-manager-telegram-bot.toml.j2
         dest: "/usr/local/etc/event-manager-telegram-bot.{{ docker_image_version }}.toml"
 
-    - name: Create group docker
-      group:
-        name: docker
-        state: present
-
-    - name: Create user docker
-      user:
-        name: docker
-        group: docker
-        shell: /bin/bash
-        createhome: yes
-        state: present
-        id: 1001
-
     - name: Create dir
       file:
         path: "/opt/{{ docker_image_version }}/data"
