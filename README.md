@@ -9,6 +9,7 @@
 ### Админский функционал
 Админ указанный в конфиге бота может создавать, удалять, изменять мероприятия, банить пользователей, назначать и убирать менеджера мероприятия, удалять бронирования, рассылать сообщения забронировавшим пользователям
 Мероприятия создаются с помощью отправки JSON-а боту от админа:
+```
 {
   "name": "Peredelanoconf Yerevan TEST EVENT FOR BOT", # имя мероприятия
   "link": "https://t.me/peredelanoconfyerevan/579", # ссылка на мероприятие
@@ -23,13 +24,20 @@
   "children_ticket_price": 60, # ценник бронирования места для детей, может быть 0, если мероприятие бесплатно для детей
   "currency": "USD" # валюта оплаты
 }
+```
 ### Пользователський функционал
 Пользователь пишет боту, в ответ получает список предстоящих мероприятий:
+
 ![image](https://github.com/openworld-community/event-manager-telegram-bot/assets/40787135/12a32adc-0177-421d-a4bf-856d6ff39693)
+
 При выборе мероприятия будет показано сообщение бронирования:
+
 ![image](https://github.com/openworld-community/event-manager-telegram-bot/assets/40787135/80de2d25-0365-4559-8488-c13dcf9bc737)
+
 В котором можно выбрать сколько нужно забронировать места и после перейти к оплате
+
 ![image](https://github.com/openworld-community/event-manager-telegram-bot/assets/40787135/9db30003-6422-4bbc-ac93-5c801f7c1b30)
+
 После оплаты при выборе видно будет на какое мероприятия пользователь забронировал и оплатил билет:
 ![image](https://github.com/openworld-community/event-manager-telegram-bot/assets/40787135/8ba29ad5-7303-4127-be0e-9d1a70eb96cd)
 ![image](https://github.com/openworld-community/event-manager-telegram-bot/assets/40787135/0d5109f7-f714-4102-bd93-45b9572ec927)
