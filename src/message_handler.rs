@@ -1,12 +1,9 @@
 use crate::get_unix_time;
-use crate::payments::{prepare_invoice, show_paid_event, donate};
-use crate::types::{Context, EventState, EventType, ReservationState, User};
+use crate::payments::{donate, prepare_invoice, show_paid_event};
 use crate::reply::*;
+use crate::types::{Context, EventState, EventType, ReservationState, User};
 use anyhow::anyhow;
-use teloxide::{
-    types::{InlineKeyboardButton},
-    utils::html,
-};
+use teloxide::{types::InlineKeyboardButton, utils::html};
 use url::Url;
 
 use crate::db;
@@ -46,7 +43,7 @@ pub fn handle_message(
             }
         }
         "/donate" => {
-                return donate(user, 500, ctx);
+            return donate(user, 500, ctx);
         }
         "/help" => {
             return Ok(ReplyMessage::new(format!(
@@ -180,7 +177,10 @@ pub fn handle_callback(
                         let mut ps = None;
                         if is_too_late_to_cancel(conn, event_id, user, ctx) {
                             if let Ok(s) = db::get_event(conn, event_id, user_id) {
-                                if s.adults.my_reservation + s.children.my_reservation == 0 && s.event.adult_ticket_price == 0 && s.event.child_ticket_price == 0 {
+                                if s.adults.my_reservation + s.children.my_reservation == 0
+                                    && s.event.adult_ticket_price == 0
+                                    && s.event.child_ticket_price == 0
+                                {
                                     // Complete cancellation
                                     if db::ban_user(
                                         conn,
@@ -319,7 +319,7 @@ pub fn show_event_list(
                         format!("Программа\nвремя / взросл.(детск.) места  / мероприятие\n<a href=\"{}\">инструкция</a> /donate", ctx.config.help)
                     } else {
                         "Нет мероприятий.".to_string()
-                    }                      
+                    }
                 )
                 .keyboard(
                     events
@@ -380,7 +380,7 @@ pub fn show_event_list(
                             )]
                         }
                     })
-                    .collect()                   
+                    .collect()
                 )
                 // pagination
                 .pagination(
@@ -389,7 +389,7 @@ pub fn show_event_list(
                     events.len() as u64,
                     ctx.config.event_list_page_size,
                     offset,
-                )?                
+                )?
                 .into()
             )
         }
@@ -435,7 +435,7 @@ pub fn show_event(
                         free_children,
                         is_admin,
                         no_age_distinction,
-                    )                    
+                    )
                 )
                 // participants
                 .text(participants.and_then(|participants| {
@@ -510,7 +510,7 @@ pub fn show_event(
                     participants_len,
                     ctx.config.event_page_size,
                     offset,
-                )?                
+                )?
                 .text(ps)
                 .into()
             )
@@ -575,7 +575,9 @@ fn get_signup_controls(
     }
     keyboard.push(row);
     row = Vec::new();
-    if s.state == EventState::Open && s.children.my_reservation < s.event.max_children_per_reservation {
+    if s.state == EventState::Open
+        && s.children.my_reservation < s.event.max_children_per_reservation
+    {
         if free_children > 0 {
             row.push(InlineKeyboardButton::callback(
                 if no_age_distinction {
@@ -637,7 +639,7 @@ fn get_signup_controls(
             })?,
         ));
     }
-    
+
     if is_admin {
         if s.adults.reserved > 0 || s.children.reserved > 0 {
             row.push(InlineKeyboardButton::callback(
@@ -710,70 +712,65 @@ fn show_waiting_list(
         ReservationState::Free,
     ) {
         Ok(participants) => {
-            Ok(
-                ReplyMessage::new(                    
-                    if participants.len() == 0 {
-                        "Пустой список ожидания.".to_string()
-                    } else {
-                        "Список ожидания:\n".to_string() +
-                        &participants
-                            .iter()
-                            .map(|p| {
-                                let mut entry = "".to_string();
-                                let id = if is_admin {
-                                    p.user_id.to_string()
-                                } else {
-                                    "".to_string()
-                                };
-                                if p.user_name2.len() > 0 {
-                                    entry.push_str(&format!(
-                                        "\n{} <a href=\"https://t.me/{}\">{} ({})</a>",
-                                        id, p.user_name2, p.user_name1, p.user_name2
-                                    ));
-                                } else {
-                                    entry.push_str(&format!(
-                                        "\n{} <a href=\"tg://user?id={}\">{}</a>",
-                                        id, p.user_id, p.user_name1
-                                    ));
-                                }
-                                if no_age_distinction {
-                                    entry.push_str(&format!(" {}", p.adults + p.children));
-                                } else {
-                                    entry.push_str(&format!(" {}({})", p.adults, p.children));
-                                }
-                                if let Some(a) = &p.attachment {
-                                    entry.push_str(&format!(" {}", a));
-                                }
-                                entry
-                            })
-                            .collect::<String>()
-                    }
-                )
-                // controls
-                .keyboard(
-                    vec![vec![InlineKeyboardButton::callback(
-                        "Назад",
-                        &serde_json::to_string(&CallbackQuery::Event {
-                            event_id,
-                            offset: 0,
-                        })?,
-                )]])
-                // pagination
-                .pagination(
-                    &CallbackQuery::ShowWaitingList {
-                        event_id,
-                        offset: offset.saturating_sub(1),
-                    },
-                    &CallbackQuery::ShowWaitingList {
-                        event_id,
-                        offset: offset + 1,
-                    },
-                    participants.len() as u64,
-                    ctx.config.event_page_size,
-                    offset,
-                )?                
-                .into()
-            )
+            Ok(ReplyMessage::new(if participants.len() == 0 {
+                "Пустой список ожидания.".to_string()
+            } else {
+                "Список ожидания:\n".to_string()
+                    + &participants
+                        .iter()
+                        .map(|p| {
+                            let mut entry = "".to_string();
+                            let id = if is_admin {
+                                p.user_id.to_string()
+                            } else {
+                                "".to_string()
+                            };
+                            if p.user_name2.len() > 0 {
+                                entry.push_str(&format!(
+                                    "\n{} <a href=\"https://t.me/{}\">{} ({})</a>",
+                                    id, p.user_name2, p.user_name1, p.user_name2
+                                ));
+                            } else {
+                                entry.push_str(&format!(
+                                    "\n{} <a href=\"tg://user?id={}\">{}</a>",
+                                    id, p.user_id, p.user_name1
+                                ));
+                            }
+                            if no_age_distinction {
+                                entry.push_str(&format!(" {}", p.adults + p.children));
+                            } else {
+                                entry.push_str(&format!(" {}({})", p.adults, p.children));
+                            }
+                            if let Some(a) = &p.attachment {
+                                entry.push_str(&format!(" {}", a));
+                            }
+                            entry
+                        })
+                        .collect::<String>()
+            })
+            // controls
+            .keyboard(vec![vec![InlineKeyboardButton::callback(
+                "Назад",
+                &serde_json::to_string(&CallbackQuery::Event {
+                    event_id,
+                    offset: 0,
+                })?,
+            )]])
+            // pagination
+            .pagination(
+                &CallbackQuery::ShowWaitingList {
+                    event_id,
+                    offset: offset.saturating_sub(1),
+                },
+                &CallbackQuery::ShowWaitingList {
+                    event_id,
+                    offset: offset + 1,
+                },
+                participants.len() as u64,
+                ctx.config.event_page_size,
+                offset,
+            )?
+            .into())
         }
         Err(e) => Err(anyhow!("Failed to get participants: {}", e)),
     }
@@ -817,49 +814,49 @@ fn show_presence_list(
         Ok(participants) => {
             Ok(
                 // header
-                ReplyMessage::new(              
-                    if participants.len() == 0 {
-                        "Пустой список ожидания."
-                    } else {
-                        "Пожалуйста, выберите присутствующих:\n"
-                    }
-                )
+                ReplyMessage::new(if participants.len() == 0 {
+                    "Пустой список ожидания."
+                } else {
+                    "Пожалуйста, выберите присутствующих:\n"
+                })
                 .keyboard(
                     participants
-                    .iter()
-                    .map(|p| {
-                        vec![{
-                            let mut text;
-                            if p.user_name2.len() > 0 {
-                                text = format!("{} ({}) {}", p.user_name1, p.user_name2, p.reserved);
-                            } else {
-                                text = format!("{} {}", p.user_name1, p.reserved);
-                            }
-                            if let Some(a) = &p.attachment {
-                                text.push_str(&format!(" - {}", a));
-                            }
-    
-                            InlineKeyboardButton::callback(
-                                text,
-                                &serde_json::to_string(&CallbackQuery::ConfirmPresence {
-                                    event_id,
-                                    user_id: p.user_id,
-                                    offset: offset,
-                                })
-                                .unwrap(),
-                            )
-                        }]
-                    })
-                    .collect()                    
+                        .iter()
+                        .map(|p| {
+                            vec![{
+                                let mut text;
+                                if p.user_name2.len() > 0 {
+                                    text = format!(
+                                        "{} ({}) {}",
+                                        p.user_name1, p.user_name2, p.reserved
+                                    );
+                                } else {
+                                    text = format!("{} {}", p.user_name1, p.reserved);
+                                }
+                                if let Some(a) = &p.attachment {
+                                    text.push_str(&format!(" - {}", a));
+                                }
+
+                                InlineKeyboardButton::callback(
+                                    text,
+                                    &serde_json::to_string(&CallbackQuery::ConfirmPresence {
+                                        event_id,
+                                        user_id: p.user_id,
+                                        offset: offset,
+                                    })
+                                    .unwrap(),
+                                )
+                            }]
+                        })
+                        .collect(),
                 )
                 // controls
-                .keyboard(
-                    vec![vec![InlineKeyboardButton::callback(
-                        "Назад",
-                        &serde_json::to_string(&CallbackQuery::Event {
-                            event_id,
-                            offset: 0,
-                        })?,
+                .keyboard(vec![vec![InlineKeyboardButton::callback(
+                    "Назад",
+                    &serde_json::to_string(&CallbackQuery::Event {
+                        event_id,
+                        offset: 0,
+                    })?,
                 )]])
                 // pagination
                 .pagination(
@@ -874,8 +871,8 @@ fn show_presence_list(
                     participants.len() as u64,
                     ctx.config.event_page_size,
                     offset,
-                )?                
-                .into()
+                )?
+                .into(),
             )
         }
         Err(e) => Err(anyhow!("Failed to get precense list: {}", e)),
