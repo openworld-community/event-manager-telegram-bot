@@ -4,7 +4,7 @@ use crate::format;
 use crate::message_handler;
 use crate::message_handler::CallbackQuery;
 use crate::reply::*;
-use crate::types::{Configuration, Context, Event, MessageType, User};
+use crate::types::{Context, Event, MessageType, User};
 use anyhow::anyhow;
 use chrono::DateTime;
 use r2d2::PooledConnection;
@@ -13,6 +13,7 @@ use teloxide::{
     types::{InlineKeyboardButton, ParseMode},
     utils::markdown,
 };
+use crate::configuration::Config;
 
 #[derive(Deserialize, Serialize, Clone, Default, Debug)]
 struct NewEvent {
@@ -118,7 +119,7 @@ pub fn handle_message(
             if let Ok(event_id) = pars[1].parse::<u64>() {
                 match db::delete_event(conn, event_id, ctx.config.automatic_blacklisting,
                     ctx.config.cancel_future_reservations_on_ban,
-                    &ctx.admins) {
+                    &ctx.config.admins) {
                     Ok(_) => {
                         return Ok(ReplyMessage::new("Deleted").into());
                     }
@@ -322,7 +323,7 @@ fn add_event(
 
 fn show_black_list(
     conn: &PooledConnection<SqliteConnectionManager>,
-    config: &Configuration,
+    config: &Config,
     offset: u64,
 ) -> anyhow::Result<Reply> {
     match db::get_black_list(conn, offset, config.presence_page_size) {
