@@ -21,11 +21,6 @@
         src: docker-compose.yml.j2
         dest: "/opt/{{ docker_image_version }}/docker-compose.{{ docker_image_version }}.yml"
 
-    - name: Authorize docker-compose
-      shell: |
-        docker login -u {{ github_actor }} -p {{ PAT_TOKEN }} {{ github_registry }}
-        docker-compose -f /opt/{{ docker_image_version }}/docker-compose.{{ docker_image_version }}.yml pull
-
     - name: Restart docker-compose for current version
       docker_compose:
         project_src: "/opt/{{ docker_image_version }}"
