@@ -1,14 +1,17 @@
-use crate::types::{Event, EventState, EventType, MessageBatch, MessageType, Participant, Presence, User, OrderInfo, ReservationState, Booking};
+use crate::types::{
+    Booking, Event, EventState, EventType, MessageBatch, MessageType, OrderInfo, Participant,
+    Presence, ReservationState, User,
+};
 use crate::util::{self, get_unix_time};
 use fallible_streaming_iterator::FallibleStreamingIterator;
 use rusqlite::{params, Result, Row};
 use std::collections::HashSet;
 use url::Url;
 
+use crate::format;
+use anyhow::anyhow;
 use r2d2::PooledConnection;
 use r2d2_sqlite::SqliteConnectionManager;
-use anyhow::anyhow;
-use crate::format;
 
 #[cfg(test)]
 mod tests;
@@ -92,15 +95,18 @@ pub struct GroupMessage {
     pub waiting_list: u64,
 }
 
-
-pub fn add_event(conn: &PooledConnection<SqliteConnectionManager>, e: Event) -> Result<u64, rusqlite::Error> {
+pub fn add_event(
+    conn: &PooledConnection<SqliteConnectionManager>,
+    e: Event,
+) -> Result<u64, rusqlite::Error> {
     let event_type = e.get_type();
     if event_type == EventType::Announcement {
         if let Err(err) = Url::parse(&e.link) {
             // todo: fix error
-            return Err(rusqlite::Error::InvalidParameterName(
-                format!("Failed to parse url: {}. {}", e.link, err),
-            ));
+            return Err(rusqlite::Error::InvalidParameterName(format!(
+                "Failed to parse url: {}. {}",
+                e.link, err
+            )));
         }
     }
     let mut event_id = e.id;
@@ -110,8 +116,8 @@ pub fn add_event(conn: &PooledConnection<SqliteConnectionManager>, e: Event) -> 
             params![e.name, e.link, e.max_adults, e.max_children, e.max_adults_per_reservation, e.max_children_per_reservation, e.ts, e.remind, e.adult_ticket_price, e.child_ticket_price, e.currency],
         )?;
         if res > 0 {
-            let mut stmt = conn
-                .prepare("SELECT id FROM events WHERE name = ?1 AND link = ?2 AND ts = ?3")?;
+            let mut stmt =
+                conn.prepare("SELECT id FROM events WHERE name = ?1 AND link = ?2 AND ts = ?3")?;
             let mut rows = stmt.query(params![e.name, e.link, e.ts])?;
             if let Some(row) = rows.next()? {
                 event_id = row.get::<&str, u64>("id")?;
@@ -127,10 +133,15 @@ pub fn add_event(conn: &PooledConnection<SqliteConnectionManager>, e: Event) -> 
     }
 
     if event_id != 0 && event_type != EventType::Announcement {
-        let text = format!("\nЗдравствуйте!\nНе забудьте, пожалуйста, что вы записались на\n<a href=\"{}\">{}</a>\
+        let text = format!(
+            "\nЗдравствуйте!\nНе забудьте, пожалуйста, что вы записались на\n<a href=\"{}\">{}</a>\
             \nНачало: {}\nПожалуйста, вовремя откажитесь от мест, если ваши планы изменились.\n",
-            e.link, e.name, format::ts(e.ts), );
-        enqueue_message(conn, 
+            e.link,
+            e.name,
+            format::ts(e.ts),
+        );
+        enqueue_message(
+            conn,
             event_id,
             "Bot",
             0,
@@ -181,23 +192,22 @@ pub fn delete_enqueued_messages(
             "DELETE FROM message_outbox WHERE message = ?1",
             params![message_id],
         )?;
-        conn.execute(
-            "DELETE FROM messages WHERE id = ?1",
-            params![message_id],
-        )?;
+        conn.execute("DELETE FROM messages WHERE id = ?1", params![message_id])?;
     }
     Ok(())
 }
 
-pub fn prompt_waiting_list(conn: &PooledConnection<SqliteConnectionManager>, event_id: u64) -> Result<(), rusqlite::Error> {
+pub fn prompt_waiting_list(
+    conn: &PooledConnection<SqliteConnectionManager>,
+    event_id: u64,
+) -> Result<(), rusqlite::Error> {
     if have_vacancies(conn, event_id)? == false {
         debug!("prompt_waiting_list - no tickets, event {}", event_id);
         return Ok(());
     }
 
     let send_at = get_unix_time() + 10; // give some time to finish multiple cancellations
-    let mut stmt = conn
-        .prepare("SELECT id FROM messages WHERE event = ?1 AND type = ?2")?;
+    let mut stmt = conn.prepare("SELECT id FROM messages WHERE event = ?1 AND type = ?2")?;
     let mut rows = stmt.query([event_id, MessageType::WaitingListPrompt as u64])?;
     if let Some(row) = rows.next()? {
         let message_id: u64 = row.get("id")?;
@@ -207,7 +217,7 @@ pub fn prompt_waiting_list(conn: &PooledConnection<SqliteConnectionManager>, eve
         )?;
     } else {
         if let Ok(event_name) = get_event_name(conn, event_id) {
-            enqueue_message(conn, 
+            enqueue_message(conn,
                 event_id,
                 "Bot",
                 1,
@@ -227,7 +237,7 @@ pub fn blacklist_absent_participants(
     cancel_future_reservations: bool,
 ) -> Result<(), rusqlite::Error> {
     let mut stmt = conn.prepare(
-        "select r.*, p.user from (select event, user, user_name1, user_name2, count(user) as count from reservations where event = ?1 and waiting_list = 0 group by user) as r 
+        "select r.*, p.user from (select event, user, user_name1, user_name2, count(user) as count from reservations where event = ?1 and waiting_list = 0 group by user) as r
         left join presence as p on r.event = p.event and r.user = p.user"
     )?;
     let mut rows = stmt.query(params![event_id])?;
@@ -253,7 +263,8 @@ pub fn blacklist_absent_participants(
             list.iter()
                 .filter(|p| !admins.contains(&p.user_id))
                 .try_for_each(|p| {
-                    ban_user(conn, 
+                    ban_user(
+                        conn,
                         p.user_id,
                         &p.user_name1,
                         &p.user_name2,
@@ -268,9 +279,11 @@ pub fn blacklist_absent_participants(
     Ok(())
 }
 
-pub fn get_ban_reason(conn: &PooledConnection<SqliteConnectionManager>, user_id: u64) -> Result<String, rusqlite::Error> {
-    let mut stmt = conn
-        .prepare("SELECT reason FROM black_list WHERE user = ?1")?;
+pub fn get_ban_reason(
+    conn: &PooledConnection<SqliteConnectionManager>,
+    user_id: u64,
+) -> Result<String, rusqlite::Error> {
+    let mut stmt = conn.prepare("SELECT reason FROM black_list WHERE user = ?1")?;
     let mut rows = stmt.query([user_id])?;
     if let Some(row) = rows.next()? {
         let reason: String = row.get("reason")?;
@@ -285,41 +298,32 @@ pub fn delete_event(
     event_id: u64,
     automatic_blacklisting: bool,
     cancel_future_reservations_on_ban: bool,
-    admins: &HashSet<u64>
+    admins: &HashSet<u64>,
 ) -> Result<(), rusqlite::Error> {
     let s = get_event(conn, event_id, 0)?;
-    if automatic_blacklisting && s.event.adult_ticket_price == 0 && s.event.child_ticket_price == 0 {
-        if let Err(e) = blacklist_absent_participants(
-            conn,
-            event_id,
-            admins,
-            cancel_future_reservations_on_ban,
-        ) {
+    if automatic_blacklisting && s.event.adult_ticket_price == 0 && s.event.child_ticket_price == 0
+    {
+        if let Err(e) =
+            blacklist_absent_participants(conn, event_id, admins, cancel_future_reservations_on_ban)
+        {
             // todo: fix error
-            return Err(rusqlite::Error::InvalidParameterName(
-                format!("Failed to blacklist absent participants: {}.", e),
-            ));
+            return Err(rusqlite::Error::InvalidParameterName(format!(
+                "Failed to blacklist absent participants: {}.",
+                e
+            )));
         }
     }
 
-    if let Err(e) = conn
-        .execute("DELETE FROM reservations WHERE event=?1", params![event_id])
-    {
+    if let Err(e) = conn.execute("DELETE FROM reservations WHERE event=?1", params![event_id]) {
         error!("{}", e);
     }
-    if let Err(e) = conn
-        .execute("DELETE FROM events WHERE id=?1", params![event_id])
-    {
+    if let Err(e) = conn.execute("DELETE FROM events WHERE id=?1", params![event_id]) {
         error!("{}", e);
     }
-    if let Err(e) = conn
-        .execute("DELETE FROM attachments WHERE event=?1", params![event_id])
-    {
+    if let Err(e) = conn.execute("DELETE FROM attachments WHERE event=?1", params![event_id]) {
         error!("{}", e);
     }
-    if let Err(e) = conn
-        .execute("DELETE FROM presence WHERE event=?1", params![event_id])
-    {
+    if let Err(e) = conn.execute("DELETE FROM presence WHERE event=?1", params![event_id]) {
         error!("{}", e);
     }
     if let Err(e) = conn.execute(
@@ -328,9 +332,7 @@ pub fn delete_event(
     ) {
         error!("{}", e);
     }
-    if let Err(e) = conn
-        .execute("DELETE FROM messages WHERE event=?1", params![event_id])
-    {
+    if let Err(e) = conn.execute("DELETE FROM messages WHERE event=?1", params![event_id]) {
         error!("{}", e);
     }
     Ok(())
@@ -369,14 +371,15 @@ pub fn sign_up(
     }
 
     // Check event limits
-    if (wait == 0 || event_type == EventType::Paid) &&
-        (adults as i64 > s.event.max_adults as i64 - s.adults.reserved as i64 || 
-        children as i64 > s.event.max_children as i64 - s.children.reserved as i64) {
+    if (wait == 0 || event_type == EventType::Paid)
+        && (adults as i64 > s.event.max_adults as i64 - s.adults.reserved as i64
+            || children as i64 > s.event.max_children as i64 - s.children.reserved as i64)
+    {
         return Err(anyhow!("К сожалению, свободные места закончились."));
     }
 
     let state = match event_type {
-        EventType::Free => { 
+        EventType::Free => {
             if let Ok(black_listed) = is_in_black_list(conn, user_id) {
                 if black_listed {
                     return Ok((0, true));
@@ -396,7 +399,8 @@ pub fn sign_up(
         }
         EventType::Paid => {
             // pre checkout?
-            if s.event.adult_ticket_price * adults + s.event.child_ticket_price * children != amount {
+            if s.event.adult_ticket_price * adults + s.event.child_ticket_price * children != amount
+            {
                 return Err(anyhow!("Wrong tranaction amount"));
             }
             ReservationState::PaymentPending
@@ -407,9 +411,7 @@ pub fn sign_up(
     };
 
     // Check user limits
-    if s.adults.my_reservation + s.adults.my_waiting + adults
-        > s.event.max_adults_per_reservation
-    {
+    if s.adults.my_reservation + s.adults.my_waiting + adults > s.event.max_adults_per_reservation {
         if s.adults.my_reservation + adults > s.event.max_adults_per_reservation {
             return Ok((0, false));
         } else {
@@ -431,7 +433,7 @@ pub fn sign_up(
     Ok((conn.execute(
         "INSERT INTO reservations (event, user, user_name1, user_name2, adults, children, waiting_list, ts, state) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
         params![event_id, user_id, user.user_name1, user.user_name2, adults, children, wait, ts, state as u64],
-    )?, false))    
+    )?, false))
 }
 
 pub fn checkout(
@@ -440,21 +442,39 @@ pub fn checkout(
     order_info: OrderInfo,
 ) -> anyhow::Result<()> {
     let s = get_event(conn, booking.event_id, booking.user_id)?;
-    if s.event.adult_ticket_price * booking.adults + s.event.child_ticket_price * booking.children != order_info.amount {
+    if s.event.adult_ticket_price * booking.adults + s.event.child_ticket_price * booking.children
+        != order_info.amount
+    {
         return Err(anyhow!("Wrong tranaction amount"));
     }
 
     let mut stmt = conn
         .prepare("select id from reservations where event = ?1 and user = ?2 and state = ?3 and adults = ?4 and children = ?5 limit 1")?;
-    let mut rows = stmt.query(params![booking.event_id, booking.user_id, ReservationState::PaymentPending as u64, booking.adults, booking.children])?;
+    let mut rows = stmt.query(params![
+        booking.event_id,
+        booking.user_id,
+        ReservationState::PaymentPending as u64,
+        booking.adults,
+        booking.children
+    ])?;
     if let Some(row) = rows.next()? {
         let id: u64 = row.get("id")?;
-        conn.execute("UPDATE reservations SET state = ?1, payment = ?2, user_name1 = ?3 WHERE id = ?4",
-            params![ReservationState::PaymentCompleted as u64, serde_json::to_string(&order_info)?, order_info.name, id],
+        conn.execute(
+            "UPDATE reservations SET state = ?1, payment = ?2, user_name1 = ?3 WHERE id = ?4",
+            params![
+                ReservationState::PaymentCompleted as u64,
+                serde_json::to_string(&order_info)?,
+                order_info.name,
+                id
+            ],
         )?;
         Ok(())
     } else {
-        Err(anyhow!("Failed to find reservation for event {}, user {}.", booking.event_id, booking.user_id))
+        Err(anyhow!(
+            "Failed to find reservation for event {}, user {}.",
+            booking.event_id,
+            booking.user_id
+        ))
     }
 }
 
@@ -500,7 +520,12 @@ pub fn add_attachment(
     }
 }
 
-pub fn cancel(conn: &PooledConnection<SqliteConnectionManager>, event_id: u64, user: u64, adults: u64) -> Result<(), rusqlite::Error> {
+pub fn cancel(
+    conn: &PooledConnection<SqliteConnectionManager>,
+    event_id: u64,
+    user: u64,
+    adults: u64,
+) -> Result<(), rusqlite::Error> {
     let state_changed = have_vacancies(conn, event_id)? == false;
     conn.execute(
         "DELETE FROM reservations WHERE id IN (SELECT id FROM reservations WHERE event=?1 AND user=?2 AND adults = ?3 ORDER BY waiting_list DESC LIMIT 1)",
@@ -513,7 +538,11 @@ pub fn cancel(conn: &PooledConnection<SqliteConnectionManager>, event_id: u64, u
     }
 }
 
-pub fn wontgo(conn: &PooledConnection<SqliteConnectionManager>, event_id: u64, user: u64) -> Result<(), rusqlite::Error> {
+pub fn wontgo(
+    conn: &PooledConnection<SqliteConnectionManager>,
+    event_id: u64,
+    user: u64,
+) -> Result<(), rusqlite::Error> {
     let state_changed = have_vacancies(conn, event_id)? == false;
     conn.execute(
         "DELETE FROM reservations WHERE event=?1 AND user=?2",
@@ -526,7 +555,10 @@ pub fn wontgo(conn: &PooledConnection<SqliteConnectionManager>, event_id: u64, u
     }
 }
 
-fn have_vacancies(conn: &PooledConnection<SqliteConnectionManager>, event_id: u64) -> Result<bool, rusqlite::Error> {
+fn have_vacancies(
+    conn: &PooledConnection<SqliteConnectionManager>,
+    event_id: u64,
+) -> Result<bool, rusqlite::Error> {
     let (vacant_adults, vacant_children) = get_vacancies(conn, event_id)?;
     if vacant_adults + vacant_children > 0 {
         Ok(true)
@@ -535,7 +567,10 @@ fn have_vacancies(conn: &PooledConnection<SqliteConnectionManager>, event_id: u6
     }
 }
 
-fn get_vacancies(conn: &PooledConnection<SqliteConnectionManager>, event_id: u64) -> Result<(u64, u64), rusqlite::Error> {
+fn get_vacancies(
+    conn: &PooledConnection<SqliteConnectionManager>,
+    event_id: u64,
+) -> Result<(u64, u64), rusqlite::Error> {
     let mut vacant_adults: u64 = 0;
     let mut vacant_children: u64 = 0;
     let mut stmt = conn.prepare(
@@ -566,8 +601,8 @@ pub fn get_attachment(
     event_id: u64,
     user: u64,
 ) -> Result<Option<String>, rusqlite::Error> {
-    let mut stmt = conn
-        .prepare("SELECT attachment FROM attachments WHERE event = ?1 AND user = ?2")?;
+    let mut stmt =
+        conn.prepare("SELECT attachment FROM attachments WHERE event = ?1 AND user = ?2")?;
     let mut rows = stmt.query(params![event_id, user])?;
     if let Some(row) = rows.next()? {
         let attachment: String = row.get(0)?;
@@ -598,7 +633,11 @@ pub fn get_events(
     Ok(res)
 }
 
-pub fn get_event(conn: &PooledConnection<SqliteConnectionManager>, event_id: u64, user: u64) -> Result<EventStats, rusqlite::Error> {
+pub fn get_event(
+    conn: &PooledConnection<SqliteConnectionManager>,
+    event_id: u64,
+    user: u64,
+) -> Result<EventStats, rusqlite::Error> {
     let mut stmt = conn.prepare(
         "select a.*, b.my_adults, b.my_children, c.my_wait_adults, c.my_wait_children FROM \
         (SELECT events.id, events.name, events.link, events.max_adults, events.max_children, events.max_adults_per_reservation, events.max_children_per_reservation, events.ts, r.adults, r.children, events.state, events.adult_ticket_price, events.child_ticket_price, events.currency FROM events \
@@ -612,15 +651,18 @@ pub fn get_event(conn: &PooledConnection<SqliteConnectionManager>, event_id: u64
         set_current_event(conn, user, event_id)?;
         Ok(EventStats::new(row)?)
     } else {
-        Err(rusqlite::Error::InvalidParameterName(
-            format!("Failed to find event {}", event_id),
-        ))
+        Err(rusqlite::Error::InvalidParameterName(format!(
+            "Failed to find event {}",
+            event_id
+        )))
     }
 }
 
-pub fn get_event_name(conn: &PooledConnection<SqliteConnectionManager>, event_id: u64) -> Result<String, rusqlite::Error> {
-    let mut stmt = conn
-        .prepare("SELECT events.name, events.ts FROM events WHERE id = ?1")?;
+pub fn get_event_name(
+    conn: &PooledConnection<SqliteConnectionManager>,
+    event_id: u64,
+) -> Result<String, rusqlite::Error> {
+    let mut stmt = conn.prepare("SELECT events.name, events.ts FROM events WHERE id = ?1")?;
     let mut rows = stmt.query([event_id])?;
     if let Some(row) = rows.next()? {
         let name: String = row.get("name")?;
@@ -701,7 +743,11 @@ pub fn get_presence_list(
     Ok(res)
 }
 
-pub fn confirm_presence(conn: &PooledConnection<SqliteConnectionManager>, event_id: u64, user_id: u64) -> Result<(), rusqlite::Error> {
+pub fn confirm_presence(
+    conn: &PooledConnection<SqliteConnectionManager>,
+    event_id: u64,
+    user_id: u64,
+) -> Result<(), rusqlite::Error> {
     conn.execute(
         "insert into presence (event, user) values (?1, ?2)",
         params![event_id, user_id],
@@ -709,9 +755,13 @@ pub fn confirm_presence(conn: &PooledConnection<SqliteConnectionManager>, event_
     Ok(())
 }
 
-pub fn is_group_leader(conn: &PooledConnection<SqliteConnectionManager>, event_id: u64, user_id: u64) -> Result<bool, rusqlite::Error> {
-    let mut stmt = conn
-        .prepare("SELECT event FROM group_leaders WHERE event = ?1 AND user = ?2")?;
+pub fn is_group_leader(
+    conn: &PooledConnection<SqliteConnectionManager>,
+    event_id: u64,
+    user_id: u64,
+) -> Result<bool, rusqlite::Error> {
+    let mut stmt =
+        conn.prepare("SELECT event FROM group_leaders WHERE event = ?1 AND user = ?2")?;
     let mut rows = stmt.query(params![event_id, user_id])?;
     if let Some(_) = rows.next()? {
         Ok(true)
@@ -720,7 +770,11 @@ pub fn is_group_leader(conn: &PooledConnection<SqliteConnectionManager>, event_i
     }
 }
 
-pub fn set_group_leader(conn: &PooledConnection<SqliteConnectionManager>, event_id: u64, user_id: u64) -> Result<(), rusqlite::Error> {
+pub fn set_group_leader(
+    conn: &PooledConnection<SqliteConnectionManager>,
+    event_id: u64,
+    user_id: u64,
+) -> Result<(), rusqlite::Error> {
     conn.execute(
         "insert into group_leaders (event, user) values (?1, ?2)",
         params![event_id, user_id],
@@ -728,7 +782,11 @@ pub fn set_group_leader(conn: &PooledConnection<SqliteConnectionManager>, event_
     Ok(())
 }
 
-pub fn delete_reservation(conn: &PooledConnection<SqliteConnectionManager>, event_id: u64, user_id: u64) -> Result<(), rusqlite::Error> {
+pub fn delete_reservation(
+    conn: &PooledConnection<SqliteConnectionManager>,
+    event_id: u64,
+    user_id: u64,
+) -> Result<(), rusqlite::Error> {
     let state_changed = have_vacancies(conn, event_id)? == false;
     conn.execute(
         "delete from reservations where event = ?1 and user = ?2",
@@ -764,7 +822,8 @@ pub fn get_pending_messages(
             message_type: num::FromPrimitive::from_u64(message_type).unwrap(),
             waiting_list: row.get("waiting_list")?,
             text: row.get("text")?,
-            is_paid: row.get::<&str, u64>("adult_ticket_price")? != 0 || row.get::<&str, u64>("child_ticket_price")? != 0,
+            is_paid: row.get::<&str, u64>("adult_ticket_price")? != 0
+                || row.get::<&str, u64>("child_ticket_price")? != 0,
             recipients: Vec::new(),
         };
         res.push(batch);
@@ -780,8 +839,8 @@ pub fn get_pending_messages(
         if collect_users {
             let mut stmt = conn.prepare(
                 "SELECT r.user, s.message as sent FROM \
-                        (select user, ts from reservations WHERE event = ?1 AND waiting_list = ?2 GROUP BY user) as r 
-                        LEFT JOIN (select user, message from message_sent where message = ?3) as s 
+                        (select user, ts from reservations WHERE event = ?1 AND waiting_list = ?2 GROUP BY user) as r
+                        LEFT JOIN (select user, message from message_sent where message = ?3) as s
                         ON r.user = s.user
                         WHERE sent is null ORDER BY r.ts LIMIT ?4"
             )?;
@@ -821,8 +880,11 @@ pub fn get_pending_messages(
     Ok(res)
 }
 
-
-fn set_current_event(conn: &PooledConnection<SqliteConnectionManager>, user_id: u64, event_id: u64) -> Result<(), rusqlite::Error> {
+fn set_current_event(
+    conn: &PooledConnection<SqliteConnectionManager>,
+    user_id: u64,
+    event_id: u64,
+) -> Result<(), rusqlite::Error> {
     conn.execute(
         "insert or replace into current_events (user, event) values (?1, ?2)",
         params![user_id, event_id],
@@ -830,9 +892,11 @@ fn set_current_event(conn: &PooledConnection<SqliteConnectionManager>, user_id: 
     Ok(())
 }
 
-pub fn get_current_event(conn: &PooledConnection<SqliteConnectionManager>, user_id: u64) -> Result<u64, rusqlite::Error> {
-    let mut stmt = conn
-        .prepare("SELECT event FROM current_events WHERE user=?1")?;
+pub fn get_current_event(
+    conn: &PooledConnection<SqliteConnectionManager>,
+    user_id: u64,
+) -> Result<u64, rusqlite::Error> {
+    let mut stmt = conn.prepare("SELECT event FROM current_events WHERE user=?1")?;
     let mut rows = stmt.query([user_id])?;
     if let Some(row) = rows.next()? {
         let event_id: u64 = row.get(0)?;
@@ -853,13 +917,18 @@ pub fn clear_old_events(
     let mut rows = stmt.query([ts - util::get_seconds_before_midnight(ts)])?;
     while let Some(row) = rows.next()? {
         let event_id: u64 = row.get(0)?;
-        delete_event(conn, event_id, automatic_blacklisting, cancel_future_reservations, admins)?;
+        delete_event(
+            conn,
+            event_id,
+            automatic_blacklisting,
+            cancel_future_reservations,
+            admins,
+        )?;
     }
     Ok(())
 }
 
 pub fn create(conn: &PooledConnection<SqliteConnectionManager>) -> Result<(), rusqlite::Error> {
-
     let mut stmt =
         conn.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='events'")?;
     match stmt.query([]) {
@@ -1000,7 +1069,11 @@ pub fn create(conn: &PooledConnection<SqliteConnectionManager>) -> Result<(), ru
     Ok(())
 }
 
-pub fn save_receipt(conn: &PooledConnection<SqliteConnectionManager>, message_id: u64, user: u64) -> Result<(), rusqlite::Error> {
+pub fn save_receipt(
+    conn: &PooledConnection<SqliteConnectionManager>,
+    message_id: u64,
+    user: u64,
+) -> Result<(), rusqlite::Error> {
     conn.execute(
         "INSERT INTO message_sent (message, user, ts) VALUES (?1, ?2, ?3)",
         params![message_id, user, util::get_unix_time()],
@@ -1016,15 +1089,16 @@ pub fn add_to_black_list(
     let mut user_name1 = user.to_string();
     let mut user_name2 = "".to_string();
 
-    let mut stmt = conn
-        .prepare("SELECT user_name1, user_name2 FROM reservations WHERE user = ?1 LIMIT 1")?;
+    let mut stmt =
+        conn.prepare("SELECT user_name1, user_name2 FROM reservations WHERE user = ?1 LIMIT 1")?;
     let mut rows = stmt.query([user])?;
     if let Some(row) = rows.next()? {
         user_name1 = row.get(0)?;
         user_name2 = row.get(1)?;
     }
 
-    ban_user(conn, 
+    ban_user(
+        conn,
         user,
         &user_name1,
         &user_name2,
@@ -1047,23 +1121,27 @@ pub fn ban_user(
     )?;
 
     if cancel_future_reservations {
-        if let Err(e) = conn
-            .execute("DELETE FROM reservations where user = ?1", params![user])
-        {
+        if let Err(e) = conn.execute("DELETE FROM reservations where user = ?1", params![user]) {
             warn!("{}", e);
         }
     }
     Ok(())
 }
 
-pub fn remove_from_black_list(conn: &PooledConnection<SqliteConnectionManager>, user: u64) -> Result<(), rusqlite::Error> {
-    conn
-        .execute("DELETE FROM black_list WHERE user=?1", params![user])?;
+pub fn remove_from_black_list(
+    conn: &PooledConnection<SqliteConnectionManager>,
+    user: u64,
+) -> Result<(), rusqlite::Error> {
+    conn.execute("DELETE FROM black_list WHERE user=?1", params![user])?;
     Ok(())
 }
-pub fn get_black_list(conn: &PooledConnection<SqliteConnectionManager>, offset: u64, limit: u64) -> Result<Vec<User>, rusqlite::Error> {
-    let mut stmt = conn
-        .prepare("SELECT * FROM black_list order by user_name1 LIMIT ?1 OFFSET ?2")?;
+pub fn get_black_list(
+    conn: &PooledConnection<SqliteConnectionManager>,
+    offset: u64,
+    limit: u64,
+) -> Result<Vec<User>, rusqlite::Error> {
+    let mut stmt =
+        conn.prepare("SELECT * FROM black_list order by user_name1 LIMIT ?1 OFFSET ?2")?;
     let mut rows = stmt.query([limit, offset * limit])?;
     let mut res = Vec::new();
     while let Some(row) = rows.next()? {
@@ -1078,9 +1156,11 @@ pub fn get_black_list(conn: &PooledConnection<SqliteConnectionManager>, offset: 
     Ok(res)
 }
 
-pub fn is_in_black_list(conn: &PooledConnection<SqliteConnectionManager>, user: u64) -> Result<bool, rusqlite::Error> {
-    let mut stmt = conn
-        .prepare("SELECT * FROM black_list WHERE user = ?1")?;
+pub fn is_in_black_list(
+    conn: &PooledConnection<SqliteConnectionManager>,
+    user: u64,
+) -> Result<bool, rusqlite::Error> {
+    let mut stmt = conn.prepare("SELECT * FROM black_list WHERE user = ?1")?;
     let mut rows = stmt.query([user])?;
     if let Some(_) = rows.next()? {
         Ok(true)
@@ -1089,19 +1169,30 @@ pub fn is_in_black_list(conn: &PooledConnection<SqliteConnectionManager>, user: 
     }
 }
 
-pub fn clear_black_list(conn: &PooledConnection<SqliteConnectionManager>, ts: u64) -> Result<(), rusqlite::Error> {
-    conn
-        .execute("DELETE FROM black_list WHERE ts < ?1", params![ts])?;
+pub fn clear_black_list(
+    conn: &PooledConnection<SqliteConnectionManager>,
+    ts: u64,
+) -> Result<(), rusqlite::Error> {
+    conn.execute("DELETE FROM black_list WHERE ts < ?1", params![ts])?;
     Ok(())
 }
 
-pub fn clear_failed_payments(conn: &PooledConnection<SqliteConnectionManager>, ts: u64) -> Result<(), rusqlite::Error> {
-    conn
-        .execute("DELETE FROM reservations WHERE state = ?1 AND ts < ?2", params![ReservationState::PaymentPending as u64, ts])?;
+pub fn clear_failed_payments(
+    conn: &PooledConnection<SqliteConnectionManager>,
+    ts: u64,
+) -> Result<(), rusqlite::Error> {
+    conn.execute(
+        "DELETE FROM reservations WHERE state = ?1 AND ts < ?2",
+        params![ReservationState::PaymentPending as u64, ts],
+    )?;
     Ok(())
 }
 
-pub fn change_event_state(conn: &PooledConnection<SqliteConnectionManager>, event_id: u64, state: u64) -> Result<(), rusqlite::Error> {
+pub fn change_event_state(
+    conn: &PooledConnection<SqliteConnectionManager>,
+    event_id: u64,
+    state: u64,
+) -> Result<(), rusqlite::Error> {
     conn.execute(
         "UPDATE events SET state = ?1 WHERE id = ?2",
         params![state, event_id],
@@ -1161,4 +1252,3 @@ pub fn get_group_messages(
     messages.reverse();
     Ok(messages)
 }
-

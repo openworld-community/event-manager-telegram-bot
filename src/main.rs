@@ -4,9 +4,9 @@ extern crate serde;
 extern crate num_derive;
 extern crate num;
 use std::collections::HashSet;
+use std::env;
 use std::sync::Arc;
 use std::{fs::File, io::prelude::*, time::Duration};
-use std::env;
 use tokio::sync::Mutex;
 #[macro_use]
 extern crate log;
@@ -81,7 +81,10 @@ async fn main() {
 
     let bot_info = bot.get_me().await.unwrap();
 
-    let bot_name = bot_info.user.username.unwrap_or("default_bot_name".to_string());
+    let bot_name = bot_info
+        .user
+        .username
+        .unwrap_or("default_bot_name".to_string());
 
     env::set_var("BOT_NAME", bot_name);
 
