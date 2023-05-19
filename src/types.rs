@@ -5,7 +5,7 @@ use std::collections::HashSet;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
-use teloxide::{types::{UserId}};
+use teloxide::types::UserId;
 
 pub type DbPool = r2d2::Pool<SqliteConnectionManager>;
 //pub type EventId = u64;
