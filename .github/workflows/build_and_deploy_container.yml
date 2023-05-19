@@ -5,6 +5,12 @@ on:
     types:
       - released
       - prereleased
+  push:
+    branches:
+      - prerelease
+    paths:
+      - iaac/ansible/playbooks/docker-compose.yml
+      - workflows/build_and_deploy_container.yml
 
 env:
   REGISTRY: ghcr.io
