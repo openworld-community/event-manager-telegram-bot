@@ -13,7 +13,7 @@ use teloxide::{
     types::{InlineKeyboardButton, ParseMode},
     utils::markdown,
 };
-use crate::configuration::Config;
+use crate::configuration::config::Config;
 
 #[derive(Deserialize, Serialize, Clone, Default, Debug)]
 struct NewEvent {

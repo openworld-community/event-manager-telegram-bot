@@ -5,7 +5,7 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 
 use teloxide::types::UserId;
-use crate::configuration::Config;
+use crate::configuration::config::Config;
 
 pub type DbPool = r2d2::Pool<SqliteConnectionManager>;
 //pub type EventId = u64;
