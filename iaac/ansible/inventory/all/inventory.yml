@@ -2,5 +2,5 @@ all:
   children:
     docker_compose:
       hosts:
-        instance_peredelano:
+        instance_peredelano_emb:
           ansible_host: "{{ target_host }}"
