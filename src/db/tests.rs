@@ -27,6 +27,7 @@ mod tests {
             remind: ts - 10,
             adult_ticket_price: 0,
             child_ticket_price: 0,
+            currency: "".to_string(),
         };
         let event_id = 1;
 
@@ -129,6 +130,7 @@ mod tests {
             remind: ts - 10,
             adult_ticket_price: 0,
             child_ticket_price: 0,
+            currency: "".to_string(),
         };
         let event_id = 1;
 

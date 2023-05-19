@@ -3,7 +3,7 @@ use crate::reply::*;
 use crate::types::{Booking, Context, EventState, OrderInfo, ReservationState, User};
 use crate::util::get_unix_time;
 use anyhow::anyhow;
-use teloxide::types::{Currency, InlineKeyboardButton, PreCheckoutQuery, SuccessfulPayment};
+use teloxide::types::{InlineKeyboardButton, PreCheckoutQuery, SuccessfulPayment};
 
 use crate::db;
 use crate::format;
