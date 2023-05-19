@@ -1,5 +1,5 @@
-use std::collections::HashSet;
 use crate::configuration::raw_config::RawConfiguration;
+use std::collections::HashSet;
 
 pub struct Config {
     pub telegram_bot_token: String,

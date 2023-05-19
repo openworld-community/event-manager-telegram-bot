@@ -1,10 +1,10 @@
-mod raw_config;
 pub mod config;
+mod raw_config;
 
-use std::{fs::File, io::prelude::*};
 use clap::ArgMatches;
 use config::Config;
 use raw_config::RawConfiguration;
+use std::{fs::File, io::prelude::*};
 
 fn get_args<'a>() -> ArgMatches<'a> {
     clap::App::new("event-manager-telegram-bot")
@@ -36,4 +36,3 @@ pub fn get_config() -> Config {
     let path = args.value_of("config").unwrap();
     Config::from(parse_config_file(path))
 }
-

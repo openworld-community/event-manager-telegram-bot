@@ -1,4 +1,4 @@
-use std::env;
+use crate::configuration::config::Config;
 use crate::db;
 use crate::format;
 use crate::message_handler;
@@ -9,11 +9,11 @@ use anyhow::anyhow;
 use chrono::DateTime;
 use r2d2::PooledConnection;
 use r2d2_sqlite::SqliteConnectionManager;
+use std::env;
 use teloxide::{
     types::{InlineKeyboardButton, ParseMode},
     utils::markdown,
 };
-use crate::configuration::config::Config;
 
 #[derive(Deserialize, Serialize, Clone, Default, Debug)]
 struct NewEvent {
@@ -117,9 +117,13 @@ pub fn handle_message(
         }
         "/delete_event" if pars.len() == 2 => {
             if let Ok(event_id) = pars[1].parse::<u64>() {
-                match db::delete_event(conn, event_id, ctx.config.automatic_blacklisting,
+                match db::delete_event(
+                    conn,
+                    event_id,
+                    ctx.config.automatic_blacklisting,
                     ctx.config.cancel_future_reservations_on_ban,
-                    &ctx.config.admins) {
+                    &ctx.config.admins,
+                ) {
                     Ok(_) => {
                         return Ok(ReplyMessage::new("Deleted").into());
                     }
@@ -129,16 +133,14 @@ pub fn handle_message(
                 }
             }
         }
-        "/delete_link" if pars.len() == 2 => {
-            match db::delete_link(conn, pars[1]) {
-                Ok(_) => {
-                    return Ok(ReplyMessage::new("Deleted").into());
-                }
-                Err(e) => {
-                    return Err(anyhow!("Failed to delete link: {}.", e));
-                }
+        "/delete_link" if pars.len() == 2 => match db::delete_link(conn, pars[1]) {
+            Ok(_) => {
+                return Ok(ReplyMessage::new("Deleted").into());
             }
-        }
+            Err(e) => {
+                return Err(anyhow!("Failed to delete link: {}.", e));
+            }
+        },
         "/delete_reservation" if pars.len() == 3 => {
             if let (Ok(event_id), Ok(user_id)) = (pars[1].parse::<u64>(), pars[2].parse::<u64>()) {
                 match db::delete_reservation(conn, event_id, user_id) {
@@ -286,8 +288,10 @@ fn add_event(
                         max_children_per_reservation: v.max_children_per_reservation,
                         ts: ts.timestamp() as u64,
                         remind: remind.timestamp() as u64,
-                        adult_ticket_price: (v.adult_ticket_price.unwrap_or(0.00f64) * 100.0) as u64,
-                        child_ticket_price: (v.child_ticket_price.unwrap_or(0.00f64) * 100.0) as u64,
+                        adult_ticket_price: (v.adult_ticket_price.unwrap_or(0.00f64) * 100.0)
+                            as u64,
+                        child_ticket_price: (v.child_ticket_price.unwrap_or(0.00f64) * 100.0)
+                            as u64,
                         currency: v.currency,
                     };
 
@@ -303,7 +307,8 @@ fn add_event(
                                 format!("Direct event link: https://t.me/{}?start={}", bot_name, id)
                             } else {
                                 format!("Failed to add event.")
-                            }).into());
+                            })
+                            .into());
                         }
                         Err(e) => {
                             return Err(anyhow!("Failed to add event: {}.", e));

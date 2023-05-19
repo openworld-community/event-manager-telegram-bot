@@ -3,9 +3,9 @@ extern crate serde;
 #[macro_use]
 extern crate num_derive;
 extern crate num;
+use std::env;
 use std::sync::Arc;
 use std::time::Duration;
-use std::env;
 use tokio::sync::Mutex;
 #[macro_use]
 extern crate log;
@@ -14,14 +14,15 @@ extern crate r2d2_sqlite;
 extern crate rusqlite;
 use teloxide::{
     prelude::*,
-    RequestError,
     types::{
         InlineKeyboardButton, InlineKeyboardMarkup, LabeledPrice, MessageKind,
         MessageSuccessfulPayment, ParseMode, PreCheckoutQuery, Update, UserId,
     },
+    RequestError,
 };
 
 mod admin_message_handler;
+mod configuration;
 mod db;
 mod format;
 mod message_handler;
@@ -29,14 +30,13 @@ mod payments;
 mod reply;
 mod types;
 mod util;
-mod configuration;
 
+use crate::configuration::get_config;
 use crate::reply::*;
 use crate::types::MessageType;
 use r2d2_sqlite::SqliteConnectionManager;
 use types::Context;
 use util::get_unix_time;
-use crate::configuration::get_config;
 
 #[tokio::main]
 async fn main() {
@@ -54,7 +54,10 @@ async fn main() {
 
     let bot_info = bot.get_me().await.unwrap();
 
-    let bot_name = bot_info.user.username.unwrap_or("default_bot_name".to_string());
+    let bot_name = bot_info
+        .user
+        .username
+        .unwrap_or("default_bot_name".to_string());
 
     env::set_var("BOT_NAME", bot_name);
 
