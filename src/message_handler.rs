@@ -319,7 +319,7 @@ pub fn show_event_list(
                         format!("Программа\nвремя / взросл.(детск.) места  / мероприятие\n<a href=\"{}\">инструкция</a> /donate", ctx.config.help)
                     } else {
                         "Нет мероприятий.".to_string()
-                    }                      
+                    }
                 )
                 .keyboard(
                     events
@@ -380,7 +380,7 @@ pub fn show_event_list(
                             )]
                         }
                     })
-                    .collect()                   
+                    .collect()
                 )
                 // pagination
                 .pagination(
@@ -389,7 +389,7 @@ pub fn show_event_list(
                     events.len() as u64,
                     ctx.config.event_list_page_size,
                     offset,
-                )?                
+                )?
                 .into()
             )
         }
@@ -410,7 +410,7 @@ pub fn show_event(
             let free_adults = s.event.max_adults as i64 - s.adults.reserved as i64;
             let free_children = s.event.max_children as i64 - s.children.reserved as i64;
             let no_age_distinction = s.event.max_adults == 0 || s.event.max_children == 0;
-            let is_admin = ctx.admins.contains(&user.id.0);
+            let is_admin = ctx.config.admins.contains(&user.id.0);
             let (participants, participants_len) = if ctx.config.public_lists || is_admin {
                 let participants = db::get_participants(
                     conn,
@@ -435,7 +435,7 @@ pub fn show_event(
                         free_children,
                         is_admin,
                         no_age_distinction,
-                    )                    
+                    )
                 )
                 // participants
                 .text(participants.and_then(|participants| {
@@ -510,7 +510,7 @@ pub fn show_event(
                     participants_len,
                     ctx.config.event_page_size,
                     offset,
-                )?                
+                )?
                 .text(ps)
                 .into()
             )
@@ -637,7 +637,7 @@ fn get_signup_controls(
             })?,
         ));
     }
-    
+
     if is_admin {
         if s.adults.reserved > 0 || s.children.reserved > 0 {
             row.push(InlineKeyboardButton::callback(
@@ -687,7 +687,7 @@ fn show_waiting_list(
 ) -> anyhow::Result<Reply> {
     let mut list = "".to_string();
     let no_age_distinction;
-    let is_admin = ctx.admins.contains(&user.id.0);
+    let is_admin = ctx.config.admins.contains(&user.id.0);
     match db::get_event(conn, event_id, user.id.0) {
         Ok(s) => {
             no_age_distinction = s.event.max_adults == 0 || s.event.max_children == 0;
@@ -711,7 +711,7 @@ fn show_waiting_list(
     ) {
         Ok(participants) => {
             Ok(
-                ReplyMessage::new(                    
+                ReplyMessage::new(
                     if participants.len() == 0 {
                         "Пустой список ожидания.".to_string()
                     } else {
@@ -771,7 +771,7 @@ fn show_waiting_list(
                     participants.len() as u64,
                     ctx.config.event_page_size,
                     offset,
-                )?                
+                )?
                 .into()
             )
         }
@@ -817,7 +817,7 @@ fn show_presence_list(
         Ok(participants) => {
             Ok(
                 // header
-                ReplyMessage::new(              
+                ReplyMessage::new(
                     if participants.len() == 0 {
                         "Пустой список ожидания."
                     } else {
@@ -838,7 +838,7 @@ fn show_presence_list(
                             if let Some(a) = &p.attachment {
                                 text.push_str(&format!(" - {}", a));
                             }
-    
+
                             InlineKeyboardButton::callback(
                                 text,
                                 &serde_json::to_string(&CallbackQuery::ConfirmPresence {
@@ -850,7 +850,7 @@ fn show_presence_list(
                             )
                         }]
                     })
-                    .collect()                    
+                    .collect()
                 )
                 // controls
                 .keyboard(
@@ -874,7 +874,7 @@ fn show_presence_list(
                     participants.len() as u64,
                     ctx.config.event_page_size,
                     offset,
-                )?                
+                )?
                 .into()
             )
         }

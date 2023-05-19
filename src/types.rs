@@ -1,57 +1,14 @@
-use chrono::DateTime;
 use r2d2_sqlite::SqliteConnectionManager;
 use serde_compact::compact;
 use std::collections::HashSet;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
-use teloxide::{types::{UserId}};
+use teloxide::types::UserId;
+use crate::configuration::config::Config;
 
 pub type DbPool = r2d2::Pool<SqliteConnectionManager>;
 //pub type EventId = u64;
-
-#[derive(Deserialize, Serialize, Clone, Default, Debug)]
-pub struct Configuration {
-    pub telegram_bot_token: String,
-    pub payment_provider_token: String,
-    pub admin_ids: String,
-    pub public_lists: bool,
-    pub automatic_blacklisting: bool,
-    pub drop_events_after_hours: u64,
-    pub delete_from_black_list_after_days: u64,
-    pub too_late_to_cancel_hours: u64,
-    pub cleanup_old_events: bool,
-    pub event_list_page_size: u64,
-    pub event_page_size: u64,
-    pub presence_page_size: u64,
-    pub cancel_future_reservations_on_ban: bool,
-    pub support: String,
-    pub help: String,
-    pub limit_bulk_notifications_per_second: u64,
-    pub mailing_hours: String,
-    pub mailing_hours_from: Option<u64>,
-    pub mailing_hours_to: Option<u64>,
-}
-
-impl Configuration {
-    pub fn parse(&mut self) -> Result<(), String> {
-        let parts: Vec<&str> = self.mailing_hours.split('.').collect();
-        if parts.len() != 3 {
-            return Err("Wrong mailing hours format.".to_string());
-        }
-        match (
-            DateTime::parse_from_str(&format!("2022-07-06 {}", parts[0]), "%Y-%m-%d %H:%M  %z"),
-            DateTime::parse_from_str(&format!("2022-07-06 {}", parts[2]), "%Y-%m-%d %H:%M  %z"),
-        ) {
-            (Ok(from), Ok(to)) => {
-                self.mailing_hours_from = Some((from.timestamp() % 86400) as u64);
-                self.mailing_hours_to = Some((to.timestamp() % 86400) as u64);
-                Ok(())
-            }
-            _ => Err("Failed to farse mailing hours.".to_string()),
-        }
-    }
-}
 
 #[derive(PartialEq)]
 pub enum EventType {
@@ -159,12 +116,10 @@ pub enum MessageType {
     WaitingListPrompt = 2,
 }
 
-//#[derive(Clone)]
 pub struct Context {
-    pub config: Configuration,
+    pub config: Config,
     pub pool: DbPool,
     pub sign_up_mutex: Arc<Mutex<u64>>,
-    pub admins: HashSet<u64>,
 }
 
 #[compact]
