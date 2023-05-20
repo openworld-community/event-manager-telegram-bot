@@ -1,6 +1,6 @@
 use crate::types::Event;
 use crate::types::{EventState, Participant};
-use chrono::{DateTime, Local, NaiveDateTime, Utc};
+use chrono::{DateTime, NaiveDateTime, Utc};
 
 use crate::db;
 use db::EventStats;
@@ -8,10 +8,9 @@ use r2d2::PooledConnection;
 use r2d2_sqlite::SqliteConnectionManager;
 
 pub fn ts(ts: u64) -> String {
-    let naive = NaiveDateTime::from_timestamp(ts as i64, 0);
+    let naive = NaiveDateTime::from_timestamp_opt(ts as i64, 0).unwrap();
     let datetime: DateTime<Utc> = DateTime::from_utc(naive, Utc);
-    let local: DateTime<Local> = datetime.into();
-    local.format("%d.%m %H:%M").to_string()
+    datetime.format("%d.%m %H:%M").to_string()
 }
 
 pub fn event_title(event: &Event) -> String {
@@ -65,7 +64,10 @@ pub fn participants(
 ) -> String {
     let mut list = "".to_string();
     if participants.len() != 0 {
-        list.push_str(&format!("\n\nЗаписались {}({}):", s.adults.reserved, s.children.reserved));
+        list.push_str(&format!(
+            "\n\nЗаписались {}({}):",
+            s.adults.reserved, s.children.reserved
+        ));
     }
 
     list.push_str(
@@ -118,29 +120,30 @@ pub fn messages(
 
     if let Ok(messages) = db::get_group_messages(conn, event_id, waiting_list) {
         if messages.len() > 0 {
-            let formatted_list: String = messages.iter().map(|msg| {
-                if waiting_list.is_some() {
-                    format!(
-                        "\n{}, {}:\n{}\n",
-                        msg.sender,
-                        ts(msg.ts),
-                        msg.text
-                    )
-                } else {
-                    format!(
-                        "\n{}, {} ({}):\n{}\n",
-                        msg.sender,
-                        ts(msg.ts),
-                        if msg.waiting_list == 0 {
-                            "для забронировавших"
-                        } else {
-                            "для списка ожидания"
-                        },
-                        msg.text
-                    )
-                }                
-            }).collect();
-            return Some(format!("\n\n<b>Cообщения по мероприятию</b>{}", formatted_list));
+            let formatted_list: String = messages
+                .iter()
+                .map(|msg| {
+                    if waiting_list.is_some() {
+                        format!("\n{}, {}:\n{}\n", msg.sender, ts(msg.ts), msg.text)
+                    } else {
+                        format!(
+                            "\n{}, {} ({}):\n{}\n",
+                            msg.sender,
+                            ts(msg.ts),
+                            if msg.waiting_list == 0 {
+                                "для забронировавших"
+                            } else {
+                                "для списка ожидания"
+                            },
+                            msg.text
+                        )
+                    }
+                })
+                .collect();
+            return Some(format!(
+                "\n\n<b>Cообщения по мероприятию</b>{}",
+                formatted_list
+            ));
         }
     }
     None
@@ -148,5 +151,5 @@ pub fn messages(
 
 #[test]
 fn test_format() {
-    assert_eq!(ts(1650445814), "20.04 11:10");
+    assert_eq!(ts(1650445814), "20.04 09:10");
 }

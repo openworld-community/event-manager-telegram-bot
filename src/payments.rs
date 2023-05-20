@@ -1,13 +1,9 @@
 use crate::message_handler::CallbackQuery;
-use crate::types::{
-    Booking, Context, EventState, OrderInfo, ReservationState, User,
-};
 use crate::reply::*;
-use crate::util::{get_unix_time};
+use crate::types::{Booking, Context, EventState, OrderInfo, ReservationState, User};
+use crate::util::get_unix_time;
 use anyhow::anyhow;
-use teloxide::types::{
-    Currency, InlineKeyboardButton, PreCheckoutQuery, SuccessfulPayment,
-};
+use teloxide::types::{InlineKeyboardButton, PreCheckoutQuery, SuccessfulPayment};
 
 use crate::db;
 use crate::format;
@@ -93,7 +89,8 @@ pub fn show_paid_event(
     match db::get_event(conn, event_id, user.id.0) {
         Ok(s) => {
             let free_adults = s.event.max_adults as i64 - s.adults.reserved as i64 - adults as i64;
-            let free_children = s.event.max_children as i64 - s.children.reserved as i64 - children as i64;
+            let free_children =
+                s.event.max_children as i64 - s.children.reserved as i64 - children as i64;
             let no_age_distinction = s.event.max_adults == 0 || s.event.max_children == 0;
             let is_admin = ctx.admins.contains(&user.id.0);
 
@@ -177,7 +174,7 @@ pub fn show_paid_event(
                         Some(format!("\n<b>Вы ранее купили: {}</b>", s.adults.my_reservation + s.children.my_reservation))
                     } else {
                         None
-                    }        
+                    }
                 )
                 // order
                 .text(
@@ -193,7 +190,7 @@ pub fn show_paid_event(
                                 order.push_str(&format!(", {} детск.", children));
                             }
                         }
-        
+
                         let total_amount = (adults * s.event.adult_ticket_price
                             + children * s.event.child_ticket_price)
                             as f32
@@ -204,7 +201,7 @@ pub fn show_paid_event(
                         ))
                     } else {
                         Some("\nВыберите необходимое количество билетов и нажмите \"К оплате\". Введённое имя будет на билете.".to_string())
-                    }                    
+                    }
                 )
                 // controls
                 .keyboard(get_controls(
@@ -236,7 +233,7 @@ pub fn show_paid_event(
                     participants_len,
                     ctx.config.event_page_size,
                     offset,
-                )?                
+                )?
                 .into()
             )
         }
@@ -295,8 +292,7 @@ fn get_controls(
         }
         keyboard.push(row);
         row = Vec::new();
-        if s.children.my_reservation + children < s.event.max_children_per_reservation
-        {
+        if s.children.my_reservation + children < s.event.max_children_per_reservation {
             if free_children > 0 {
                 row.push(InlineKeyboardButton::callback(
                     if no_age_distinction {
@@ -414,21 +410,17 @@ pub fn prepare_invoice(
     }
 }
 
-pub fn donate(
-    user: &User,
-    amount: u64,
-    _ctx: &Context,
-) -> anyhow::Result<Reply> {
-        Ok(Reply::Invoice {
-            title: "Донат".to_string(),
-            description: "Поддержать работу канала \"Венские Истории\"".to_string(),
-            currency: "EUR".to_string(),
-            amount,
-            payload: serde_json::to_string(&Booking {
-                event_id: 0,
-                adults: 0,
-                children: 0,
-                user_id: user.id.0,
-            })?,
-        })
+pub fn donate(user: &User, amount: u64, _ctx: &Context) -> anyhow::Result<Reply> {
+    Ok(Reply::Invoice {
+        title: "Донат".to_string(),
+        description: "Поддержать работу канала \"Венские Истории\"".to_string(),
+        currency: "EUR".to_string(),
+        amount,
+        payload: serde_json::to_string(&Booking {
+            event_id: 0,
+            adults: 0,
+            children: 0,
+            user_id: user.id.0,
+        })?,
+    })
 }
