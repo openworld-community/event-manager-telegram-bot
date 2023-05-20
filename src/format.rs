@@ -9,7 +9,7 @@ use r2d2_sqlite::SqliteConnectionManager;
 
 pub fn ts(ts: u64) -> String {
     let naive = NaiveDateTime::from_timestamp_opt(ts as i64, 0)
-    .except("NaiveDateTime Unwrap Error");
+    .expect("NaiveDateTime Unwrap Error");
     let datetime: DateTime<Utc> = DateTime::from_utc(naive, Utc);
     let local: DateTime<Local> = datetime.into();
     local.format("%d.%m %H:%M").to_string()
