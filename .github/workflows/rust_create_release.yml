@@ -1,13 +1,6 @@
 name: Build-and-release
 
 on:
-  pull_request:
-    branches:
-      - "main"
-    paths:
-      - 'src/**'
-      - 'Cargo.yml'
-      - '.github/workflows/**'
   push:
     branches:
       - "prerelease"

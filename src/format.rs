@@ -1,6 +1,6 @@
 use crate::types::Event;
 use crate::types::{EventState, Participant};
-use chrono::{DateTime, Local, NaiveDateTime, Utc};
+use chrono::{DateTime, NaiveDateTime, Utc};
 
 use crate::db;
 use db::EventStats;
@@ -11,8 +11,7 @@ pub fn ts(ts: u64) -> String {
     let naive = NaiveDateTime::from_timestamp_opt(ts as i64, 0)
     .expect("NaiveDateTime Unwrap Error");
     let datetime: DateTime<Utc> = DateTime::from_utc(naive, Utc);
-    let local: DateTime<Local> = datetime.into();
-    local.format("%d.%m %H:%M").to_string()
+    datetime.format("%d.%m %H:%M").to_string()
 }
 
 pub fn event_title(event: &Event) -> String {
@@ -153,5 +152,5 @@ pub fn messages(
 
 #[test]
 fn test_format() {
-    assert_eq!(ts(1650445814), "20.04 11:10");
+    assert_eq!(ts(1650445814), "20.04 09:10");
 }
