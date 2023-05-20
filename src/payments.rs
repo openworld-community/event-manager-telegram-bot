@@ -92,7 +92,7 @@ pub fn show_paid_event(
             let free_children =
                 s.event.max_children as i64 - s.children.reserved as i64 - children as i64;
             let no_age_distinction = s.event.max_adults == 0 || s.event.max_children == 0;
-            let is_admin = ctx.admins.contains(&user.id.0);
+            let is_admin = ctx.config.admins.contains(&user.id.0);
 
             let (participants, participants_len) = if is_admin {
                 let participants = db::get_participants(

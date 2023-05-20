@@ -3,10 +3,9 @@ extern crate serde;
 #[macro_use]
 extern crate num_derive;
 extern crate num;
-use std::collections::HashSet;
 use std::env;
 use std::sync::Arc;
-use std::{fs::File, io::prelude::*, time::Duration};
+use std::time::Duration;
 use tokio::sync::Mutex;
 #[macro_use]
 extern crate log;
@@ -23,6 +22,7 @@ use teloxide::{
 };
 
 mod admin_message_handler;
+mod configuration;
 mod db;
 mod format;
 mod message_handler;
@@ -31,45 +31,18 @@ mod reply;
 mod types;
 mod util;
 
+use crate::configuration::get_config;
 use crate::reply::*;
 use crate::types::MessageType;
 use r2d2_sqlite::SqliteConnectionManager;
-use types::{Configuration, Context};
+use types::Context;
 use util::get_unix_time;
 
 #[tokio::main]
 async fn main() {
     env_logger::init();
-    let matches = clap::App::new("event-manager-telegram-bot")
-        .version(option_env!("CARGO_PKG_VERSION").unwrap_or(""))
-        .about("event-manager-telegram-bot")
-        .arg(
-            clap::Arg::with_name("config")
-                .short("c")
-                .long("config")
-                .help("Configuration file")
-                .takes_value(true)
-                .default_value(""),
-        )
-        .get_matches();
 
-    let config = matches.value_of("config").unwrap();
-    let mut f = File::open(config).unwrap();
-    let mut contents = String::new();
-    f.read_to_string(&mut contents).unwrap();
-
-    let mut config = toml::from_str::<Configuration>(&contents)
-        .map_err(|e| format!("Error loading configuration: {}", e))
-        .unwrap();
-
-    config.parse().unwrap();
-
-    let admins: HashSet<u64> = config
-        .admin_ids
-        .split(',')
-        .into_iter()
-        .filter_map(|id| id.parse::<u64>().ok())
-        .collect();
+    let config = get_config();
 
     let manager = SqliteConnectionManager::file("/data/events.db3");
     let pool = r2d2::Pool::new(manager).unwrap();
@@ -91,7 +64,6 @@ async fn main() {
     let context = Arc::new(Context {
         config,
         pool,
-        admins,
         sign_up_mutex: Arc::new(Mutex::new(0u64)),
     });
 
@@ -132,7 +104,7 @@ async fn message_handler(
                         return Ok(());
                     }
                     trace!("received {:?}", msg);
-                    let u = crate::types::User::new(&user, &context.admins);
+                    let u = crate::types::User::new(&user, &context.config.admins);
                     if let Ok(conn) = context.pool.get() {
                         let reply = if u.is_admin {
                             crate::admin_message_handler::handle_message(&conn, &u, text, &context)
@@ -208,7 +180,7 @@ async fn callback_handler(
     match (q.message, q.data) {
         (Some(msg), Some(data)) => {
             trace!("received {:?} {:?}", &msg, &data);
-            let u = crate::types::User::new(&q.from, &context.admins);
+            let u = crate::types::User::new(&q.from, &context.config.admins);
             let mut lock;
             if data.starts_with("sign_up ") {
                 lock = context.sign_up_mutex.lock().await;
@@ -309,7 +281,7 @@ async fn pre_checkout_handler(
     context: Arc<Context>,
 ) -> Result<(), RequestError> {
     trace!("pre_checkout_handler::received {:?}", pre_checkout);
-    let u = crate::types::User::new(&pre_checkout.from, &context.admins);
+    let u = crate::types::User::new(&pre_checkout.from, &context.config.admins);
     if let Ok(conn) = context.pool.get() {
         let mut lock = context.sign_up_mutex.lock().await;
         *lock = *lock + 1;
@@ -340,8 +312,8 @@ async fn perform_bulk_tasks(bot: AutoSend<Bot>, ctx: Arc<Context>) -> Result<boo
         let ts = get_unix_time();
         let num_seconds_from_midnight = ts % 86400;
 
-        if num_seconds_from_midnight >= ctx.config.mailing_hours_from.unwrap()
-            && num_seconds_from_midnight < ctx.config.mailing_hours_to.unwrap()
+        if num_seconds_from_midnight >= ctx.config.mailing_hours_from
+            && num_seconds_from_midnight < ctx.config.mailing_hours_to
         {
             let messages = if let Ok(conn) = ctx.pool.get() {
                 match db::get_pending_messages(
@@ -405,7 +377,7 @@ async fn perform_bulk_tasks(bot: AutoSend<Bot>, ctx: Arc<Context>) -> Result<boo
                     ts - ctx.config.drop_events_after_hours * 60 * 60,
                     ctx.config.automatic_blacklisting,
                     ctx.config.cancel_future_reservations_on_ban,
-                    &ctx.admins,
+                    &ctx.config.admins,
                 )
                 .is_ok()
                     == false

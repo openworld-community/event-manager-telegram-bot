@@ -8,7 +8,8 @@ use r2d2::PooledConnection;
 use r2d2_sqlite::SqliteConnectionManager;
 
 pub fn ts(ts: u64) -> String {
-    let naive = NaiveDateTime::from_timestamp_opt(ts as i64, 0).unwrap();
+    let naive =
+        NaiveDateTime::from_timestamp_opt(ts as i64, 0).expect("NaiveDateTime Unwrap Error");
     let datetime: DateTime<Utc> = DateTime::from_utc(naive, Utc);
     datetime.format("%d.%m %H:%M").to_string()
 }

@@ -410,7 +410,7 @@ pub fn show_event(
             let free_adults = s.event.max_adults as i64 - s.adults.reserved as i64;
             let free_children = s.event.max_children as i64 - s.children.reserved as i64;
             let no_age_distinction = s.event.max_adults == 0 || s.event.max_children == 0;
-            let is_admin = ctx.admins.contains(&user.id.0);
+            let is_admin = ctx.config.admins.contains(&user.id.0);
             let (participants, participants_len) = if ctx.config.public_lists || is_admin {
                 let participants = db::get_participants(
                     conn,
@@ -689,7 +689,7 @@ fn show_waiting_list(
 ) -> anyhow::Result<Reply> {
     let mut list = "".to_string();
     let no_age_distinction;
-    let is_admin = ctx.admins.contains(&user.id.0);
+    let is_admin = ctx.config.admins.contains(&user.id.0);
     match db::get_event(conn, event_id, user.id.0) {
         Ok(s) => {
             no_age_distinction = s.event.max_adults == 0 || s.event.max_children == 0;
