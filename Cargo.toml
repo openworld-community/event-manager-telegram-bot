@@ -28,3 +28,5 @@ chrono = {version = "0.4", features = ["serde"]}
 rusqlite = {version = "0.27.0", features = ["bundled"]}
 serde_compact = {version = "1.0.0-rc.3"}
 url = "2.3.1"
+actix-web = "4.3.1"
+validator = { version = "0.16.0", features = ["derive"] }
