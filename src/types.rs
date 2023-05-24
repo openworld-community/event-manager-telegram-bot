@@ -1,3 +1,4 @@
+use r2d2::PooledConnection;
 use r2d2_sqlite::SqliteConnectionManager;
 use serde_compact::compact;
 use std::collections::HashSet;
@@ -8,6 +9,7 @@ use crate::configuration::config::Config;
 use teloxide::types::UserId;
 
 pub type DbPool = r2d2::Pool<SqliteConnectionManager>;
+pub type Connection = PooledConnection<SqliteConnectionManager>;
 //pub type EventId = u64;
 
 #[derive(PartialEq)]
@@ -17,7 +19,7 @@ pub enum EventType {
     Paid = 2,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct Event {
     pub id: u64,
     pub name: String,

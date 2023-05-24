@@ -4,10 +4,8 @@ extern crate serde;
 extern crate num_derive;
 extern crate num;
 
-use std::env;
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::sync::Mutex;
 
 #[macro_use]
 extern crate log;
@@ -19,7 +17,7 @@ use teloxide::{
     prelude::*,
     types::{
         InlineKeyboardButton, InlineKeyboardMarkup, LabeledPrice, MessageKind,
-        MessageSuccessfulPayment, ParseMode, PreCheckoutQuery, Update, UserId,
+        MessageSuccessfulPayment, ParseMode, PreCheckoutQuery, UserId,
     },
     RequestError,
 };
@@ -36,7 +34,7 @@ mod types;
 mod util;
 
 use crate::api::setup_api_server;
-use crate::configuration::get_config;
+
 use crate::reply::*;
 use crate::types::MessageType;
 use r2d2_sqlite::SqliteConnectionManager;

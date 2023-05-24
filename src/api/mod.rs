@@ -1,10 +1,10 @@
-mod event_scope;
+mod services;
 mod shared;
 
-use crate::api::event_scope::event_scope;
+use crate::api::services::event::event_scope;
 use crate::types::DbPool;
 use actix_web::dev::Server;
-use actix_web::{get, post, web, App, HttpResponse, HttpServer, Responder};
+use actix_web::{web, App, HttpServer};
 use std::net::ToSocketAddrs;
 
 pub fn setup_api_server<Addr: ToSocketAddrs>(addr: &Addr, con_pool: DbPool) -> Server {
