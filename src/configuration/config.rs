@@ -1,5 +1,6 @@
 use crate::configuration::raw_config::RawConfiguration;
 use std::collections::HashSet;
+use std::net::SocketAddr;
 
 pub struct Config {
     pub telegram_bot_token: String,
@@ -20,12 +21,14 @@ pub struct Config {
     pub limit_bulk_notifications_per_second: u64,
     pub mailing_hours_from: u64,
     pub mailing_hours_to: u64,
+    pub api_socket_address: SocketAddr,
 }
 
 impl From<RawConfiguration> for Config {
     fn from(value: RawConfiguration) -> Self {
         let mailing_hours = value.parse_mailing_hours().unwrap();
         Config {
+            api_socket_address: value.socket_address(),
             telegram_bot_token: value.telegram_bot_token.clone(),
             payment_provider_token: value.payment_provider_token.clone(),
             admins: value.parse_admins(),

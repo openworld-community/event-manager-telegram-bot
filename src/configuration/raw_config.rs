@@ -1,5 +1,7 @@
 use chrono::DateTime;
 use std::collections::HashSet;
+use std::net::{SocketAddr, ToSocketAddrs};
+use std::vec::IntoIter;
 
 #[derive(Deserialize, Serialize, Clone, Default, Debug)]
 pub struct RawConfiguration {
@@ -20,6 +22,8 @@ pub struct RawConfiguration {
     pub help: String,
     pub limit_bulk_notifications_per_second: u64,
     pub mailing_hours: String,
+    pub listen_address: String,
+    pub listen_port: u16,
 }
 
 impl RawConfiguration {
@@ -47,5 +51,11 @@ impl RawConfiguration {
             .into_iter()
             .filter_map(|id| id.parse::<u64>().ok())
             .collect()
+    }
+
+    pub fn socket_address(&self) -> SocketAddr {
+        format!("{}:{}", self.listen_address, self.listen_port)
+            .to_socket_addrs()
+            .unwrap().next().unwrap()
     }
 }

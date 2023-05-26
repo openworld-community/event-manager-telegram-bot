@@ -4,6 +4,7 @@ extern crate serde;
 extern crate num_derive;
 extern crate num;
 
+use std::env;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -38,22 +39,24 @@ use crate::api::setup_api_server;
 use crate::reply::*;
 use crate::types::MessageType;
 use r2d2_sqlite::SqliteConnectionManager;
+use tokio::sync::Mutex;
 use types::Context;
 use util::get_unix_time;
+use crate::configuration::get_config;
 
 #[tokio::main]
 async fn main() {
     env_logger::init();
 
-    // let config = get_config();
-    //
+    let config = get_config();
+
     let manager = SqliteConnectionManager::file("./events.db3");
     let pool = r2d2::Pool::new(manager).unwrap();
     if let Ok(conn) = pool.get() {
         db::create(&conn).expect("Failed to create db.");
     }
 
-    setup_api_server(&"0.0.0.0:3000", pool).await.unwrap();
+    setup_api_server(&config.api_socket_address, &pool).await.unwrap();
 
     // let bot = Bot::new(&config.telegram_bot_token).auto_send();
     //
