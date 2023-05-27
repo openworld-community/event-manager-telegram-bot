@@ -33,6 +33,19 @@ pub struct Event {
     pub currency: String,
 }
 
+#[derive(Serialize, Deserialize, Clone)]
+pub struct Reservation { // Union of booking 
+    pub id: u64,
+    pub event_id: u64,
+    pub user_id: u64,
+    pub adults: u64,
+    pub children: u64,
+    pub payment_status: String, // free, pending, paid, canceled
+    pub total_amount: u64,
+    pub currency: String,
+    pub created_at: u64
+}
+
 impl Event {
     pub fn get_type(&self) -> EventType {
         // todo: move to constructor
@@ -124,7 +137,7 @@ pub struct Context {
 
 #[compact]
 #[derive(Serialize, Deserialize, Clone)]
-pub struct Booking {
+pub struct Booking { // To be united into Reservation
     pub event_id: u64,
     pub adults: u64,
     pub children: u64,
@@ -132,13 +145,13 @@ pub struct Booking {
 }
 
 #[derive(Serialize, Deserialize, Clone)]
-pub struct OrderInfo {
+pub struct OrderInfo { 
     pub id: String,
     pub name: String,
     pub amount: u64,
 }
 
-pub enum ReservationState {
+pub enum ReservationState { // To be united into Reservation
     Free = 0,
     PaymentPending = 1,
     PaymentCompleted = 2,
