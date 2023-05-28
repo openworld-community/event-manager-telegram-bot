@@ -3,23 +3,39 @@ use rusqlite::{params, Error, Row};
 
 use crate::types::DbPool;
 
+use actix_web::http::StatusCode;
 use actix_web::web::{Data, Query};
-use actix_web::{get, HttpResponse, Responder};
+use actix_web::{get, Responder};
 
 use crate::api::services::event::create_event::RawEvent;
-use crate::api::shared::{Pagination, RawPagination, WithId};
+use crate::api::shared::{
+    into_internal_server_error_responce, Pagination, QueryError, RawPagination, WithId,
+};
+use crate::api::utils::json_responce;
 use crate::format::from_timestamp;
 use tokio::task::spawn_blocking;
 
 #[get("")]
-pub async fn event_list(pool: Data<DbPool>, params: Query<RawPagination>) -> impl Responder {
-    let events = spawn_blocking(move || {
-        let con = pool.get().unwrap();
-        get_event_list(&con, params.0).unwrap()
-    })
-    .await
-    .expect("spawn_block error");
-    HttpResponse::Ok().body(serde_json::to_string(&events).unwrap())
+pub async fn event_list(
+    pool: Data<DbPool>,
+    params: Query<RawPagination>,
+) -> actix_web::Result<impl Responder> {
+    let events = spawn_blocking(move || get_events(&pool, params.into_inner()))
+        .await
+        .map_err(into_internal_server_error_responce)?
+        .map_err(into_internal_server_error_responce)?;
+
+    Ok(json_responce(&events, StatusCode::OK))
+}
+
+type EventWithId = WithId<u64, RawEvent>;
+
+fn get_events<P: Into<Pagination>>(
+    pool: &DbPool,
+    pagination: P,
+) -> Result<Vec<EventWithId>, QueryError> {
+    let con = pool.get()?;
+    Ok(get_event_list(&con, pagination)?)
 }
 
 pub fn get_event_list<P: Into<Pagination>>(
@@ -55,5 +71,3 @@ fn map_row(row: &Row) -> Result<EventWithId, Error> {
         },
     })
 }
-
-type EventWithId = WithId<u64, RawEvent>;

@@ -1,10 +1,9 @@
-use std::fmt::{Debug, Display, Formatter};
 use actix_web::ResponseError;
 use r2d2::Error as r2d2Error;
 use rusqlite::Error as queryError;
+use std::fmt::Debug;
 use thiserror::Error;
 use tokio::task::JoinError;
-
 
 #[derive(Debug, Error)]
 pub enum QueryError {
@@ -13,7 +12,6 @@ pub enum QueryError {
     #[error("DatabaseQueryError {0}")]
     DatabaseQueryError(#[from] rusqlite::Error),
 }
-
 
 #[derive(Debug, Error)]
 pub enum InternalServerError {
@@ -28,14 +26,16 @@ pub enum InternalServerError {
 impl From<QueryError> for InternalServerError {
     fn from(value: QueryError) -> Self {
         match value {
-            QueryError::GetConnectionError(err) => { InternalServerError::ConnectionPoll(err) }
-            QueryError::DatabaseQueryError(err) => { InternalServerError::QueryError(err) }
+            QueryError::GetConnectionError(err) => InternalServerError::ConnectionPoll(err),
+            QueryError::DatabaseQueryError(err) => InternalServerError::QueryError(err),
         }
     }
 }
 
 impl ResponseError for InternalServerError {}
 
-pub fn into_internal_server_error_responce<Error: Into<InternalServerError>>(err: Error) -> InternalServerError {
+pub fn into_internal_server_error_responce<Error: Into<InternalServerError>>(
+    err: Error,
+) -> InternalServerError {
     err.into()
 }

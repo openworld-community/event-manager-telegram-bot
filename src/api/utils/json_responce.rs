@@ -1,5 +1,5 @@
-use actix_web::http::{StatusCode};
 use actix_web::http::header::ContentType;
+use actix_web::http::StatusCode;
 use actix_web::HttpResponse;
 use serde::Serialize;
 
