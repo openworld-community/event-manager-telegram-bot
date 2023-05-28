@@ -32,7 +32,7 @@ mod tests {
         let event_id = 1;
 
         // new event
-        assert_eq!(add_event(&conn, e.clone()), Ok(1));
+        assert_eq!(mutate_event(&conn, &e), Ok(1));
 
         // user 1000 reserves for two children and places one on the waiting list
         for i in 0..3 {
@@ -135,7 +135,7 @@ mod tests {
         let event_id = 1;
 
         // new event
-        assert_eq!(add_event(&conn, e.clone()), Ok(1));
+        assert_eq!(mutate_event(&conn, &e), Ok(1));
 
         // sign up
         assert_eq!(

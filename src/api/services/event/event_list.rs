@@ -25,11 +25,11 @@ pub async fn event_list(pool: Data<DbPool>, params: Query<RawPagination>) -> imp
 pub fn get_event_list<P: Into<Pagination>>(
     conn: &Connection,
     pagination: P,
-) -> Result<Vec<TestEvent>, Error> {
+) -> Result<Vec<EventWithId>, Error> {
     let pag = pagination.into();
     let mut stmt = conn.prepare("select * from events limit ? offset ?")?;
     let mut rows = stmt.query(params![pag.limit(), pag.offset()])?;
-    let mut events: Vec<TestEvent> = Vec::new();
+    let mut events: Vec<EventWithId> = Vec::new();
     while let Some(row) = rows.next()? {
         events.push(map_row(&row)?);
     }
@@ -37,8 +37,8 @@ pub fn get_event_list<P: Into<Pagination>>(
     Ok(events)
 }
 
-fn map_row(row: &Row) -> Result<TestEvent, Error> {
-    Ok(TestEvent {
+fn map_row(row: &Row) -> Result<EventWithId, Error> {
+    Ok(EventWithId {
         id: row.get("id")?,
         entity: RawEvent {
             name: row.get("name")?,
@@ -56,4 +56,4 @@ fn map_row(row: &Row) -> Result<TestEvent, Error> {
     })
 }
 
-type TestEvent = WithId<u64, RawEvent>;
+type EventWithId = WithId<u64, RawEvent>;

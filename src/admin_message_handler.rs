@@ -300,7 +300,7 @@ fn add_event(
                     {
                         return Err(anyhow!("Wrong event format"));
                     }
-                    match crate::db::add_event(conn, event) {
+                    match crate::db::mutate_event(conn, &event) {
                         Ok(id) => {
                             return Ok(ReplyMessage::new(if id > 0 {
                                 let bot_name = env::var("BOT_NAME").unwrap();

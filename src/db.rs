@@ -95,9 +95,9 @@ pub struct GroupMessage {
     pub waiting_list: u64,
 }
 
-pub fn add_event(
+pub fn mutate_event(
     conn: &PooledConnection<SqliteConnectionManager>,
-    e: Event,
+    e: &Event,
 ) -> Result<u64, rusqlite::Error> {
     let event_type = e.get_type();
     if event_type == EventType::Announcement {
@@ -218,12 +218,12 @@ pub fn prompt_waiting_list(
     } else {
         if let Ok(event_name) = get_event_name(conn, event_id) {
             enqueue_message(conn,
-                event_id,
-                "Bot",
-                1,
-                MessageType::WaitingListPrompt,
-                &format!("Кто-то отменил бронирование на мероприятие: \"{}\".\nВы можете попробовать записаться.", event_name),
-                send_at
+                            event_id,
+                            "Bot",
+                            1,
+                            MessageType::WaitingListPrompt,
+                            &format!("Кто-то отменил бронирование на мероприятие: \"{}\".\nВы можете попробовать записаться.", event_name),
+                            send_at,
             )?;
         }
     }
@@ -487,7 +487,7 @@ fn move_from_waiting_list(
 ) -> Result<(), rusqlite::Error> {
     conn.execute("UPDATE reservations SET waiting_list = 0  WHERE id in \
         (SELECT id FROM reservations where event = ?1 and user = ?2 and waiting_list = 1 and adults = ?3 and children = ?4 order by ts limit 1)",
-        params![event_id, user_id, adults, children],
+                 params![event_id, user_id, adults, children],
     )?;
     Ok(())
 }
@@ -644,7 +644,6 @@ pub fn get_event(
         LEFT JOIN (SELECT sum(adults) as adults, sum(children) as children, event FROM reservations WHERE waiting_list = 0 GROUP BY event) as r ON events.id = r.event) as a \
         LEFT JOIN (SELECT sum(adults) as my_adults, sum(children) as my_children, event FROM reservations WHERE waiting_list = 0 AND user = ?1 GROUP BY event) as b ON a.id = b.event \
         LEFT JOIN (SELECT sum(adults) as my_wait_adults, sum(children) as my_wait_children, event FROM reservations WHERE waiting_list = 1 AND user = ?1 GROUP BY event) as c ON a.id = c.event WHERE a.id = ?2"
-
     )?;
     let mut rows = stmt.query([user, event_id])?;
     if let Some(row) = rows.next()? {
@@ -686,7 +685,7 @@ pub fn get_participants(
     let mut stmt;
     let mut rows = if limit == 0 {
         stmt = conn.prepare(
-        "SELECT a.*, b.attachment FROM (SELECT sum(adults) as adults, sum(children) as children, user, user_name1, user_name2, event, ts FROM reservations WHERE waiting_list = ?1 AND event = ?2 AND state = ?3 group by event, user ORDER BY ts) as a \
+            "SELECT a.*, b.attachment FROM (SELECT sum(adults) as adults, sum(children) as children, user, user_name1, user_name2, event, ts FROM reservations WHERE waiting_list = ?1 AND event = ?2 AND state = ?3 group by event, user ORDER BY ts) as a \
         LEFT JOIN attachments as b ON a.event = b.event and a.user = b.user"
         )?;
         stmt.query([waiting_list, event_id, state as u64])?
@@ -694,7 +693,7 @@ pub fn get_participants(
         stmt = conn.prepare(
             "SELECT a.*, b.attachment FROM (SELECT sum(adults) as adults, sum(children) as children, user, user_name1, user_name2, event, ts FROM reservations WHERE waiting_list = ?1 AND event = ?2 AND state = ?3 group by event, user ORDER BY ts LIMIT ?4 OFFSET ?5) as a \
             LEFT JOIN attachments as b ON a.event = b.event and a.user = b.user"
-            )?;
+        )?;
         stmt.query([waiting_list, event_id, state as u64, limit, offset * limit])?
     };
     let mut res = Vec::new();
@@ -721,7 +720,7 @@ pub fn get_presence_list(
     limit: u64,
 ) -> Result<Vec<Presence>, rusqlite::Error> {
     let mut stmt = conn.prepare(
-            "select r.*, p.user, a.attachment from (select event, user, user_name1, user_name2, count(user) from reservations where event = ?1 and waiting_list = 0 group by user) as r \
+        "select r.*, p.user, a.attachment from (select event, user, user_name1, user_name2, count(user) from reservations where event = ?1 and waiting_list = 0 group by user) as r \
             left join presence as p on r.event = p.event and r.user = p.user \
             left join attachments as a on r.event = a.event and r.user = a.user \
             where p.user IS NULL order by r.user_name1 LIMIT ?2 OFFSET ?3"
@@ -1135,6 +1134,7 @@ pub fn remove_from_black_list(
     conn.execute("DELETE FROM black_list WHERE user=?1", params![user])?;
     Ok(())
 }
+
 pub fn get_black_list(
     conn: &PooledConnection<SqliteConnectionManager>,
     offset: u64,

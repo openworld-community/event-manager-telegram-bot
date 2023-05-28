@@ -1,25 +1,34 @@
 use crate::types::{DbPool, Event};
+use std::fmt::Debug;
 
-use crate::db::add_event;
+use crate::db::mutate_event;
 use actix_web::web::{Data, Json};
 use actix_web::{post, HttpResponse, Responder};
+
+use crate::api::utils::to_http_err;
 use chrono::{DateTime, Utc};
 use tokio::task::spawn_blocking;
 use validator::Validate;
 
 #[post("")]
-pub async fn create_event(pool: Data<DbPool>, event_to_create: Json<RawEvent>) -> impl Responder {
-    event_to_create.validate().unwrap();
-    let mut event = event_to_create.into_inner().to_event();
+pub async fn create_event(
+    pool: Data<DbPool>,
+    event_to_create: Json<RawEvent>,
+) -> actix_web::Result<impl Responder> {
+    event_to_create.validate().map_err(to_http_err)?;
+
+    let mut event: Event = event_to_create.into_inner().into();
     let cloned = event.clone();
     let event_id = spawn_blocking(move || {
         let con = pool.get().unwrap();
-        add_event(&con, cloned).unwrap()
+        mutate_event(&con, &cloned).unwrap()
     })
     .await
     .unwrap();
+
     event.id = event_id;
-    HttpResponse::Created().body(serde_json::to_string(&event).unwrap())
+
+    Ok(HttpResponse::Created().body(serde_json::to_string(&event).unwrap()))
 }
 
 #[derive(Debug, Serialize, Deserialize, Validate)]
@@ -39,8 +48,8 @@ pub struct RawEvent {
     pub currency: String,
 }
 
-impl RawEvent {
-    fn to_event(self) -> Event {
+impl Into<Event> for RawEvent {
+    fn into(self) -> Event {
         Event {
             id: 0,
             name: self.name,
