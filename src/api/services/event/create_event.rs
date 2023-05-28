@@ -16,8 +16,8 @@ pub async fn create_event(pool: Data<DbPool>, event_to_create: Json<RawEvent>) -
         let con = pool.get().unwrap();
         add_event(&con, cloned).unwrap()
     })
-        .await
-        .unwrap();
+    .await
+    .unwrap();
     event.id = event_id;
     HttpResponse::Created().body(serde_json::to_string(&event).unwrap())
 }
@@ -60,10 +60,10 @@ impl RawEvent {
 
 #[cfg(test)]
 mod tests {
+    use crate::api::services::event::create_event::RawEvent;
     use serde_json;
     use serde_json::Result;
     use validator::Validate;
-    use crate::api::services::event::create_event::RawEvent;
 
     #[test]
     fn raw_event_validation() {
@@ -85,10 +85,7 @@ mod tests {
 
         let event: Result<RawEvent> = serde_json::from_str(str);
 
-        assert!(
-            event.is_ok(),
-            "Expected that RawEvent correctly parsed"
-        );
+        assert!(event.is_ok(), "Expected that RawEvent correctly parsed");
 
         let validation_result = event.unwrap().validate();
 
@@ -99,4 +96,3 @@ mod tests {
         )
     }
 }
-

@@ -1,13 +1,12 @@
 pub mod config;
 mod raw_config;
 
-use clap::ArgMatches;
+use clap::Parser;
 use config::Config;
 use raw_config::RawConfiguration;
-use std::{fs::File, io::prelude::*};
 use std::env::current_dir;
 use std::path::Path;
-use clap::Parser;
+use std::{fs::File, io::prelude::*};
 
 #[derive(Parser, Debug)]
 #[command(version)]
@@ -34,9 +33,7 @@ pub fn get_config() -> Config {
     let args = get_args();
 
     match args.config {
-        Some(path) => {
-            Config::from(parse_config_file(path))
-        }
+        Some(path) => Config::from(parse_config_file(path)),
         None => {
             let mut path = current_dir().unwrap();
             path.push("config.toml");

@@ -21,7 +21,7 @@ pub fn ts(ts: u64) -> String {
 
 pub fn event_title(event: &Event) -> String {
     if event.link.len() > 0 {
-        format!("<a href=\"{}\">{}</a>", event.link, event.name, )
+        format!("<a href=\"{}\">{}</a>", event.link, event.name,)
     } else {
         event.name.to_string()
     }

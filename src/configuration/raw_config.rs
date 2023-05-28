@@ -1,7 +1,6 @@
 use chrono::DateTime;
 use std::collections::HashSet;
 use std::net::{SocketAddr, ToSocketAddrs};
-use std::vec::IntoIter;
 
 #[derive(Deserialize, Serialize, Clone, Default, Debug)]
 pub struct RawConfiguration {
@@ -56,6 +55,8 @@ impl RawConfiguration {
     pub fn socket_address(&self) -> SocketAddr {
         format!("{}:{}", self.listen_address, self.listen_port)
             .to_socket_addrs()
-            .unwrap().next().unwrap()
+            .unwrap()
+            .next()
+            .unwrap()
     }
 }

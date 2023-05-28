@@ -1,4 +1,4 @@
-use crate::types::{Connection};
+use crate::types::Connection;
 use rusqlite::{params, Error, Row};
 
 use crate::types::DbPool;
@@ -6,11 +6,10 @@ use crate::types::DbPool;
 use actix_web::web::Data;
 use actix_web::{get, HttpResponse, Responder};
 
-
-use tokio::task::spawn_blocking;
 use crate::api::services::event::create_event::RawEvent;
 use crate::api::shared::WithId;
-use crate::format::{from_timestamp};
+use crate::format::from_timestamp;
+use tokio::task::spawn_blocking;
 
 #[get("")]
 pub async fn event_list(pool: Data<DbPool>) -> impl Responder {
@@ -18,8 +17,8 @@ pub async fn event_list(pool: Data<DbPool>) -> impl Responder {
         let con = pool.get().unwrap();
         get_event_list(&con).unwrap()
     })
-        .await
-        .expect("spawn_block error");
+    .await
+    .expect("spawn_block error");
     HttpResponse::Ok().body(serde_json::to_string(&events).unwrap())
 }
 
