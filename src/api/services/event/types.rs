@@ -1,8 +1,8 @@
-use chrono::{DateTime, Utc};
-use validator::Validate;
 use crate::api::shared::WithId;
 use crate::api::utils::{validation_error_to_http, ValidationError};
 use crate::types::Event;
+use chrono::{DateTime, Utc};
+use validator::Validate;
 
 #[derive(Debug, Serialize, Deserialize, Validate)]
 pub struct RawEvent {
@@ -21,9 +21,29 @@ pub struct RawEvent {
     pub currency: String,
 }
 
+#[derive(Deserialize, Validate)]
+pub struct OptionalRawEvent {
+    #[validate(length(min = 5, max = 255))]
+    pub name: Option<String>,
+    #[validate(url)]
+    pub link: Option<String>,
+    pub max_adults: Option<u64>,
+    pub max_children: Option<u64>,
+    pub max_adults_per_reservation: Option<u64>,
+    pub max_children_per_reservation: Option<u64>,
+    pub event_start_time: Option<DateTime<Utc>>,
+    pub remind: Option<DateTime<Utc>>,
+}
+
 pub type EventWithId = WithId<u64, RawEvent>;
 
 impl RawEvent {
+    pub fn validation(&self) -> Result<(), ValidationError> {
+        self.validate().map_err(validation_error_to_http)
+    }
+}
+
+impl OptionalRawEvent {
     pub fn validation(&self) -> Result<(), ValidationError> {
         self.validate().map_err(validation_error_to_http)
     }
@@ -53,7 +73,6 @@ mod tests {
     use crate::api::services::event::types::RawEvent;
     use serde_json;
     use serde_json::Result;
-    use validator::Validate;
 
     #[test]
     fn raw_event_validation() {

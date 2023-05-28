@@ -3,6 +3,7 @@ use r2d2_sqlite::SqliteConnectionManager;
 use serde_compact::compact;
 use std::collections::HashSet;
 use std::sync::Arc;
+
 use tokio::sync::Mutex;
 
 use crate::configuration::config::Config;
