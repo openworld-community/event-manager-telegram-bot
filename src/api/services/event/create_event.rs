@@ -1,11 +1,11 @@
-use crate::types::{DbPool, Event};
-use crate::db::mutate_event;
-use actix_web::http::StatusCode;
-use actix_web::web::{Data, Json};
-use actix_web::{post, Responder};
 use crate::api::services::event::types::RawEvent;
 use crate::api::shared::{into_internal_server_error_responce, QueryError};
 use crate::api::utils::json_responce;
+use crate::db::mutate_event;
+use crate::types::{DbPool, Event};
+use actix_web::http::StatusCode;
+use actix_web::web::{Data, Json};
+use actix_web::{post, Responder};
 use tokio::task::spawn_blocking;
 
 #[post("")]
