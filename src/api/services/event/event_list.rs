@@ -3,28 +3,32 @@ use rusqlite::{params, Error, Row};
 
 use crate::types::DbPool;
 
-use actix_web::web::Data;
+use actix_web::web::{Data, Query};
 use actix_web::{get, HttpResponse, Responder};
 
 use crate::api::services::event::create_event::RawEvent;
-use crate::api::shared::WithId;
+use crate::api::shared::{Pagination, RawPagination, WithId};
 use crate::format::from_timestamp;
 use tokio::task::spawn_blocking;
 
 #[get("")]
-pub async fn event_list(pool: Data<DbPool>) -> impl Responder {
+pub async fn event_list(pool: Data<DbPool>, params: Query<RawPagination>) -> impl Responder {
     let events = spawn_blocking(move || {
         let con = pool.get().unwrap();
-        get_event_list(&con).unwrap()
+        get_event_list(&con, params.0).unwrap()
     })
     .await
     .expect("spawn_block error");
     HttpResponse::Ok().body(serde_json::to_string(&events).unwrap())
 }
 
-pub fn get_event_list(conn: &Connection) -> Result<Vec<TestEvent>, Error> {
-    let mut stmt = conn.prepare("select * from events")?;
-    let mut rows = stmt.query(params![])?;
+pub fn get_event_list<P: Into<Pagination>>(
+    conn: &Connection,
+    pagination: P,
+) -> Result<Vec<TestEvent>, Error> {
+    let pag = pagination.into();
+    let mut stmt = conn.prepare("select * from events limit ? offset ?")?;
+    let mut rows = stmt.query(params![pag.limit(), pag.offset()])?;
     let mut events: Vec<TestEvent> = Vec::new();
     while let Some(row) = rows.next()? {
         events.push(map_row(&row)?);
