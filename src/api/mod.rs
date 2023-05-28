@@ -1,6 +1,6 @@
 mod services;
-mod shared;
 mod utils;
+mod shared;
 
 use crate::api::services::event::event_scope;
 use crate::types::DbPool;

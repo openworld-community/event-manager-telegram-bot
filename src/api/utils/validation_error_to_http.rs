@@ -36,6 +36,6 @@ impl ResponseError for ValidationError {
     }
 }
 
-pub fn to_http_err(err: ValidationErrors) -> ValidationError {
+pub fn validation_error_to_http(err: ValidationErrors) -> ValidationError {
     ValidationError::from(err)
 }

@@ -3,32 +3,40 @@ use std::fmt::Debug;
 
 use crate::db::mutate_event;
 use actix_web::web::{Data, Json};
-use actix_web::{post, HttpResponse, Responder};
+use actix_web::{post, Responder};
+use actix_web::http::StatusCode;
 
-use crate::api::utils::to_http_err;
+use crate::api::utils::{json_responce, validation_error_to_http};
 use chrono::{DateTime, Utc};
 use tokio::task::spawn_blocking;
 use validator::Validate;
+use crate::api::shared::{into_internal_server_error_responce, QueryError};
+
+
+fn insert_event(pool: &DbPool, event: &Event) -> Result<u64, QueryError> {
+    let con = pool.get()?;
+    Ok(mutate_event(&con, &event)?)
+}
 
 #[post("")]
 pub async fn create_event(
     pool: Data<DbPool>,
     event_to_create: Json<RawEvent>,
 ) -> actix_web::Result<impl Responder> {
-    event_to_create.validate().map_err(to_http_err)?;
+    event_to_create.validate().map_err(validation_error_to_http)?;
 
     let mut event: Event = event_to_create.into_inner().into();
     let cloned = event.clone();
     let event_id = spawn_blocking(move || {
-        let con = pool.get().unwrap();
-        mutate_event(&con, &cloned).unwrap()
+        insert_event(&pool, &cloned)
     })
-    .await
-    .unwrap();
+        .await;
 
-    event.id = event_id;
+    event.id = event_id
+        .map_err(into_internal_server_error_responce)?
+        .map_err(into_internal_server_error_responce)?;
 
-    Ok(HttpResponse::Created().body(serde_json::to_string(&event).unwrap()))
+    Ok(json_responce(&event, StatusCode::CREATED))
 }
 
 #[derive(Debug, Serialize, Deserialize, Validate)]
