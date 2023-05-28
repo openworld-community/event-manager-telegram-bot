@@ -11,4 +11,5 @@ pub fn event_scope() -> Scope {
         .service(event_list::event_list)
         .service(create_event::create_event)
         .service(remove_event::remove_event)
+        .service(update_event::update_event)
 }
