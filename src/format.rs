@@ -7,16 +7,21 @@ use db::EventStats;
 use r2d2::PooledConnection;
 use r2d2_sqlite::SqliteConnectionManager;
 
-pub fn ts(ts: u64) -> String {
+pub fn from_timestamp(ts: i64) -> DateTime<Utc> {
     let naive =
         NaiveDateTime::from_timestamp_opt(ts as i64, 0).expect("NaiveDateTime Unwrap Error");
     let datetime: DateTime<Utc> = DateTime::from_utc(naive, Utc);
+    datetime
+}
+
+pub fn ts(ts: u64) -> String {
+    let datetime = from_timestamp(ts as i64);
     datetime.format("%d.%m %H:%M").to_string()
 }
 
 pub fn event_title(event: &Event) -> String {
     if event.link.len() > 0 {
-        format!("<a href=\"{}\">{}</a>", event.link, event.name,)
+        format!("<a href=\"{}\">{}</a>", event.link, event.name, )
     } else {
         event.name.to_string()
     }
