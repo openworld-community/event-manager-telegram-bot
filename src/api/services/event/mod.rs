@@ -1,5 +1,7 @@
 mod create_event;
+mod db;
 mod event_list;
+mod get_event;
 mod remove_event;
 mod types;
 mod update_event;

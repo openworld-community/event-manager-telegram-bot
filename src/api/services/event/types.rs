@@ -1,5 +1,6 @@
 use crate::api::shared::WithId;
 use crate::api::utils::{validation_error_to_http, ValidationError};
+use crate::format::from_timestamp;
 use crate::types::Event;
 use chrono::{DateTime, Utc};
 use validator::Validate;
@@ -36,6 +37,27 @@ pub struct OptionalRawEvent {
 }
 
 pub type EventWithId = WithId<u64, RawEvent>;
+
+impl From<Event> for EventWithId {
+    fn from(event: Event) -> Self {
+        EventWithId {
+            id: event.id,
+            entity: RawEvent {
+                name: event.name,
+                link: event.link,
+                max_adults: event.max_adults as i64,
+                max_children: event.max_children as i64,
+                max_adults_per_reservation: event.max_adults_per_reservation as i64,
+                max_children_per_reservation: event.max_children_per_reservation as i64,
+                event_start_time: from_timestamp(event.ts as i64),
+                remind: from_timestamp(event.remind as i64),
+                adult_ticket_price: event.adult_ticket_price as i64,
+                child_ticket_price: event.child_ticket_price as i64,
+                currency: event.currency,
+            },
+        }
+    }
+}
 
 impl RawEvent {
     pub fn validation(&self) -> Result<(), ValidationError> {
