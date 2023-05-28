@@ -34,7 +34,7 @@ pub struct Event {
 }
 
 #[derive(Serialize, Deserialize, Clone)]
-pub struct Reservation { // Union of booking 
+pub struct Reservation { // Union of Booking and ReservationState
     pub id: u64,
     pub event_id: u64,
     pub user_id: u64,
