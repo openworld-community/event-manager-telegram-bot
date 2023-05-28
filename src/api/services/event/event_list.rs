@@ -1,15 +1,12 @@
-use crate::types::Connection;
 use rusqlite::{params, Error, Row};
-
 use crate::types::DbPool;
-
 use actix_web::http::StatusCode;
 use actix_web::web::{Data, Query};
 use actix_web::{get, Responder};
 
-use crate::api::services::event::create_event::RawEvent;
+use crate::api::services::event::types::{EventWithId, RawEvent};
 use crate::api::shared::{
-    into_internal_server_error_responce, Pagination, QueryError, RawPagination, WithId,
+    into_internal_server_error_responce, Pagination, QueryError, RawPagination,
 };
 use crate::api::utils::json_responce;
 use crate::format::from_timestamp;
@@ -20,7 +17,7 @@ pub async fn event_list(
     pool: Data<DbPool>,
     params: Query<RawPagination>,
 ) -> actix_web::Result<impl Responder> {
-    let events = spawn_blocking(move || get_events(&pool, params.into_inner()))
+    let events = spawn_blocking(move || get_event_list(&pool, &params.into_inner().into()))
         .await
         .map_err(into_internal_server_error_responce)?
         .map_err(into_internal_server_error_responce)?;
@@ -28,21 +25,12 @@ pub async fn event_list(
     Ok(json_responce(&events, StatusCode::OK))
 }
 
-type EventWithId = WithId<u64, RawEvent>;
 
-fn get_events<P: Into<Pagination>>(
+pub fn get_event_list(
     pool: &DbPool,
-    pagination: P,
+    pag: &Pagination,
 ) -> Result<Vec<EventWithId>, QueryError> {
-    let con = pool.get()?;
-    Ok(get_event_list(&con, pagination)?)
-}
-
-pub fn get_event_list<P: Into<Pagination>>(
-    conn: &Connection,
-    pagination: P,
-) -> Result<Vec<EventWithId>, Error> {
-    let pag = pagination.into();
+    let conn = pool.get()?;
     let mut stmt = conn.prepare("select * from events limit ? offset ?")?;
     let mut rows = stmt.query(params![pag.limit(), pag.offset()])?;
     let mut events: Vec<EventWithId> = Vec::new();

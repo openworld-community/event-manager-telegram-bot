@@ -1,5 +1,6 @@
 mod create_event;
 mod event_list;
+mod types;
 
 use actix_web::{web, Scope};
 
