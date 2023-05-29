@@ -27,20 +27,20 @@ pub struct RawConfiguration {
 
 impl RawConfiguration {
     pub fn parse_mailing_hours(&self) -> Result<(u64, u64), String> {
-        let parts: Vec<&str> = self.mailing_hours.split('.').collect();
-        if parts.len() != 3 {
+        let parts: Vec<&str> = self.mailing_hours.split("..").collect();
+        if parts.len() != 2 {
             return Err("Wrong mailing hours format.".to_string());
         }
         match (
             DateTime::parse_from_str(&format!("2022-07-06 {}", parts[0]), "%Y-%m-%d %H:%M  %z"),
-            DateTime::parse_from_str(&format!("2022-07-06 {}", parts[2]), "%Y-%m-%d %H:%M  %z"),
+            DateTime::parse_from_str(&format!("2022-07-06 {}", parts[1]), "%Y-%m-%d %H:%M  %z"),
         ) {
             (Ok(from), Ok(to)) => {
                 let mailing_hours_from = (from.timestamp() % 86400) as u64;
                 let mailing_hours_to = (to.timestamp() % 86400) as u64;
                 Ok((mailing_hours_from, mailing_hours_to))
             }
-            _ => Err("Failed to farse mailing hours.".to_string()),
+            _ => Err("Failed to parse mailing hours.".to_string()),
         }
     }
 
