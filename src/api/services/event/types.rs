@@ -1,9 +1,11 @@
+use std::borrow::Cow;
+use std::collections::HashMap;
 use crate::api::shared::WithId;
 use crate::api::utils::{validation_error_to_http, ValidationError};
 use crate::format::from_timestamp;
 use crate::types::Event;
 use chrono::{DateTime, Utc};
-use validator::Validate;
+use validator::{Validate, ValidationErrors};
 
 #[derive(Debug, Serialize, Deserialize, Validate)]
 pub struct RawEvent {
@@ -28,12 +30,15 @@ pub struct OptionalRawEvent {
     pub name: Option<String>,
     #[validate(url)]
     pub link: Option<String>,
-    pub max_adults: Option<u64>,
-    pub max_children: Option<u64>,
-    pub max_adults_per_reservation: Option<u64>,
-    pub max_children_per_reservation: Option<u64>,
+    pub max_adults: Option<i64>,
+    pub max_children: Option<i64>,
+    pub max_adults_per_reservation: Option<i64>,
+    pub max_children_per_reservation: Option<i64>,
     pub event_start_time: Option<DateTime<Utc>>,
     pub remind: Option<DateTime<Utc>>,
+    pub adult_ticket_price: Option<i64>,
+    pub child_ticket_price: Option<i64>,
+    pub currency: Option<String>,
 }
 
 pub type EventWithId = WithId<u64, RawEvent>;
@@ -61,7 +66,47 @@ impl From<Event> for EventWithId {
 
 impl RawEvent {
     pub fn validation(&self) -> Result<(), ValidationError> {
-        self.validate().map_err(validation_error_to_http)
+        let mut errors = match self.validate() {
+            Ok(_) => { ValidationErrors::new() }
+            Err(err) => { err }
+        };
+
+        if self.max_adults == 0 && self.adult_ticket_price != 0 {
+            errors.add("adult_ticket_price", validator::ValidationError {
+                code: Cow::from("adult_ticket_price"),
+                message: Some(Cow::from("adult_ticket_price should be 0 when max_adults is 0")),
+                params: HashMap::new(),
+            })
+        }
+
+        if self.max_children == 0 && self.child_ticket_price != 0 {
+            errors.add("child_ticket_price", validator::ValidationError {
+                code: Cow::from("child_ticket_price"),
+                message: Some(Cow::from("child_ticket_price should be 0 when max_children is 0")),
+                params: HashMap::new(),
+            })
+        }
+
+        if self.max_adults_per_reservation > self.max_adults {
+            errors.add("max_adults_per_reservation", validator::ValidationError {
+                code: Cow::from("max_adults_per_reservation"),
+                message: Some(Cow::from("max_adults_per_reservation count mast be less then max_adults")),
+                params: HashMap::new(),
+            })
+        }
+
+        if self.max_children_per_reservation > self.max_children {
+            errors.add("max_children_per_reservation", validator::ValidationError {
+                code: Cow::from("max_children_per_reservation"),
+                message: Some(Cow::from("max_children_per_reservation count mast be less then max_children")),
+                params: HashMap::new(),
+            })
+        }
+
+        match errors.is_empty() {
+            true => { Ok(()) }
+            false => { Err(validation_error_to_http(errors)) }
+        }
     }
 }
 
