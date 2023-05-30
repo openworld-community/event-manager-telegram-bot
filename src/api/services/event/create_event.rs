@@ -18,7 +18,7 @@ pub async fn create_event(
 
     let mut event: Event = event_to_create.into_inner().into();
     let cloned = event.clone();
-    let event_id = spawn_blocking(move || add_event(&pool, &cloned))
+    let event_id = spawn_blocking(move || add_event(&pool, &cloned.to_string()))
         .await
         .map_err(into_internal_server_error_responce)?
         .map_err(into_internal_server_error_responce)?;
