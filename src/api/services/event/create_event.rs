@@ -29,5 +29,23 @@ pub async fn create_event(
 
 fn insert_event(pool: &DbPool, event: &Event) -> Result<u64, QueryError> {
     let con = pool.get()?;
-    Ok(mutate_event(&con, &event)?)
+    if event.adult_ticket_price != 0 && event.max_adults == 0
+        || event.child_ticket_price != 0 && event.max_children == 0
+    {
+        return Err(anyhow!("Wrong event format"));
+    }
+    match crate::db::mutate_event(conn, &event) {
+        Ok(id) => {
+            return Ok(ReplyMessage::new(if id > 0 {
+                let bot_name = env::var("BOT_NAME").unwrap();
+                format!("Direct event link: https://t.me/{}?start={}", bot_name, id)
+            } else {
+                format!("Failed to add event.")
+            })
+                .into());
+        }
+        Err(e) => {
+            return Err(anyhow!("Failed to add event: {}.", e));
+        }
+    }
 }
