@@ -1,4 +1,3 @@
-use std::sync::Arc;
 use crate::api::services::event::db;
 use crate::api::services::event::types::OptionalRawEvent;
 use crate::api::shared::{into_internal_server_error_responce, QueryError};
@@ -8,6 +7,7 @@ use crate::types::{DbPool, Event};
 use actix_web::http::StatusCode;
 use actix_web::web::{Data, Json, Path};
 use actix_web::{post, Responder};
+
 use tokio::task::spawn_blocking;
 
 #[post("/{id}")]
@@ -18,14 +18,14 @@ pub async fn update_event(
 ) -> actix_web::Result<impl Responder> {
     let id = id.into_inner();
 
-    let pool_for_current_event= pool.clone();
+    let pool_for_current_event = pool.clone();
     let current_event = spawn_blocking(move || {
         let conn = pool_for_current_event.get()?;
         db::select_event(&conn, id)
     })
-        .await
-        .map_err(into_internal_server_error_responce)?
-        .map_err(into_internal_server_error_responce)?;
+    .await
+    .map_err(into_internal_server_error_responce)?
+    .map_err(into_internal_server_error_responce)?;
 
     event_to_update.validation(&current_event)?;
 
@@ -34,7 +34,7 @@ pub async fn update_event(
             &pool.into_inner(),
             id,
             event_to_update.into_inner(),
-            &current_event
+            &current_event,
         )
     })
     .await
@@ -64,10 +64,12 @@ pub fn perform_update_event(
             .unwrap_or(current_event.max_children as i64) as u64,
         max_adults_per_reservation: event_to_update
             .max_adults_per_reservation
-            .unwrap_or(current_event.max_adults_per_reservation as i64) as u64,
+            .unwrap_or(current_event.max_adults_per_reservation as i64)
+            as u64,
         max_children_per_reservation: event_to_update
             .max_children_per_reservation
-            .unwrap_or(current_event.max_children_per_reservation as i64) as u64,
+            .unwrap_or(current_event.max_children_per_reservation as i64)
+            as u64,
         ts: event_to_update
             .event_start_time
             .map(|val| val.timestamp() as u64)
