@@ -57,9 +57,7 @@ async fn main() {
         db::create(&conn).expect("Failed to create db.");
     }
 
-    setup_api_server(&config.api_socket_address, &pool)
-        .await
-        .unwrap();
+    let api_server_task = tokio::spawn(setup_api_server(&config.api_socket_address, &pool));
 
     let bot = Bot::new(&config.telegram_bot_token).auto_send();
 
