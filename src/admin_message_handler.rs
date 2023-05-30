@@ -267,7 +267,7 @@ pub fn handle_callback(
     }
 }
 
-fn add_event(
+pub fn add_event(
     conn: &PooledConnection<SqliteConnectionManager>,
     data: &str,
 ) -> anyhow::Result<Reply> {
