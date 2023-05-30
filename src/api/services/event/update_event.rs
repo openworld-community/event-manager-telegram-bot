@@ -1,3 +1,4 @@
+use std::sync::Arc;
 use crate::api::services::event::db;
 use crate::api::services::event::types::OptionalRawEvent;
 use crate::api::shared::{into_internal_server_error_responce, QueryError};
@@ -15,13 +16,25 @@ pub async fn update_event(
     event_to_update: Json<OptionalRawEvent>,
     pool: Data<DbPool>,
 ) -> actix_web::Result<impl Responder> {
-    event_to_update.validation()?;
+    let id = id.into_inner();
+
+    let pool_for_current_event= pool.clone();
+    let current_event = spawn_blocking(move || {
+        let conn = pool_for_current_event.get()?;
+        db::select_event(&conn, id)
+    })
+        .await
+        .map_err(into_internal_server_error_responce)?
+        .map_err(into_internal_server_error_responce)?;
+
+    event_to_update.validation(&current_event)?;
 
     let new_event = spawn_blocking(move || {
         perform_update_event(
             &pool.into_inner(),
-            id.into_inner(),
+            id,
             event_to_update.into_inner(),
+            &current_event
         )
     })
     .await
@@ -35,27 +48,26 @@ pub fn perform_update_event(
     pool: &DbPool,
     id: i64,
     event_to_update: OptionalRawEvent,
+    current_event: &Event,
 ) -> Result<Event, QueryError> {
     let conn = pool.get()?;
 
-    let current_event = db::select_event(&conn, id)?;
-
     let new_event = Event {
         id: id as u64,
-        name: event_to_update.name.unwrap_or(current_event.name),
-        link: event_to_update.link.unwrap_or(current_event.link),
+        name: event_to_update.name.unwrap_or(current_event.name.clone()),
+        link: event_to_update.link.unwrap_or(current_event.link.clone()),
         max_adults: event_to_update
             .max_adults
-            .unwrap_or(current_event.max_adults),
+            .unwrap_or(current_event.max_adults as i64) as u64,
         max_children: event_to_update
             .max_children
-            .unwrap_or(current_event.max_children),
+            .unwrap_or(current_event.max_children as i64) as u64,
         max_adults_per_reservation: event_to_update
             .max_adults_per_reservation
-            .unwrap_or(current_event.max_adults_per_reservation),
+            .unwrap_or(current_event.max_adults_per_reservation as i64) as u64,
         max_children_per_reservation: event_to_update
             .max_children_per_reservation
-            .unwrap_or(current_event.max_children_per_reservation),
+            .unwrap_or(current_event.max_children_per_reservation as i64) as u64,
         ts: event_to_update
             .event_start_time
             .map(|val| val.timestamp() as u64)
@@ -66,7 +78,7 @@ pub fn perform_update_event(
             .unwrap_or(current_event.remind),
         adult_ticket_price: current_event.adult_ticket_price,
         child_ticket_price: current_event.child_ticket_price,
-        currency: current_event.currency,
+        currency: current_event.currency.clone(),
     };
 
     mutate_event(&conn, &new_event)?;

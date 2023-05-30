@@ -111,8 +111,73 @@ impl RawEvent {
 }
 
 impl OptionalRawEvent {
-    pub fn validation(&self) -> Result<(), ValidationError> {
-        self.validate().map_err(validation_error_to_http)
+    pub fn validation(&self, current_event: &Event) -> Result<(), ValidationError> {
+        let mut errors = match self.validate() {
+            Ok(_) => { ValidationErrors::new() }
+            Err(err) => { err }
+        };
+
+        if self.get_max_adults(&current_event) == 0 && self.get_adult_ticket_price(&current_event) != 0 {
+            errors.add("adult_ticket_price", validator::ValidationError {
+                code: Cow::from("adult_ticket_price"),
+                message: Some(Cow::from("adult_ticket_price should be 0 when max_adults is 0")),
+                params: HashMap::new(),
+            })
+        }
+
+        if self.get_max_children(&current_event) == 0 && self.get_child_ticket_price(&current_event) != 0 {
+            errors.add("child_ticket_price", validator::ValidationError {
+                code: Cow::from("child_ticket_price"),
+                message: Some(Cow::from("child_ticket_price should be 0 when max_children is 0")),
+                params: HashMap::new(),
+            })
+        }
+
+        if self.get_max_adults_per_reservation(&current_event) > self.get_max_adults(&current_event) {
+            errors.add("max_adults_per_reservation", validator::ValidationError {
+                code: Cow::from("max_adults_per_reservation"),
+                message: Some(Cow::from("max_adults_per_reservation count mast be less then max_adults")),
+                params: HashMap::new(),
+            })
+        }
+
+        if self.get_max_children_per_reservation(&current_event) > self.get_max_children(&current_event) {
+            errors.add("max_children_per_reservation", validator::ValidationError {
+                code: Cow::from("max_children_per_reservation"),
+                message: Some(Cow::from("max_children_per_reservation count mast be less then max_children")),
+                params: HashMap::new(),
+            })
+        }
+
+
+        match errors.is_empty() {
+            true => { Ok(()) }
+            false => { Err(validation_error_to_http(errors)) }
+        }
+    }
+
+    fn get_max_adults(&self, current_event: &Event) -> i64 {
+        self.max_adults.unwrap_or(current_event.max_adults as i64)
+    }
+
+    fn get_max_children(&self, current_event: &Event) -> i64 {
+        self.max_children.unwrap_or(current_event.max_children as i64)
+    }
+
+    fn get_adult_ticket_price(&self, current_event: &Event) -> i64 {
+        self.adult_ticket_price.unwrap_or(current_event.adult_ticket_price as i64)
+    }
+
+    fn get_child_ticket_price(&self, current_event: &Event) -> i64 {
+        self.child_ticket_price.unwrap_or(current_event.child_ticket_price as i64)
+    }
+
+    fn get_max_adults_per_reservation(&self, current_event: &Event) -> i64 {
+        self.max_adults_per_reservation.unwrap_or(current_event.max_adults_per_reservation as i64)
+    }
+
+    fn get_max_children_per_reservation(&self, current_event: &Event) -> i64 {
+        self.max_children_per_reservation.unwrap_or(current_event.max_children_per_reservation as i64)
     }
 }
 
