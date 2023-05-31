@@ -4,11 +4,11 @@ use crate::format;
 use crate::message_handler;
 use crate::message_handler::CallbackQuery;
 use crate::reply::*;
-use crate::types::{Context, Event, MessageType, User};
+use crate::types::{Connection, Context, Event, MessageType, User};
 use anyhow::anyhow;
 use chrono::DateTime;
-use r2d2::PooledConnection;
-use r2d2_sqlite::SqliteConnectionManager;
+
+
 use std::env;
 use teloxide::{
     types::{InlineKeyboardButton, ParseMode},
@@ -33,7 +33,7 @@ struct NewEvent {
 
 /// Command line processor.
 pub fn handle_message(
-    conn: &PooledConnection<SqliteConnectionManager>,
+    conn: &Connection,
     user: &User,
     data: &str,
     ctx: &Context,
@@ -218,7 +218,7 @@ pub fn handle_message(
 
 /// Callback query processor.
 pub fn handle_callback(
-    conn: &PooledConnection<SqliteConnectionManager>,
+    conn: &Connection,
     user: &User,
     data: &str,
     ctx: &Context,
@@ -268,7 +268,7 @@ pub fn handle_callback(
 }
 
 fn add_event(
-    conn: &PooledConnection<SqliteConnectionManager>,
+    conn: &Connection,
     data: &str,
 ) -> anyhow::Result<Reply> {
     match serde_json::from_str::<NewEvent>(&data) {
@@ -327,7 +327,7 @@ fn add_event(
 }
 
 fn show_black_list(
-    conn: &PooledConnection<SqliteConnectionManager>,
+    conn: &Connection,
     config: &Config,
     offset: u64,
 ) -> anyhow::Result<Reply> {

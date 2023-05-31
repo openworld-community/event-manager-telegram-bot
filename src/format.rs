@@ -1,11 +1,9 @@
-use crate::types::Event;
+use crate::types::{Connection, Event};
 use crate::types::{EventState, Participant};
 use chrono::{DateTime, NaiveDateTime, Utc};
 
 use crate::db;
 use db::EventStats;
-use r2d2::PooledConnection;
-use r2d2_sqlite::SqliteConnectionManager;
 
 pub fn from_timestamp(ts: i64) -> DateTime<Utc> {
     let naive =
@@ -113,7 +111,7 @@ pub fn participants(
 }
 
 pub fn messages(
-    conn: &PooledConnection<SqliteConnectionManager>,
+    conn: &Connection,
     s: &EventStats,
     event_id: u64,
     is_admin: bool,
