@@ -58,17 +58,17 @@ pub fn perform_update_event(
         link: event_to_update.link.unwrap_or(current_event.link.clone()),
         max_adults: event_to_update
             .max_adults
-            .unwrap_or(current_event.max_adults as i64) as u64,
+            .unwrap_or(current_event.max_adults ) ,
         max_children: event_to_update
             .max_children
-            .unwrap_or(current_event.max_children as i64) as u64,
+            .unwrap_or(current_event.max_children ) ,
         max_adults_per_reservation: event_to_update
             .max_adults_per_reservation
-            .unwrap_or(current_event.max_adults_per_reservation as i64)
+            .unwrap_or(current_event.max_adults_per_reservation )
             as u64,
         max_children_per_reservation: event_to_update
             .max_children_per_reservation
-            .unwrap_or(current_event.max_children_per_reservation as i64)
+            .unwrap_or(current_event.max_children_per_reservation )
             as u64,
         ts: event_to_update
             .event_start_time

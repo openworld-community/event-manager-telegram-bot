@@ -13,14 +13,14 @@ pub struct RawEvent {
     pub name: String,
     #[validate(url)]
     pub link: String,
-    pub max_adults: i64,
-    pub max_children: i64,
-    pub max_adults_per_reservation: i64,
-    pub max_children_per_reservation: i64,
+    pub max_adults: u64,
+    pub max_children: u64,
+    pub max_adults_per_reservation: u64,
+    pub max_children_per_reservation: u64,
     pub event_start_time: DateTime<Utc>,
     pub remind: DateTime<Utc>,
-    pub adult_ticket_price: i64,
-    pub child_ticket_price: i64,
+    pub adult_ticket_price: u64,
+    pub child_ticket_price: u64,
     pub currency: String,
 }
 
@@ -30,14 +30,14 @@ pub struct OptionalRawEvent {
     pub name: Option<String>,
     #[validate(url)]
     pub link: Option<String>,
-    pub max_adults: Option<i64>,
-    pub max_children: Option<i64>,
-    pub max_adults_per_reservation: Option<i64>,
-    pub max_children_per_reservation: Option<i64>,
+    pub max_adults: Option<u64>,
+    pub max_children: Option<u64>,
+    pub max_adults_per_reservation: Option<u64>,
+    pub max_children_per_reservation: Option<u64>,
     pub event_start_time: Option<DateTime<Utc>>,
     pub remind: Option<DateTime<Utc>>,
-    pub adult_ticket_price: Option<i64>,
-    pub child_ticket_price: Option<i64>,
+    pub adult_ticket_price: Option<u64>,
+    pub child_ticket_price: Option<u64>,
     pub currency: Option<String>,
 }
 
@@ -50,14 +50,14 @@ impl From<Event> for EventWithId {
             entity: RawEvent {
                 name: event.name,
                 link: event.link,
-                max_adults: event.max_adults as i64,
-                max_children: event.max_children as i64,
-                max_adults_per_reservation: event.max_adults_per_reservation as i64,
-                max_children_per_reservation: event.max_children_per_reservation as i64,
-                event_start_time: from_timestamp(event.ts as i64),
-                remind: from_timestamp(event.remind as i64),
-                adult_ticket_price: event.adult_ticket_price as i64,
-                child_ticket_price: event.child_ticket_price as i64,
+                max_adults: event.max_adults,
+                max_children: event.max_children,
+                max_adults_per_reservation: event.max_adults_per_reservation,
+                max_children_per_reservation: event.max_children_per_reservation,
+                event_start_time: from_timestamp(event.ts),
+                remind: from_timestamp(event.remind),
+                adult_ticket_price: event.adult_ticket_price ,
+                child_ticket_price: event.child_ticket_price,
                 currency: event.currency,
             },
         }
@@ -202,33 +202,33 @@ impl OptionalRawEvent {
         }
     }
 
-    fn get_max_adults(&self, current_event: &Event) -> i64 {
-        self.max_adults.unwrap_or(current_event.max_adults as i64)
+    fn get_max_adults(&self, current_event: &Event) -> u64 {
+        self.max_adults.unwrap_or(current_event.max_adults )
     }
 
-    fn get_max_children(&self, current_event: &Event) -> i64 {
+    fn get_max_children(&self, current_event: &Event) -> u64 {
         self.max_children
-            .unwrap_or(current_event.max_children as i64)
+            .unwrap_or(current_event.max_children )
     }
 
-    fn get_adult_ticket_price(&self, current_event: &Event) -> i64 {
+    fn get_adult_ticket_price(&self, current_event: &Event) -> u64 {
         self.adult_ticket_price
-            .unwrap_or(current_event.adult_ticket_price as i64)
+            .unwrap_or(current_event.adult_ticket_price )
     }
 
-    fn get_child_ticket_price(&self, current_event: &Event) -> i64 {
+    fn get_child_ticket_price(&self, current_event: &Event) -> u64 {
         self.child_ticket_price
-            .unwrap_or(current_event.child_ticket_price as i64)
+            .unwrap_or(current_event.child_ticket_price )
     }
 
-    fn get_max_adults_per_reservation(&self, current_event: &Event) -> i64 {
+    fn get_max_adults_per_reservation(&self, current_event: &Event) -> u64 {
         self.max_adults_per_reservation
-            .unwrap_or(current_event.max_adults_per_reservation as i64)
+            .unwrap_or(current_event.max_adults_per_reservation )
     }
 
-    fn get_max_children_per_reservation(&self, current_event: &Event) -> i64 {
+    fn get_max_children_per_reservation(&self, current_event: &Event) -> u64 {
         self.max_children_per_reservation
-            .unwrap_or(current_event.max_children_per_reservation as i64)
+            .unwrap_or(current_event.max_children_per_reservation)
     }
 }
 

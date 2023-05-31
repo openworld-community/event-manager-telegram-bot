@@ -5,7 +5,7 @@ use chrono::{DateTime, NaiveDateTime, Utc};
 use crate::db;
 use db::EventStats;
 
-pub fn from_timestamp(ts: i64) -> DateTime<Utc> {
+pub fn from_timestamp(ts: u64) -> DateTime<Utc> {
     let naive =
         NaiveDateTime::from_timestamp_opt(ts as i64, 0).expect("NaiveDateTime Unwrap Error");
     let datetime: DateTime<Utc> = DateTime::from_utc(naive, Utc);
@@ -13,7 +13,7 @@ pub fn from_timestamp(ts: i64) -> DateTime<Utc> {
 }
 
 pub fn ts(ts: u64) -> String {
-    let datetime = from_timestamp(ts as i64);
+    let datetime = from_timestamp(ts);
     datetime.format("%d.%m %H:%M").to_string()
 }
 
