@@ -4,6 +4,7 @@ use actix_web::{HttpResponse, ResponseError};
 use std::fmt::{Debug, Display, Formatter};
 use validator::ValidationErrors;
 
+#[derive(Debug)]
 pub struct ValidationError {
     errors: ValidationErrors,
 }
@@ -14,15 +15,9 @@ impl From<ValidationErrors> for ValidationError {
     }
 }
 
-impl Debug for ValidationError {
-    fn fmt(&self, _f: &mut Formatter<'_>) -> std::fmt::Result {
-        todo!()
-    }
-}
-
 impl Display for ValidationError {
-    fn fmt(&self, _f: &mut Formatter<'_>) -> std::fmt::Result {
-        todo!()
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "ValidationError: {}", self.errors)
     }
 }
 
