@@ -1,6 +1,6 @@
 use crate::types::{
-    Booking, Connection, Event, EventState, EventType, MessageBatch, MessageType,
-    OrderInfo, Participant, Presence, ReservationState, User
+    Booking, Connection, Event, EventState, EventType, MessageBatch, MessageType, OrderInfo,
+    Participant, Presence, ReservationState, User
 };
 use crate::util::{self, get_unix_time};
 use fallible_streaming_iterator::FallibleStreamingIterator;
@@ -629,10 +629,7 @@ pub fn get_event(
     }
 }
 
-pub fn get_event_name(
-    conn: &Connection,
-    event_id: u64,
-) -> Result<String, rusqlite::Error> {
+pub fn get_event_name(conn: &Connection, event_id: u64) -> Result<String, rusqlite::Error> {
     let mut stmt = conn.prepare("SELECT events.name, events.ts FROM events WHERE id = ?1")?;
     let mut rows = stmt.query([event_id])?;
     if let Some(row) = rows.next()? {
