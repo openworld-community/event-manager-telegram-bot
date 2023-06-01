@@ -11,7 +11,7 @@ jobs:
         with:
           fetch-depth: 0
       - name: Install Rust
-        command: curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+        run: curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
       - name: Install Rustfmt
         run: rustup component add rustfmt
       - name: Run Rustfmt
