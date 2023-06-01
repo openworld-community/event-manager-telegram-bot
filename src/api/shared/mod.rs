@@ -1,7 +1,7 @@
 mod internal_server_error;
 
 use crate::util;
-pub use internal_server_error::into_internal_server_error_responce;
+pub use internal_server_error::into_internal_server_error_response;
 pub use internal_server_error::InternalServerError;
 pub use internal_server_error::QueryError;
 use serde::Serialize;
