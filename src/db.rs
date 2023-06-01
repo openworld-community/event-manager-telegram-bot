@@ -1,6 +1,6 @@
 use crate::types::{
     Booking, Connection, Event, EventState, EventType, MessageBatch, MessageType, OrderInfo,
-    Participant, Presence, ReservationState, User
+    Participant, Presence, ReservationState, User,
 };
 use crate::util::{self, get_unix_time};
 use fallible_streaming_iterator::FallibleStreamingIterator;
