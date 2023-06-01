@@ -1,4 +1,7 @@
-use crate::types::{Booking, Connection, Event, EventState, EventType, MessageBatch, MessageType, OrderInfo, Participant, Presence, ReservationState, User};
+use crate::types::{
+    Booking, Connection, Event, EventState, EventType, MessageBatch, MessageType,
+    OrderInfo, Participant, Presence, ReservationState, User
+};
 use crate::util::{self, get_unix_time};
 use fallible_streaming_iterator::FallibleStreamingIterator;
 use rusqlite::{params, Result, Row};
@@ -7,8 +10,6 @@ use url::Url;
 
 use crate::format;
 use anyhow::anyhow;
-
-
 
 #[cfg(test)]
 mod tests;
@@ -92,10 +93,7 @@ pub struct GroupMessage {
     pub waiting_list: u64,
 }
 
-pub fn mutate_event(
-    conn: &Connection,
-    e: &Event,
-) -> Result<u64, rusqlite::Error> {
+pub fn mutate_event(conn: &Connection, e: &Event) -> Result<u64, rusqlite::Error> {
     let event_type = e.get_type();
     if event_type == EventType::Announcement {
         if let Err(err) = Url::parse(&e.link) {
@@ -194,10 +192,7 @@ pub fn delete_enqueued_messages(
     Ok(())
 }
 
-pub fn prompt_waiting_list(
-    conn: &Connection,
-    event_id: u64,
-) -> Result<(), rusqlite::Error> {
+pub fn prompt_waiting_list(conn: &Connection, event_id: u64) -> Result<(), rusqlite::Error> {
     if have_vacancies(conn, event_id)? == false {
         debug!("prompt_waiting_list - no tickets, event {}", event_id);
         return Ok(());
@@ -276,10 +271,7 @@ pub fn blacklist_absent_participants(
     Ok(())
 }
 
-pub fn get_ban_reason(
-    conn: &Connection,
-    user_id: u64,
-) -> Result<String, rusqlite::Error> {
+pub fn get_ban_reason(conn: &Connection, user_id: u64) -> Result<String, rusqlite::Error> {
     let mut stmt = conn.prepare("SELECT reason FROM black_list WHERE user = ?1")?;
     let mut rows = stmt.query([user_id])?;
     if let Some(row) = rows.next()? {
@@ -335,10 +327,7 @@ pub fn delete_event(
     Ok(())
 }
 
-pub fn delete_link(
-    conn: &Connection,
-    link: &str,
-) -> Result<(), rusqlite::Error> {
+pub fn delete_link(conn: &Connection, link: &str) -> Result<(), rusqlite::Error> {
     let mut stmt = conn.prepare("select id from events where link = ?1")?;
     let mut rows = stmt.query(params![link])?;
     if let Some(row) = rows.next()? {
@@ -433,11 +422,7 @@ pub fn sign_up(
     )?, false))
 }
 
-pub fn checkout(
-    conn: &Connection,
-    booking: &Booking,
-    order_info: OrderInfo,
-) -> anyhow::Result<()> {
+pub fn checkout(conn: &Connection, booking: &Booking, order_info: OrderInfo) -> anyhow::Result<()> {
     let s = get_event(conn, booking.event_id, booking.user_id)?;
     if s.event.adult_ticket_price * booking.adults + s.event.child_ticket_price * booking.children
         != order_info.amount
@@ -535,11 +520,7 @@ pub fn cancel(
     }
 }
 
-pub fn wontgo(
-    conn: &Connection,
-    event_id: u64,
-    user: u64,
-) -> Result<(), rusqlite::Error> {
+pub fn wontgo(conn: &Connection, event_id: u64, user: u64) -> Result<(), rusqlite::Error> {
     let state_changed = have_vacancies(conn, event_id)? == false;
     conn.execute(
         "DELETE FROM reservations WHERE event=?1 AND user=?2",
@@ -552,10 +533,7 @@ pub fn wontgo(
     }
 }
 
-fn have_vacancies(
-    conn: &Connection,
-    event_id: u64,
-) -> Result<bool, rusqlite::Error> {
+fn have_vacancies(conn: &Connection, event_id: u64) -> Result<bool, rusqlite::Error> {
     let (vacant_adults, vacant_children) = get_vacancies(conn, event_id)?;
     if vacant_adults + vacant_children > 0 {
         Ok(true)
@@ -564,10 +542,7 @@ fn have_vacancies(
     }
 }
 
-fn get_vacancies(
-    conn: &Connection,
-    event_id: u64,
-) -> Result<(u64, u64), rusqlite::Error> {
+fn get_vacancies(conn: &Connection, event_id: u64) -> Result<(u64, u64), rusqlite::Error> {
     let mut vacant_adults: u64 = 0;
     let mut vacant_children: u64 = 0;
     let mut stmt = conn.prepare(
@@ -888,10 +863,7 @@ fn set_current_event(
     Ok(())
 }
 
-pub fn get_current_event(
-    conn: &Connection,
-    user_id: u64,
-) -> Result<u64, rusqlite::Error> {
+pub fn get_current_event(conn: &Connection, user_id: u64) -> Result<u64, rusqlite::Error> {
     let mut stmt = conn.prepare("SELECT event FROM current_events WHERE user=?1")?;
     let mut rows = stmt.query([user_id])?;
     if let Some(row) = rows.next()? {
@@ -1065,11 +1037,7 @@ pub fn create(conn: &Connection) -> Result<(), rusqlite::Error> {
     Ok(())
 }
 
-pub fn save_receipt(
-    conn: &Connection,
-    message_id: u64,
-    user: u64,
-) -> Result<(), rusqlite::Error> {
+pub fn save_receipt(conn: &Connection, message_id: u64, user: u64) -> Result<(), rusqlite::Error> {
     conn.execute(
         "INSERT INTO message_sent (message, user, ts) VALUES (?1, ?2, ?3)",
         params![message_id, user, util::get_unix_time()],
@@ -1124,10 +1092,7 @@ pub fn ban_user(
     Ok(())
 }
 
-pub fn remove_from_black_list(
-    conn: &Connection,
-    user: u64,
-) -> Result<(), rusqlite::Error> {
+pub fn remove_from_black_list(conn: &Connection, user: u64) -> Result<(), rusqlite::Error> {
     conn.execute("DELETE FROM black_list WHERE user=?1", params![user])?;
     Ok(())
 }
@@ -1153,10 +1118,7 @@ pub fn get_black_list(
     Ok(res)
 }
 
-pub fn is_in_black_list(
-    conn: &Connection,
-    user: u64,
-) -> Result<bool, rusqlite::Error> {
+pub fn is_in_black_list(conn: &Connection, user: u64) -> Result<bool, rusqlite::Error> {
     let mut stmt = conn.prepare("SELECT * FROM black_list WHERE user = ?1")?;
     let mut rows = stmt.query([user])?;
     if let Some(_) = rows.next()? {
@@ -1166,18 +1128,12 @@ pub fn is_in_black_list(
     }
 }
 
-pub fn clear_black_list(
-    conn: &Connection,
-    ts: u64,
-) -> Result<(), rusqlite::Error> {
+pub fn clear_black_list(conn: &Connection, ts: u64) -> Result<(), rusqlite::Error> {
     conn.execute("DELETE FROM black_list WHERE ts < ?1", params![ts])?;
     Ok(())
 }
 
-pub fn clear_failed_payments(
-    conn: &Connection,
-    ts: u64,
-) -> Result<(), rusqlite::Error> {
+pub fn clear_failed_payments(conn: &Connection, ts: u64) -> Result<(), rusqlite::Error> {
     conn.execute(
         "DELETE FROM reservations WHERE state = ?1 AND ts < ?2",
         params![ReservationState::PaymentPending as u64, ts],

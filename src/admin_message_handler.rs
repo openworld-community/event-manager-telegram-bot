@@ -8,7 +8,6 @@ use crate::types::{Connection, Context, Event, MessageType, User};
 use anyhow::anyhow;
 use chrono::DateTime;
 
-
 use std::env;
 use teloxide::{
     types::{InlineKeyboardButton, ParseMode},
@@ -267,10 +266,7 @@ pub fn handle_callback(
     }
 }
 
-fn add_event(
-    conn: &Connection,
-    data: &str,
-) -> anyhow::Result<Reply> {
+fn add_event(conn: &Connection, data: &str) -> anyhow::Result<Reply> {
     match serde_json::from_str::<NewEvent>(&data) {
         Ok(v) => {
             match (
@@ -326,11 +322,7 @@ fn add_event(
     }
 }
 
-fn show_black_list(
-    conn: &Connection,
-    config: &Config,
-    offset: u64,
-) -> anyhow::Result<Reply> {
+fn show_black_list(conn: &Connection, config: &Config, offset: u64) -> anyhow::Result<Reply> {
     match db::get_black_list(conn, offset, config.presence_page_size) {
         Ok(participants) => {
             Ok(

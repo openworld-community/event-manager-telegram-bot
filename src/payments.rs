@@ -9,8 +9,6 @@ use crate::db;
 use crate::format;
 use db::EventStats;
 
-
-
 /// Book tickets and wait for payment checkout.
 pub fn pre_checkout(
     conn: &Connection,

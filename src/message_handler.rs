@@ -10,7 +10,6 @@ use crate::db;
 use crate::format;
 use db::EventStats;
 
-
 use serde_compact::compact;
 
 /// User dialog handler.
@@ -776,12 +775,7 @@ fn show_waiting_list(
     }
 }
 
-fn is_too_late_to_cancel(
-    conn: &Connection,
-    event_id: u64,
-    user: &User,
-    ctx: &Context,
-) -> bool {
+fn is_too_late_to_cancel(conn: &Connection, event_id: u64, user: &User, ctx: &Context) -> bool {
     if let Ok(s) = db::get_event(conn, event_id, user.id.0) {
         if s.event.ts - get_unix_time() < ctx.config.too_late_to_cancel_hours * 60 * 60 {
             return true;
