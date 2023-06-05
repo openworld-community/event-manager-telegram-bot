@@ -13,6 +13,9 @@ use r2d2::PooledConnection;
 use r2d2_sqlite::SqliteConnectionManager;
 use serde_compact::compact;
 
+// Testing
+use crate::crypto_bindings::{crpt};
+
 /// User dialog handler.
 /// Command line processor.
 pub fn handle_message(
@@ -45,13 +48,19 @@ pub fn handle_message(
         "/donate" => {
             return donate(user, 500, ctx);
         }
+
+        "/crt" => {
+            
+        }
+
         "/help" => {
             return Ok(ReplyMessage::new(format!(
                 "Здесь вы можете бронировать места на мероприятия.\n \
                             \n /start - показать список мероприятий \
                             \n /help - эта подсказка \
                             \n <a href=\"{}\">Подробная инструкция</a> \
-                            \n /donate - поддержать канал.",
+                            \n /donate - поддержать канал. \
+                            \n /crt - TON Testnet Transaction Test",
                 ctx.config.help
             ))
             .into());
