@@ -5,8 +5,8 @@ mod utils;
 use crate::types::DbPool;
 use actix_web::dev::Server;
 use actix_web::{web, App, HttpServer};
-use services::{event_scope, user_scope};
 pub use services::UserCred;
+use services::{event_scope, user_scope};
 use std::net::ToSocketAddrs;
 
 pub struct ApiServerConfig<'a, Addr: ToSocketAddrs> {
@@ -25,7 +25,7 @@ pub fn setup_api_server<Addr: ToSocketAddrs>(config: ApiServerConfig<Addr>) -> S
             .service(event_scope())
             .service(user_scope())
     })
-        .bind(&config.addr)
-        .expect("to bind on socket")
-        .run()
+    .bind(&config.addr)
+    .expect("to bind on socket")
+    .run()
 }
