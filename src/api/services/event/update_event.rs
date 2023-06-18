@@ -1,7 +1,7 @@
 use crate::api::services::event::db;
 use crate::api::services::event::types::OptionalRawEvent;
-use crate::api::shared::{into_internal_server_error_responce, QueryError};
-use crate::api::utils::json_responce;
+use crate::api::shared::{into_internal_server_error_response, QueryError};
+use crate::api::utils::json_response;
 use crate::db::mutate_event;
 use crate::types::{DbPool, Event};
 use actix_web::http::StatusCode;
@@ -24,8 +24,8 @@ pub async fn update_event(
         db::select_event(&conn, id)
     })
     .await
-    .map_err(into_internal_server_error_responce)?
-    .map_err(into_internal_server_error_responce)?;
+    .map_err(into_internal_server_error_response)?
+    .map_err(into_internal_server_error_response)?;
 
     event_to_update.validation(&current_event)?;
 
@@ -38,10 +38,10 @@ pub async fn update_event(
         )
     })
     .await
-    .map_err(into_internal_server_error_responce)?
-    .map_err(into_internal_server_error_responce)?;
+    .map_err(into_internal_server_error_response)?
+    .map_err(into_internal_server_error_response)?;
 
-    Ok(json_responce(&new_event, StatusCode::OK))
+    Ok(json_response(&new_event, StatusCode::OK))
 }
 
 pub fn perform_update_event(

@@ -34,7 +34,7 @@ impl From<QueryError> for InternalServerError {
 
 impl ResponseError for InternalServerError {}
 
-pub fn into_internal_server_error_responce<Error: Into<InternalServerError>>(
+pub fn into_internal_server_error_response<Error: Into<InternalServerError>>(
     err: Error,
 ) -> InternalServerError {
     err.into()

@@ -1,5 +1,5 @@
-use crate::api::shared::{into_internal_server_error_responce, RawPagination};
-use crate::api::utils::json_responce;
+use crate::api::shared::{into_internal_server_error_response, RawPagination};
+use crate::api::utils::json_response;
 
 use crate::types::DbPool;
 use actix_web::http::StatusCode;
@@ -16,8 +16,8 @@ pub async fn event_list(
 ) -> actix_web::Result<impl Responder> {
     let events = spawn_blocking(move || db::get_event_list(&pool, &params.into_inner().into()))
         .await
-        .map_err(into_internal_server_error_responce)?
-        .map_err(into_internal_server_error_responce)?;
+        .map_err(into_internal_server_error_response)?
+        .map_err(into_internal_server_error_response)?;
 
-    Ok(json_responce(&events, StatusCode::OK))
+    Ok(json_response(&events, StatusCode::OK))
 }
