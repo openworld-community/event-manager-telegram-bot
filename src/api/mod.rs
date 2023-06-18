@@ -1,14 +1,14 @@
+mod middlewares;
 mod services;
 mod shared;
 mod utils;
-mod middlewares;
 
 use crate::api::services::event::event_scope;
 use crate::types::DbPool;
 use actix_web::dev::Server;
 use actix_web::{web, App, HttpServer};
-use std::net::ToSocketAddrs;
 use middlewares::cors_middleware;
+use std::net::ToSocketAddrs;
 
 pub fn setup_api_server<Addr: ToSocketAddrs>(addr: &Addr, con_pool: &DbPool) -> Server {
     let pool = con_pool.clone();
