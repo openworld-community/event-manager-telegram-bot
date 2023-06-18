@@ -1,4 +1,4 @@
-#[derive(Serialize, Deserialize, Debug, Copy, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct UserCred {
     pub user_name: String,
     pub password: String,

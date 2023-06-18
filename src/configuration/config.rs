@@ -1,7 +1,10 @@
 use crate::api::UserCred;
 use crate::configuration::raw_config::RawConfiguration;
+use jwt_simple::algorithms::HS512Key;
 use std::collections::HashSet;
 use std::net::SocketAddr;
+
+pub type JwtKeyAlgorithm = HS512Key;
 
 pub struct Config {
     pub telegram_bot_token: String,
@@ -24,6 +27,7 @@ pub struct Config {
     pub mailing_hours_to: u64,
     pub api_socket_address: SocketAddr,
     pub admin_cred: UserCred,
+    pub jwt_key: JwtKeyAlgorithm,
 }
 
 impl From<RawConfiguration> for Config {
@@ -53,6 +57,7 @@ impl From<RawConfiguration> for Config {
                 user_name: value.admin_username,
                 password: value.admin_password,
             },
+            jwt_key: HS512Key::generate(),
         }
     }
 }
