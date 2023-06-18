@@ -34,7 +34,7 @@ mod reply;
 mod types;
 mod util;
 
-use crate::api::setup_api_server;
+use crate::api::{setup_api_server, ApiServerConfig};
 
 use crate::reply::*;
 use crate::types::MessageType;
@@ -57,7 +57,11 @@ async fn main() {
         db::create(&conn).expect("Failed to create db.");
     }
 
-    tokio::spawn(setup_api_server(&config.api_socket_address, &pool));
+    tokio::spawn(setup_api_server(ApiServerConfig {
+        addr: &config.api_socket_address,
+        con_poll: &pool,
+        admin_cred: &config.admin_cred,
+    }));
 
     let bot = Bot::new(&config.telegram_bot_token).auto_send();
 
