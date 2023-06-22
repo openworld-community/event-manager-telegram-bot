@@ -7,12 +7,16 @@ use crate::api::middlewares::auth_middleware;
 use crate::configuration::config::JwtKeyAlgorithm;
 use crate::format::header;
 use crate::types::DbPool;
+
 use actix_web::dev::{Server, Service};
 use actix_web::http::header;
 use actix_web::{web, App, HttpResponse, HttpServer};
-pub use services::UserCred;
+
 use services::{event_scope, user_scope};
+use middlewares::cors_middleware;
 use std::net::ToSocketAddrs;
+
+pub use services::UserCred;
 
 #[derive(Clone)]
 pub struct AppConfigData {
@@ -34,6 +38,8 @@ pub fn setup_api_server<Addr: ToSocketAddrs>(
             .app_data(web::Data::new(pool.clone()))
             .service(event_scope().wrap(auth))
             .service(user_scope())
+            .wrap(cors_middleware())
+            .service(event_scope())
     })
     .bind(addr)
     .expect("to bind on socket")
