@@ -3,3 +3,6 @@
 
 - src: andrewrothstein.docker-compose
   version: "v1.4.15"
+
+- src: nginxinc.nginx
+  version: "2.12"

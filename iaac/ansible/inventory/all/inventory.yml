@@ -1,6 +1,8 @@
 all:
   children:
-    docker_compose:
+    docker_compose_latest:
       hosts:
-        instance_peredelano_emb:
-          ansible_host: "{{ target_host }}"
+        eventmanagerbot.peredelano.io:
+    docker_compose_prerelease:
+      hosts:
+        eventmanagerbot.test.peredelano.io:

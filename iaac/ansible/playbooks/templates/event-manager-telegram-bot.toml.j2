@@ -36,3 +36,7 @@ cleanup_old_events = {{ cleanup_old_events | default('true') }}
 
 # don't send messages outside these hours
 mailing_hours = "{{ mailing_hours | default('08:00 +02:00..21:00 +02:00') }}"
+
+# api config
+listen_address = "{{ api_listen_address | default('0.0.0.0') }}"
+listen_port = "{{ api_listen_port | default('3000') }}"
