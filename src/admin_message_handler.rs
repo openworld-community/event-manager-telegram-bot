@@ -4,11 +4,10 @@ use crate::format;
 use crate::message_handler;
 use crate::message_handler::CallbackQuery;
 use crate::reply::*;
-use crate::types::{Context, Event, MessageType, User};
+use crate::types::{Connection, Context, Event, MessageType, User};
 use anyhow::anyhow;
 use chrono::DateTime;
-use r2d2::PooledConnection;
-use r2d2_sqlite::SqliteConnectionManager;
+
 use std::env;
 use teloxide::{
     types::{InlineKeyboardButton, ParseMode},
@@ -33,7 +32,7 @@ struct NewEvent {
 
 /// Command line processor.
 pub fn handle_message(
-    conn: &PooledConnection<SqliteConnectionManager>,
+    conn: &Connection,
     user: &User,
     data: &str,
     ctx: &Context,
@@ -218,7 +217,7 @@ pub fn handle_message(
 
 /// Callback query processor.
 pub fn handle_callback(
-    conn: &PooledConnection<SqliteConnectionManager>,
+    conn: &Connection,
     user: &User,
     data: &str,
     ctx: &Context,
@@ -267,10 +266,7 @@ pub fn handle_callback(
     }
 }
 
-fn add_event(
-    conn: &PooledConnection<SqliteConnectionManager>,
-    data: &str,
-) -> anyhow::Result<Reply> {
+fn add_event(conn: &Connection, data: &str) -> anyhow::Result<Reply> {
     match serde_json::from_str::<NewEvent>(&data) {
         Ok(v) => {
             match (
@@ -300,7 +296,7 @@ fn add_event(
                     {
                         return Err(anyhow!("Wrong event format"));
                     }
-                    match crate::db::add_event(conn, event) {
+                    match crate::db::mutate_event(conn, &event) {
                         Ok(id) => {
                             return Ok(ReplyMessage::new(if id > 0 {
                                 let bot_name = env::var("BOT_NAME").unwrap();
@@ -326,11 +322,7 @@ fn add_event(
     }
 }
 
-fn show_black_list(
-    conn: &PooledConnection<SqliteConnectionManager>,
-    config: &Config,
-    offset: u64,
-) -> anyhow::Result<Reply> {
+fn show_black_list(conn: &Connection, config: &Config, offset: u64) -> anyhow::Result<Reply> {
     match db::get_black_list(conn, offset, config.presence_page_size) {
         Ok(participants) => {
             Ok(

@@ -3,25 +3,28 @@ extern crate serde;
 #[macro_use]
 extern crate num_derive;
 extern crate num;
+
 use std::env;
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::sync::Mutex;
+
 #[macro_use]
 extern crate log;
 extern crate r2d2;
 extern crate r2d2_sqlite;
 extern crate rusqlite;
+
 use teloxide::{
     prelude::*,
     types::{
         InlineKeyboardButton, InlineKeyboardMarkup, LabeledPrice, MessageKind,
-        MessageSuccessfulPayment, ParseMode, PreCheckoutQuery, Update, UserId,
+        MessageSuccessfulPayment, ParseMode, PreCheckoutQuery, UserId,
     },
     RequestError,
 };
 
 mod admin_message_handler;
+mod api;
 mod configuration;
 mod db;
 mod format;
@@ -31,10 +34,14 @@ mod reply;
 mod types;
 mod util;
 
-use crate::configuration::get_config;
+use crate::api::setup_api_server;
+
 use crate::reply::*;
 use crate::types::MessageType;
 use r2d2_sqlite::SqliteConnectionManager;
+use tokio::sync::Mutex;
+
+use crate::configuration::get_config;
 use types::Context;
 use util::get_unix_time;
 
@@ -49,6 +56,8 @@ async fn main() {
     if let Ok(conn) = pool.get() {
         db::create(&conn).expect("Failed to create db.");
     }
+
+    tokio::spawn(setup_api_server(&config.api_socket_address, &pool));
 
     let bot = Bot::new(&config.telegram_bot_token).auto_send();
 
