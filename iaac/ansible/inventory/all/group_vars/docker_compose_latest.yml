@@ -1,3 +1,22 @@
 ---
 api_listen_docker_port: 3000
 api_listen_docker_address: 127.0.0.1
+event_manager_bot_configuration:
+  telegram_bot_token: "{{ TELEGRAM_BOT_TOKEN }}"
+  telegram_admin_ids_list: "{{ PAYMENT_PROVIDER_TOKEN }}"
+  payment_provider_token: "{{ payment_provider_token }}"
+  admin_ids: "{{ telegram_admin_ids_list }}"
+  public_lists: 'false'
+  automatic_blacklisting: 'false'
+  drop_events_after_hours: 48
+  delete_from_black_list_after_days: 30
+  too_late_to_cancel_hours: 1
+  event_list_page_size: 20
+  event_page_size: 40
+  presence_page_size: 40
+  cancel_future_reservations_on_ban: 'false'
+  limit_bulk_notifications_per_second: 20
+  cleanup_old_events: 'true'
+  mailing_hours: '08:00 +02:00..21:00 +02:00'
+  listen_address: "0.0.0.0"
+  listen_port: 3000

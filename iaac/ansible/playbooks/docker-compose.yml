@@ -3,10 +3,18 @@
   gather_facts: yes
   become: true
   tasks:
-    - name: Generate config file for current version
-      template:
-        src: event-manager-telegram-bot.toml.j2
+    - name: Copy config file for current version
+      copy:
+        src: cfg/event-manager-telegram-bot.toml
         dest: "/usr/local/etc/event-manager-telegram-bot.{{ docker_image_version }}.toml"
+
+    - name: Inline config file for current version
+      lineinfile:
+        path: "/usr/local/etc/event-manager-telegram-bot.{{ docker_image_version }}.toml"
+        regexp: "{{ item.key }} = .*"
+        line: "{{ item.key }} = {{ item.value }}"
+        state: present
+      with_dict: "{{ event_manager_bot_configuration }}"
 
     - name: Create dir
       file:
