@@ -89,6 +89,6 @@ jobs:
           TELEGRAM_BOT_TOKEN=\"${{ secrets.TELEGRAM_BOT_TOKEN }}\" \
           PAYMENT_PROVIDER_TOKEN=\"${{ secrets.PAYMENT_PROVIDER_TOKEN }}\"
           telegram_admin_ids_list=\"${{ vars.TELEGRAM_ADMIN_IDS_LIST }}\"
-          env = \"${{ fromJSON('["main", "prerelease"]')[steps.last_release.outputs.prerelease] }}\"
+          env = \"${{ vars.ENV_NAME }}\"
           github_repository=\"${{ github.repository }}\"
           github_actor=\"${{ github.actor }}\""
