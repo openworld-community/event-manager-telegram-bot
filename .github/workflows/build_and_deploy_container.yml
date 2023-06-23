@@ -18,7 +18,7 @@ env:
 
 jobs:
   build-and-deploy-container:
-    environment: ${{ fromJSON('["main", "prerelease"]')[steps.last_release.outputs.prerelease] }}
+    environment: ${{ fromJSON('["main", "prerelease"]')[github.event.release.prerelease] }}
     runs-on: ubuntu-20.04
     permissions: write-all
 
