@@ -2,7 +2,7 @@ all:
   children:
     main:
       hosts:
-        eventmanagerbot.prod.peredelano.io:
+        prod.eventmanagerbot.peredelano.io:
     prerelease:
       hosts:
-        eventmanagerbot.test.peredelano.io:
+        test.eventmanagerbot.peredelano.io:
