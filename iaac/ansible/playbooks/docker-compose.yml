@@ -1,5 +1,4 @@
----
-- hosts: "{{ env }}"
+- hosts: '{{ env }}'
   gather_facts: yes
   become: true
   tasks:
