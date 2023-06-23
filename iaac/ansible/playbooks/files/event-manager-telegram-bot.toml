@@ -1,0 +1,42 @@
+telegram_bot_token = ""
+payment_provider_token = ""
+
+support = ""
+help = ""
+# telegram ids, comma separated
+admin_ids = ""
+
+# show participant lists to all participants
+public_lists = false
+
+# add users to black list when verifying presence
+automatic_blacklisting = true
+
+# hours to keep old events before removing
+drop_events_after_hours = 48
+
+# days to keep users in the black list
+delete_from_black_list_after_days = 30
+
+# how many hours before event
+too_late_to_cancel_hours = 1
+
+# pagination
+event_list_page_size = 20
+event_page_size = 40
+presence_page_size = 40
+
+# cancel all user reservations when banned
+cancel_future_reservations_on_ban = false
+
+# when sending bulk notifications to multiple users
+limit_bulk_notifications_per_second = 20
+
+cleanup_old_events = true
+
+# don't send messages outside these hours
+mailing_hours = "08:00 +02:00..21:00 +02:00"
+
+# api config
+listen_address = "0.0.0.0"
+listen_port = 3000
