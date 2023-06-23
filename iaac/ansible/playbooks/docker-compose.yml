@@ -4,7 +4,7 @@
   tasks:
     - name: Copy config file for current version
       copy:
-        src: cfg/event-manager-telegram-bot.toml
+        src: ../../../../cfg/event-manager-telegram-bot.toml
         dest: "/usr/local/etc/event-manager-telegram-bot.{{ docker_image_version }}.toml"
 
     - name: Inline config file for current version
