@@ -1,8 +1,8 @@
 all:
   children:
-    docker_compose_latest:
+    main:
       hosts:
-        eventmanagerbot.peredelano.io:
-    docker_compose_prerelease:
+        eventmanagerbot.prod.peredelano.io:
+    prerelease:
       hosts:
         eventmanagerbot.test.peredelano.io:

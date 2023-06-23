@@ -1,5 +1,5 @@
 ---
-- hosts: "docker_compose_{{ docker_image_version }}"
+- hosts: "{{ env }}"
   gather_facts: yes
   become: true
   tasks:
