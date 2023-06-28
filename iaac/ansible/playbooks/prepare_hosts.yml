@@ -1,4 +1,4 @@
-- hosts: '{{ env }}'
+- hosts: app
   gather_facts: yes
   become: true
   roles:

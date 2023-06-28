@@ -81,14 +81,13 @@ jobs:
           eval "$(ssh-agent -s)"
           echo -n ${{ secrets.DEPLOY_SSH_KEY }} | base64 -d | ssh-add -
           ansible-playbook --user ${{ secrets.DEPLOY_SSH_USER }} -i iaac/ansible/inventory \
+          --limit ${{ github.event.release.prerelease && 'prerelease' || 'main' }} \
           iaac/ansible/playbooks/docker-compose.yml --extra-vars "\
-          target_host=\"${{ secrets.DOCKER_HOST_ADDRESS }}\" \
           ansible_sudo_pass=\"${{ secrets.DEPLOY_USER_PASSWORD }}\" \
           docker_compose_install_fq_link=\"/usr/bin/docker-compose\" \
           docker_image_version=\"${{ github.event.release.prerelease && 'prerelease' || 'latest' }}\" \
           TELEGRAM_BOT_TOKEN=\"${{ secrets.TELEGRAM_BOT_TOKEN }}\" \
           PAYMENT_PROVIDER_TOKEN=\"${{ secrets.PAYMENT_PROVIDER_TOKEN }}\"
           telegram_admin_ids_list=\"${{ vars.TELEGRAM_ADMIN_IDS_LIST }}\"
-          env=\"${{ vars.ENV_NAME }}\"
           github_repository=\"${{ github.repository }}\"
           github_actor=\"${{ github.actor }}\""
