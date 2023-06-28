@@ -5,13 +5,13 @@ on:
     types:
       - released
       - prereleased
-  push:
-    branches:
-      - prerelease
-      - main
-    paths:
-      - iaac/**
-      - workflows/build_and_deploy_container.yml
+#  push:
+#    branches:
+#      - prerelease
+#      - main
+#    paths:
+#      - iaac/**
+#      - workflows/build_and_deploy_container.yml
 
 env:
   REGISTRY: ghcr.io

@@ -40,6 +40,10 @@
         owner: docker
         group: docker
 
+    - name: Debug
+      debug:
+        msg: "{{ api_listen_docker_port }}"
+
     - name: Generate docker-compose file for current version
       template:
         src: docker-compose.yml.j2
