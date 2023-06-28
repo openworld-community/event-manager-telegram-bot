@@ -12,7 +12,6 @@ on:
     paths:
       - iaac/**
       - workflows/build_and_deploy_container.yml
-  workflow_dispatch:
 
 env:
   REGISTRY: ghcr.io
