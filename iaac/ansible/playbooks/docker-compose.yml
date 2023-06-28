@@ -15,8 +15,7 @@
         state: present
       with_dict:
         telegram_bot_token: "{{ TELEGRAM_BOT_TOKEN }}"
-        telegram_admin_ids_list: "{{ PAYMENT_PROVIDER_TOKEN }}"
-        payment_provider_token: "{{ payment_provider_token }}"
+        payment_provider_token: "{{ PAYMENT_PROVIDER_TOKEN }}"
         admin_ids: "{{ telegram_admin_ids_list }}"
         public_lists: "{{ emb_public_lists_enabled | default('false') }}"
         automatic_blacklisting: "{{ emb_automatic_blacklisting_enabled |default('false') }}"
