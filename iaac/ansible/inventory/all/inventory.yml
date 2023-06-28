@@ -1,8 +1,10 @@
 all:
   children:
-    main:
-      hosts:
-        prod.eventmanagerbot.peredelano.io:
-    prerelease:
-      hosts:
-        test.eventmanagerbot.peredelano.io:
+    app:
+      children:
+        main:
+          hosts:
+            prod.eventmanagerbot.peredelano.io:
+        prerelease:
+          hosts:
+            test.eventmanagerbot.peredelano.io:
