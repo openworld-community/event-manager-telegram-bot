@@ -4,7 +4,7 @@ services:
     container_name: event-manager-telegram-{{ docker_image_version }}
     command: "event-manager-telegram-bot -c /usr/local/etc/event-manager-telegram-bot.{{ docker_image_version }}.toml"
     ports:
-    - "{{ api_listen_docker_address | default('0.0.0.0') }}:{{ api_listen_docker_port }}:{{ api_listen_port }}"
+    - "{{ api_listen_docker_address | default('0.0.0.0') }}:{{ api_listen_docker_port }}:{{ api_listen_port | default(3000) }}"
     volumes:
     - /usr/local/etc/event-manager-telegram-bot.{{ docker_image_version }}.toml:/usr/local/etc/event-manager-telegram-bot.{{ docker_image_version }}.toml
     - /opt/{{ docker_image_version }}/data/:/data/
