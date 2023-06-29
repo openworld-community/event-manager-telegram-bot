@@ -16,7 +16,7 @@
       with_dict:
         telegram_bot_token: "{{ TELEGRAM_BOT_TOKEN }}"
         payment_provider_token: "{{ PAYMENT_PROVIDER_TOKEN }}"
-        admin_ids: "{{ telegram_admin_ids_list }}"
+        admin_ids: """{{ telegram_admin_ids_list }}"""
         public_lists: "{{ emb_public_lists_enabled | default('false') }}"
         automatic_blacklisting: "{{ emb_automatic_blacklisting_enabled |default('false') }}"
         drop_events_after_hours: "{{ emb_drop_events_after_hours |default(48) }}"
@@ -28,9 +28,9 @@
         cancel_future_reservations_on_ban: "{{ emb_cancel_future_reservations_on_ban_enabled |default('false') }}"
         limit_bulk_notifications_per_second: "{{ emb_limit_bulk_notifications_per_second |default(20) }}"
         cleanup_old_events: "{{ emb_cleanup_old_events_enabled |default('true') }}"
-        mailing_hours: "{{ emb_mailing_hours | default('08:00 +02:00..21:00 +02:00') }}"
-        listen_address: "{{ emb_api_listen_address | default('0.0.0.0') }}"
-        listen_port: "{{ emb_api_listen_port| default(3000) }}"
+        mailing_hours: """{{ emb_mailing_hours | default('08:00 +02:00..21:00 +02:00') }}"""
+        listen_address: """{{ emb_api_listen_address | default('0.0.0.0') }}"""
+        listen_port: """{{ emb_api_listen_port| default(3000) }}"""
 
     - name: Create dir
       file:
