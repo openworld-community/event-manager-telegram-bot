@@ -35,3 +35,10 @@
         remove_orphans: yes
         files:
           - "docker-compose.{{ docker_image_version }}.yml"
+
+    - name: Wait for docker-compose to start
+      wait_for:
+          host: 127.0.0.1
+          port: "{{ api_listen_docker_port }}"
+          delay: 5
+          timeout: 60
