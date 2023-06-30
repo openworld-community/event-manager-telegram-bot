@@ -7,7 +7,7 @@ help = "{{ emb_help | default('') }}"
 admin_ids = "{{ telegram_admin_ids_list }}"
 
 # show participant lists to all participants
-public_lists = "{{ emb_public_lists | default('false') }}"
+public_lists = {{ emb_public_lists | default('false') }}
 
 # add users to black list when verifying presence
 automatic_blacklisting = {{ emb_automatic_blacklisting | default('false') }}
@@ -39,4 +39,4 @@ mailing_hours = "{{ emb_mailing_hours | default('08:00 +02:00..21:00 +02:00') }}
 
 # api config
 listen_address = "{{ emb_listen_address | default('0.0.0.0') }}"
-listen_port = "{{ emb_listen_port | default(3000) }}"
+listen_port = {{ emb_listen_port | default(3000) }}
