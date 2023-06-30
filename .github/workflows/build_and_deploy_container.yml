@@ -82,7 +82,7 @@ jobs:
 
       - name: Debug
         run: |
-          echo "id: ${{ github.environment }}"
+          echo "environment name: ${{ github.environment }}"
 
       - name: Run docker-compose with current docker image on target instance
         run: |
