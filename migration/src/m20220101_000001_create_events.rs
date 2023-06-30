@@ -9,26 +9,26 @@ impl MigrationTrait for Migration {
         manager
             .create_table(
                 Table::create()
-                    .table(Events::Table)
+                    .table(Event::Table)
                     .col(
-                        ColumnDef::new(Events::Id)
+                        ColumnDef::new(Event::Id)
                             .integer()
                             .not_null()
                             .auto_increment()
                             .primary_key(),
                     )
-                    .col(ColumnDef::new(Events::Name).string().not_null())
-                    .col(ColumnDef::new(Events::Link).string().not_null())
-                    .col(ColumnDef::new(Events::MaxAdults).integer().not_null())
-                    .col(ColumnDef::new(Events::MaxChildren).integer().not_null())
-                    .col(ColumnDef::new(Events::MaxAdultsPerReservation).integer().not_null())
-                    .col(ColumnDef::new(Events::MaxChildrenPerReservation).integer().not_null())
-                    .col(ColumnDef::new(Events::Ts).integer().not_null())
-                    .col(ColumnDef::new(Events::Remind).integer().not_null())
-                    .col(ColumnDef::new(Events::State).integer().not_null())
-                    .col(ColumnDef::new(Events::AdultTicketPrice).integer().not_null().default(0))
-                    .col(ColumnDef::new(Events::ChildTicketPrice).integer().not_null().default(0))
-                    .col(ColumnDef::new(Events::Currency).string().not_null())
+                    .col(ColumnDef::new(Event::Name).string().not_null())
+                    .col(ColumnDef::new(Event::Link).string().not_null())
+                    .col(ColumnDef::new(Event::MaxAdults).integer().not_null())
+                    .col(ColumnDef::new(Event::MaxChildren).integer().not_null())
+                    .col(ColumnDef::new(Event::MaxAdultsPerReservation).integer().not_null())
+                    .col(ColumnDef::new(Event::MaxChildrenPerReservation).integer().not_null())
+                    .col(ColumnDef::new(Event::Ts).timestamp().not_null())
+                    .col(ColumnDef::new(Event::Remind).integer().not_null())
+                    .col(ColumnDef::new(Event::State).integer().not_null())
+                    .col(ColumnDef::new(Event::AdultTicketPrice).integer().not_null().default(0))
+                    .col(ColumnDef::new(Event::ChildTicketPrice).integer().not_null().default(0))
+                    .col(ColumnDef::new(Event::Currency).string().not_null().default("EUR"))
                     .to_owned(),
             )
             .await
@@ -36,14 +36,14 @@ impl MigrationTrait for Migration {
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         manager
-            .drop_table(Table::drop().table(Events::Table).to_owned())
+            .drop_table(Table::drop().table(Event::Table).to_owned())
             .await
     }
 }
 
 /// Learn more at https://docs.rs/sea-query#iden
 #[derive(Iden)]
-enum Events {
+pub enum Event {
     Table,
     Id,
     Name,
