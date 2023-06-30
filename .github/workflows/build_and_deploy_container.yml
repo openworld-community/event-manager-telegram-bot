@@ -22,7 +22,10 @@ env:
 
 jobs:
   build-and-deploy-container:
-    environment: ${{ github.event.release.prerelease && 'prerelease' || !github.event.release.prerelease && github.event.release.id > 0 && 'main' || github.event_name == 'push' && github.ref == 'refs/heads/prerelease' && 'prerelease' || github.event_name == 'push' && github.ref == 'refs/heads/main' && 'main' }}
+    environment: ${{ github.event.release.prerelease && 'prerelease' || \
+      !github.event.release.prerelease && github.event.release.id > 0 && 'main' || \
+      github.event_name == 'push' && github.ref == 'refs/heads/prerelease' && 'prerelease' || \
+      github.event_name == 'push' && github.ref == 'refs/heads/main' && 'main' }}
     runs-on: ubuntu-20.04
     permissions: write-all
 
@@ -40,6 +43,8 @@ jobs:
         with:
           myToken: ${{ github.token }}
           view_top: 1
+          prerelease: ${{ github.environment == 'prerelease' || 'false' }}
+        if: github.event_name == 'push'
 
       - name: "Print result"
         run: |
@@ -49,6 +54,7 @@ jobs:
           echo "created_at: ${{ steps.last_release.outputs.created_atd }}"
           echo "draft: ${{ steps.last_release.outputs.draft }}"
           echo "prerelease: ${{ steps.last_release.outputs.prerelease }}"
+        if: github.event_name == 'push'
 
       - name: Log in to the Container registry
         uses: docker/login-action@65b78e6e13532edd9afa3aa52ac7964289d1a9c1
@@ -63,9 +69,9 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=raw,value=${{ steps.last_release.outputs.tag_name }}
-            type=raw,value=latest,enable=${{ steps.last_release.outputs.prerelease == 'false' }}
-            type=raw,value=prerelease,enable=${{ steps.last_release.outputs.prerelease }}
+            type=raw,value=${{ steps.last_release.outputs.tag_name || github.event.release.tag_name }}
+            type=raw,value=latest,enable=${{ steps.last_release.outputs.prerelease == 'false' || github.event.release.prerelease == 'false' }}
+            type=raw,value=prerelease,enable=${{ steps.last_release.outputs.prerelease || github.event.release.prerelease }}
 
       - name: Build and push Docker image
         uses: docker/build-push-action@f2a1d5e99d037542a71f64918e516c093c6f3fc4
@@ -76,11 +82,11 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             "REPOSITORY_ADDRESS=${{ github.server_url }}/${{ github.repository }}"
-            "RELEASE_VERSION=${{ steps.last_release.outputs.tag_name }}"
+            "RELEASE_VERSION=${{ steps.last_release.outputs.tag_name || github.event.release.tag_name }}"
 
       - name: Debug
         run: |
-          echo "environment name: ${{ github.environment }}"
+          echo "environment name: ${{ vars.env_name }}"
 
       - name: Run docker-compose with current docker image on target instance
         run: |
@@ -88,11 +94,11 @@ jobs:
           eval "$(ssh-agent -s)"
           echo -n ${{ secrets.DEPLOY_SSH_KEY }} | base64 -d | ssh-add -
           ansible-playbook --user ${{ secrets.DEPLOY_SSH_USER }} -i iaac/ansible/inventory \
-          --limit ${{ steps.last_release.outputs.prerelease && 'prerelease' || 'latest' }} \
+          --limit ${{ vars.env_name }} \
           iaac/ansible/playbooks/docker-compose.yml --extra-vars "\
           ansible_sudo_pass=\"${{ secrets.DEPLOY_USER_PASSWORD }}\" \
           docker_compose_install_fq_link=\"/usr/bin/docker-compose\" \
-          docker_image_version=\"${{ steps.last_release.outputs.prerelease && 'prerelease' || 'latest' }}\" \
+          docker_image_version=\"${{ ( steps.last_release.outputs.prerelease || github.event.release.prerelease ) && 'prerelease' || 'latest' }}\" \
           TELEGRAM_BOT_TOKEN=\"${{ secrets.TELEGRAM_BOT_TOKEN }}\" \
           PAYMENT_PROVIDER_TOKEN=\"${{ secrets.PAYMENT_PROVIDER_TOKEN }}\"
           telegram_admin_ids_list=\"${{ vars.TELEGRAM_ADMIN_IDS_LIST }}\"
