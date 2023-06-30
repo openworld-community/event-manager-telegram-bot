@@ -11,7 +11,7 @@ on:
       - main
     paths:
       - iaac/**
-      - workflows/build_and_deploy_container.yml
+      - .github/workflows/build_and_deploy_container.yml
       - '!src/**'
       - '!Cargo.yml'
       - '!.github/workflows/rust_create_release.yml'
