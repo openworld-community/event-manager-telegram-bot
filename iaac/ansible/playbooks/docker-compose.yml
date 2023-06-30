@@ -29,7 +29,7 @@
         limit_bulk_notifications_per_second: "{{ emb_limit_bulk_notifications_per_second |default(20) }}"
         cleanup_old_events: "{{ emb_cleanup_old_events_enabled |default('true') }}"
         mailing_hours: "{{ emb_mailing_hours | default('\"08:00 +02:00..21:00 +02:00\"') }}"
-        listen_address: "{{ emb_api_listen_address | default('\"0.0.0.0\"') }}"
+        listen_address: "{{ emb_api_listen_address | default('0.0.0.0') }}"
         listen_port: "{{ emb_api_listen_port| default(3000) }}"
 
     - name: Create dir
