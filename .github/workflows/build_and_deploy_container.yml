@@ -22,7 +22,7 @@ env:
 
 jobs:
   build-and-deploy-container:
-    environment: ${{ github.event.release.prerelease && 'prerelease' || !github.event.release.prerelease && 'main' || github.event_name == 'push' && github.ref == 'refs/heads/prerelease' && 'prerelease' || github.event_name == 'push' && github.ref == 'refs/heads/main' && 'main' }}
+    environment: ${{ github.event.release.prerelease && 'prerelease' || !github.event.release.prerelease && github.event.release.id > 0 && 'main' || github.event_name == 'push' && github.ref == 'refs/heads/prerelease' && 'prerelease' || github.event_name == 'push' && github.ref == 'refs/heads/main' && 'main' }}
     runs-on: ubuntu-20.04
     permissions: write-all
 
