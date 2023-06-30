@@ -3,34 +3,11 @@
   become: true
   tasks:
     - name: Copy config file for current version
-      copy:
-        src: event-manager-telegram-bot.toml
+      template:
+        src: event-manager-telegram-bot.toml.j2
         dest: "/usr/local/etc/event-manager-telegram-bot.{{ docker_image_version }}.toml"
-
-    - name: Inline config file for current version
-      lineinfile:
-        path: "/usr/local/etc/event-manager-telegram-bot.{{ docker_image_version }}.toml"
-        regexp: "{{ item.key }} = .*"
-        line: "{{ item.key }} = {{ item.value }}"
-        state: present
-      with_dict:
-        telegram_bot_token: "{{ TELEGRAM_BOT_TOKEN }}"
-        payment_provider_token: "{{ PAYMENT_PROVIDER_TOKEN }}"
-        admin_ids: "{{ telegram_admin_ids_list }}"
-        public_lists: "{{ emb_public_lists_enabled | default('false') }}"
-        automatic_blacklisting: "{{ emb_automatic_blacklisting_enabled |default('false') }}"
-        drop_events_after_hours: "{{ emb_drop_events_after_hours |default(48) }}"
-        delete_from_black_list_after_days: "{{ emb_delete_from_black_list_after_days |default(30) }}"
-        too_late_to_cancel_hours: "{{ emb_too_late_to_cancel_hours |default(1) }}"
-        event_list_page_size: "{{ emb_event_list_page_size |default(20) }}"
-        event_page_size: "{{ emb_event_page_size |default(40) }}"
-        presence_page_size: "{{ emb_presence_page_size |default(40) }}"
-        cancel_future_reservations_on_ban: "{{ emb_cancel_future_reservations_on_ban_enabled |default('false') }}"
-        limit_bulk_notifications_per_second: "{{ emb_limit_bulk_notifications_per_second |default(20) }}"
-        cleanup_old_events: "{{ emb_cleanup_old_events_enabled |default('true') }}"
-        mailing_hours: "{{ emb_mailing_hours | default('\"08:00 +02:00..21:00 +02:00\"') }}"
-        listen_address: "{{ emb_api_listen_address | default('0.0.0.0') }}"
-        listen_port: "{{ emb_api_listen_port| default(3000) }}"
+        owner: docker
+        group: docker
 
     - name: Create dir
       file:
