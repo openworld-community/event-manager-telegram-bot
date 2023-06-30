@@ -22,7 +22,9 @@ env:
 
 jobs:
   build-and-deploy-container:
-    environment: ${{ ( github.event.release.prerelease && 'prerelease' || !github.event.release.prerelease && 'main' ) || ( github.event_name == 'push' && github.ref == 'refs/heads/prerelease' && 'prerelease' || github.ref == 'refs/heads/main' && 'main' ) }}
+    environment: ${{ ( github.event.release.prerelease && 'prerelease' || !github.event.release.prerelease && 'main' ) || \
+      ( github.event_name == 'push' && github.ref == 'refs/heads/prerelease' && 'prerelease' || \
+        github.event_name == 'push' && github.ref == 'refs/heads/main' && 'main' ) }}
     runs-on: ubuntu-20.04
     permissions: write-all
 
@@ -77,6 +79,10 @@ jobs:
           build-args: |
             "REPOSITORY_ADDRESS=${{ github.server_url }}/${{ github.repository }}"
             "RELEASE_VERSION=${{ steps.last_release.outputs.tag_name }}"
+
+      - name: Debug
+        run: |
+          echo "id: ${{ github.environment }}"
 
       - name: Run docker-compose with current docker image on target instance
         run: |
