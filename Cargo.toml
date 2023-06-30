@@ -33,3 +33,7 @@ validator = { version = "0.16.0", features = ["derive"] }
 thiserror = "1.0.40"
 regex = "1.8.3"
 actix-cors = "0.6.4"
+sea-orm = { version = "^0", features = [ "sqlx-postgres", "runtime-tokio-rustls", "macros", "with-chrono", "with-json", "with-uuid" ] }
+
+[workspace]
+members = [".", "migration"]
