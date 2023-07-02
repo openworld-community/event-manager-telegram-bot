@@ -6,6 +6,7 @@ mod m20230702_083517_attachments;
 mod m20230702_090131_black_list;
 mod m20230702_091206_presence;
 mod m20230702_092352_group_leaders;
+mod m20230702_094319_messages;
 
 pub struct Migrator;
 
@@ -19,6 +20,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20230702_090131_black_list::Migration),
             Box::new(m20230702_091206_presence::Migration),
             Box::new(m20230702_092352_group_leaders::Migration),
+            Box::new(m20230702_094319_messages::Migration),
         ]
     }
 }
