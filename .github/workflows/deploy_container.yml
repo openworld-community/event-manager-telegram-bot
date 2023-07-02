@@ -1,4 +1,4 @@
-name: Build-and-deploy-container
+name: Deploy-container
 
 on:
   registry_package:
