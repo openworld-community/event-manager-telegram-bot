@@ -58,7 +58,7 @@ jobs:
           iaac/ansible/playbooks/docker-compose.yml --extra-vars "\
           ansible_sudo_pass=\"${{ secrets.DEPLOY_USER_PASSWORD }}\" \
           docker_compose_install_fq_link=\"/usr/bin/docker-compose\" \
-          docker_image_version=\"${{ ( steps.last_release.outputs.prerelease && 'prerelease' || 'latest' }}\" \
+          docker_image_version=\"${{ steps.last_release.outputs.prerelease && 'prerelease' || 'latest' }}\" \
           TELEGRAM_BOT_TOKEN=\"${{ secrets.TELEGRAM_BOT_TOKEN }}\" \
           PAYMENT_PROVIDER_TOKEN=\"${{ secrets.PAYMENT_PROVIDER_TOKEN }}\"
           telegram_admin_ids_list=\"${{ vars.TELEGRAM_ADMIN_IDS_LIST }}\"
