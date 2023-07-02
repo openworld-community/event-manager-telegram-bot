@@ -1,13 +1,14 @@
 name: Build-and-release
 
 on:
-  push:
+  pull_request:
     branches:
       - "prerelease"
+      - "main"
     paths:
       - 'src/**'
       - 'Cargo.yml'
-      - '.github/workflows/**'
+      - '.github/workflows/rust_create_release.yml'
 
 #TODO: добавить отслеживание изменений по директориям
 #Разобраться с версионированием при ПР
@@ -18,7 +19,7 @@ env:
 
 jobs:
   build-and-push-binary:
-    environment: ${{ fromJSON('["main", "prerelease"]')[github.ref_name == 'prerelease'] }}
+    environment: ${{ github.base_ref }}
     runs-on: ubuntu-20.04
     permissions: write-all
 
@@ -40,7 +41,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           WITH_V: true
           DEFAULT_BUMP: patch
-          PRERELEASE: ${{ github.ref_name == 'prerelease' }}
+          PRERELEASE: ${{ github.base_ref == 'prerelease' }}
 
       - name: Replace version in Cargo.toml
         run: sed -i s/"^version .*$"/"version = \"$(echo ${{ steps.version.outputs.new_tag }} | sed s/v//g)\""/g Cargo.toml
@@ -50,8 +51,8 @@ jobs:
           RUSTFLAGS: "-C target-feature=-crt-static"
         run: cargo build --release
 
-#      - name: Test
-#        run: cargo test --verbose
+      - name: Test
+        run: cargo test --verbose
 
       - name: Create Release
         uses: actions/create-release@v1
@@ -62,7 +63,7 @@ jobs:
           tag_name: ${{ steps.version.outputs.new_tag }}
           release_name: Release ${{ steps.version.outputs.new_tag }}
           draft: false
-          prerelease: ${{ github.ref_name == 'prerelease' }}
+          prerelease: ${{ github.base_ref == 'prerelease' }}
 
       - name: Upload Release Asset
         uses: actions/upload-release-asset@v1

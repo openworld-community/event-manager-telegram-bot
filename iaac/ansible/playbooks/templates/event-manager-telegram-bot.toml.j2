@@ -1,38 +1,42 @@
 telegram_bot_token = "{{ TELEGRAM_BOT_TOKEN }}"
 payment_provider_token = "{{ PAYMENT_PROVIDER_TOKEN }}"
 
-support = "{{ support_param | default('') }}"
-help = "{{ help_param | default('') }}"
+support = "{{ emb_support | default('') }}"
+help = "{{ emb_help | default('') }}"
 # telegram ids, comma separated
-admin_ids = "{{ telegram_admin_ids_list | split(',') | join(',') }}"
+admin_ids = "{{ telegram_admin_ids_list }}"
 
 # show participant lists to all participants
-public_lists = {{ is_public_lists | default('false') }}
+public_lists = {{ emb_public_lists | default('false') }}
 
 # add users to black list when verifying presence
-automatic_blacklisting = {{ is_automatic_blacklisting | default('true') }}
+automatic_blacklisting = {{ emb_automatic_blacklisting | default('false') }}
 
 # hours to keep old events before removing
-drop_events_after_hours = {{ drop_events_after_hours | default('48') }}
+drop_events_after_hours = {{ emb_drop_events_after_hours | default(24) }}
 
 # days to keep users in the black list
-delete_from_black_list_after_days = {{ delete_from_black_list_after_days | default('30') }}
+delete_from_black_list_after_days = {{ emb_delete_from_black_list_after_days | default(30) }}
 
 # how many hours before event
-too_late_to_cancel_hours = {{ too_late_to_cancel_hours | default('1') }}
+too_late_to_cancel_hours = {{ emb_too_late_to_cancel_hours | default(1) }}
 
 # pagination
-event_list_page_size = {{ event_list_page_size | default('20') }}
-event_page_size = {{ event_page_size | default('40')  }}
-presence_page_size = {{ presence_page_size | default('40')  }}
+event_list_page_size = {{ emb_event_list_page_size | default(20) }}
+event_page_size = {{ emb_event_page_size | default(40) }}
+presence_page_size = {{ emb_presence_page_size | default(40) }}
 
 # cancel all user reservations when banned
-cancel_future_reservations_on_ban = {{ is_cancel_future_reservations_on_ban | default('false') }}
+cancel_future_reservations_on_ban = {{ emb_cancel_future_reservations_on_ban | default('false') }}
 
 # when sending bulk notifications to multiple users
-limit_bulk_notifications_per_second = {{ limit_bulk_notifications_per_second | default('20') }}
+limit_bulk_notifications_per_second = {{ emb_limit_bulk_notifications_per_second | default(20) }}
 
-cleanup_old_events = {{ cleanup_old_events | default('true') }}
+cleanup_old_events = {{ emb_cleanup_old_events | default('true') }}
 
 # don't send messages outside these hours
-mailing_hours = "{{ mailing_hours | default('08:00 +02:00..21:00 +02:00') }}"
+mailing_hours = "{{ emb_mailing_hours | default('08:00 +02:00..21:00 +02:00') }}"
+
+# api config
+listen_address = "{{ emb_listen_address | default('0.0.0.0') }}"
+listen_port = {{ emb_listen_port | default(3000) }}

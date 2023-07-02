@@ -1,7 +1,7 @@
 use crate::get_unix_time;
 use crate::payments::{donate, prepare_invoice, show_paid_event};
 use crate::reply::*;
-use crate::types::{Context, EventState, EventType, ReservationState, User};
+use crate::types::{Connection, Context, EventState, EventType, ReservationState, User};
 use anyhow::anyhow;
 use teloxide::{types::InlineKeyboardButton, utils::html};
 use url::Url;
@@ -9,14 +9,13 @@ use url::Url;
 use crate::db;
 use crate::format;
 use db::EventStats;
-use r2d2::PooledConnection;
-use r2d2_sqlite::SqliteConnectionManager;
+
 use serde_compact::compact;
 
 /// User dialog handler.
 /// Command line processor.
 pub fn handle_message(
-    conn: &PooledConnection<SqliteConnectionManager>,
+    conn: &Connection,
     user: &User,
     data: &str,
     ctx: &Context,
@@ -129,7 +128,7 @@ pub enum CallbackQuery {
 
 /// Callback query processor.
 pub fn handle_callback(
-    conn: &PooledConnection<SqliteConnectionManager>,
+    conn: &Connection,
     user: &User,
     data: &str,
     ctx: &Context,
@@ -274,7 +273,7 @@ pub fn handle_callback(
 }
 
 pub fn add_attachment(
-    conn: &PooledConnection<SqliteConnectionManager>,
+    conn: &Connection,
     user: &User,
     data: &str,
     ctx: &Context,
@@ -305,7 +304,7 @@ pub fn add_attachment(
 }
 
 pub fn show_event_list(
-    conn: &PooledConnection<SqliteConnectionManager>,
+    conn: &Connection,
     user_id: u64,
     ctx: &Context,
     offset: u64,
@@ -398,7 +397,7 @@ pub fn show_event_list(
 }
 
 pub fn show_event(
-    conn: &PooledConnection<SqliteConnectionManager>,
+    conn: &Connection,
     user: &User,
     event_id: u64,
     ctx: &Context,
@@ -526,7 +525,7 @@ fn get_signup_controls(
     no_age_distinction: bool,
     is_admin: bool,
     user_id: u64,
-    conn: &PooledConnection<SqliteConnectionManager>,
+    conn: &Connection,
 ) -> anyhow::Result<Vec<Vec<InlineKeyboardButton>>> {
     let mut keyboard: Vec<Vec<InlineKeyboardButton>> = Vec::new();
     let mut row: Vec<InlineKeyboardButton> = Vec::new();
@@ -681,7 +680,7 @@ fn get_signup_controls(
 }
 
 fn show_waiting_list(
-    conn: &PooledConnection<SqliteConnectionManager>,
+    conn: &Connection,
     user: &User,
     event_id: u64,
     ctx: &Context,
@@ -776,12 +775,7 @@ fn show_waiting_list(
     }
 }
 
-fn is_too_late_to_cancel(
-    conn: &PooledConnection<SqliteConnectionManager>,
-    event_id: u64,
-    user: &User,
-    ctx: &Context,
-) -> bool {
+fn is_too_late_to_cancel(conn: &Connection, event_id: u64, user: &User, ctx: &Context) -> bool {
     if let Ok(s) = db::get_event(conn, event_id, user.id.0) {
         if s.event.ts - get_unix_time() < ctx.config.too_late_to_cancel_hours * 60 * 60 {
             return true;
@@ -791,7 +785,7 @@ fn is_too_late_to_cancel(
 }
 
 fn show_presence_list(
-    conn: &PooledConnection<SqliteConnectionManager>,
+    conn: &Connection,
     event_id: u64,
     user: &User,
     ctx: &Context,
