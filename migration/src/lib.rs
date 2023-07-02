@@ -9,6 +9,7 @@ mod m20230702_092352_group_leaders;
 mod m20230702_094319_messages;
 mod m20230702_102051_message_outbox;
 mod m20230702_102526_message_sent;
+mod m20230702_110028_current_events;
 
 pub struct Migrator;
 
@@ -25,6 +26,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20230702_094319_messages::Migration),
             Box::new(m20230702_102051_message_outbox::Migration),
             Box::new(m20230702_102526_message_sent::Migration),
+            Box::new(m20230702_110028_current_events::Migration),
         ]
     }
 }
