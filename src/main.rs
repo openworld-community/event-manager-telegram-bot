@@ -1,3 +1,4 @@
+/// Test comment for CI
 #[macro_use]
 extern crate serde;
 #[macro_use]
@@ -424,4 +425,3 @@ async fn perform_bulk_tasks(bot: AutoSend<Bot>, ctx: Arc<Context>) -> Result<boo
             );
     }
 }
-/// Test comment for CI
