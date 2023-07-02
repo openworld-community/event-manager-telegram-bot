@@ -14,6 +14,7 @@ impl MigrationTrait for Migration {
                     .col(
                         ColumnDef::new(Reservation::Id)
                             .integer()
+                            .not_null()
                             .auto_increment()
                             .primary_key(),
                     )

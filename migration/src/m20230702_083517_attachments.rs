@@ -13,8 +13,10 @@ impl MigrationTrait for Migration {
                     .table(Attachment::Table)
                     .col(
                         ColumnDef::new(Attachment::Id)
-                            .primary_key()
-                            .auto_increment(),
+                            .integer()
+                            .not_null()
+                            .auto_increment()
+                            .primary_key(),
                     )
                     .col(ColumnDef::new(Attachment::Event).integer().not_null())
                     .col(ColumnDef::new(Attachment::User).integer().not_null())
