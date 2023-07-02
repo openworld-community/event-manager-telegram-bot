@@ -9,6 +9,13 @@ pub fn get_seconds_before_midnight(ts: u64) -> u64 {
     86400 - ts % 86400
 }
 
+pub fn max_or_value<Value: Ord>(value: Value, max: Value) -> Value {
+    if value > max {
+        return max;
+    }
+    value
+}
+
 #[test]
 fn test_util() {
     assert_eq!(get_seconds_before_midnight(1651503600), 9 * 60 * 60);

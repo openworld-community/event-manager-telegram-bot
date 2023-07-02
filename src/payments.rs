@@ -1,6 +1,6 @@
 use crate::message_handler::CallbackQuery;
 use crate::reply::*;
-use crate::types::{Booking, Context, EventState, OrderInfo, ReservationState, User};
+use crate::types::{Booking, Connection, Context, EventState, OrderInfo, ReservationState, User};
 use crate::util::get_unix_time;
 use anyhow::anyhow;
 use teloxide::types::{InlineKeyboardButton, PreCheckoutQuery, SuccessfulPayment};
@@ -8,12 +8,10 @@ use teloxide::types::{InlineKeyboardButton, PreCheckoutQuery, SuccessfulPayment}
 use crate::db;
 use crate::format;
 use db::EventStats;
-use r2d2::PooledConnection;
-use r2d2_sqlite::SqliteConnectionManager;
 
 /// Book tickets and wait for payment checkout.
 pub fn pre_checkout(
-    conn: &PooledConnection<SqliteConnectionManager>,
+    conn: &Connection,
     user: &User,
     pre_checkout: &PreCheckoutQuery,
     _ctx: &Context,
@@ -48,7 +46,7 @@ pub fn pre_checkout(
 
 /// Payment successful.
 pub fn checkout(
-    conn: &PooledConnection<SqliteConnectionManager>,
+    conn: &Connection,
     payment: &SuccessfulPayment,
     _ctx: &Context,
 ) -> anyhow::Result<()> {
@@ -82,7 +80,7 @@ pub fn show_paid_event(
     adults: u64,
     children: u64,
     offset: u64,
-    conn: &PooledConnection<SqliteConnectionManager>,
+    conn: &Connection,
     user: &User,
     ctx: &Context,
 ) -> anyhow::Result<Reply> {
@@ -251,7 +249,7 @@ fn get_controls(
     no_age_distinction: bool,
     is_admin: bool,
     _user_id: u64,
-    _conn: &PooledConnection<SqliteConnectionManager>,
+    _conn: &Connection,
 ) -> anyhow::Result<Vec<Vec<InlineKeyboardButton>>> {
     let mut keyboard: Vec<Vec<InlineKeyboardButton>> = Vec::new();
     let mut row: Vec<InlineKeyboardButton> = Vec::new();
@@ -365,7 +363,7 @@ pub fn prepare_invoice(
     event_id: u64,
     adults: u64,
     children: u64,
-    conn: &PooledConnection<SqliteConnectionManager>,
+    conn: &Connection,
     user: &User,
     _ctx: &Context,
 ) -> anyhow::Result<Reply> {

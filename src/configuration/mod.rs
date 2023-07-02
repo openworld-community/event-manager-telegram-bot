@@ -1,27 +1,25 @@
 pub mod config;
 mod raw_config;
 
-use clap::ArgMatches;
+use clap::Parser;
 use config::Config;
 use raw_config::RawConfiguration;
+use std::env::current_dir;
+use std::path::Path;
 use std::{fs::File, io::prelude::*};
 
-fn get_args<'a>() -> ArgMatches<'a> {
-    clap::App::new("event-manager-telegram-bot")
-        .version(option_env!("CARGO_PKG_VERSION").unwrap_or(""))
-        .about("event-manager-telegram-bot")
-        .arg(
-            clap::Arg::with_name("config")
-                .short("c")
-                .long("config")
-                .help("Configuration file")
-                .takes_value(true)
-                .default_value(""),
-        )
-        .get_matches()
+#[derive(Parser, Debug)]
+#[command(version)]
+struct Args {
+    #[arg(short, long)]
+    config: Option<String>,
 }
 
-fn parse_config_file(path: &str) -> RawConfiguration {
+fn get_args() -> Args {
+    Args::parse()
+}
+
+fn parse_config_file<P: AsRef<Path>>(path: P) -> RawConfiguration {
     let mut f = File::open(path).unwrap();
     let mut contents = String::new();
     f.read_to_string(&mut contents).unwrap();
@@ -33,6 +31,13 @@ fn parse_config_file(path: &str) -> RawConfiguration {
 
 pub fn get_config() -> Config {
     let args = get_args();
-    let path = args.value_of("config").unwrap();
-    Config::from(parse_config_file(path))
+
+    match args.config {
+        Some(path) => Config::from(parse_config_file(path)),
+        None => {
+            let mut path = current_dir().unwrap();
+            path.push("config.toml");
+            Config::from(parse_config_file(path))
+        }
+    }
 }

@@ -1,12 +1,13 @@
----
-- hosts: "docker_compose"
+- hosts: app
   gather_facts: yes
   become: true
   tasks:
-    - name: Generate config file for current version
+    - name: Copy config file for current version
       template:
         src: event-manager-telegram-bot.toml.j2
         dest: "/usr/local/etc/event-manager-telegram-bot.{{ docker_image_version }}.toml"
+        owner: docker
+        group: docker
 
     - name: Create dir
       file:
@@ -15,6 +16,10 @@
         recurse: yes
         owner: docker
         group: docker
+
+    - name: Debug
+      debug:
+        msg: "{{ api_listen_docker_port }}"
 
     - name: Generate docker-compose file for current version
       template:
@@ -30,3 +35,10 @@
         remove_orphans: yes
         files:
           - "docker-compose.{{ docker_image_version }}.yml"
+
+    - name: Wait for docker-compose to start
+      wait_for:
+          host: 127.0.0.1
+          port: "{{ api_listen_docker_port }}"
+          delay: 5
+          timeout: 60

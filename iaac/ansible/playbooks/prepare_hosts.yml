@@ -1,5 +1,4 @@
----
-- hosts: "docker_compose"
+- hosts: app
   gather_facts: yes
   become: true
   roles:

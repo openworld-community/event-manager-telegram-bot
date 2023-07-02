@@ -1,16 +1,19 @@
-use crate::types::Event;
+use crate::types::{Connection, Event};
 use crate::types::{EventState, Participant};
 use chrono::{DateTime, NaiveDateTime, Utc};
 
 use crate::db;
 use db::EventStats;
-use r2d2::PooledConnection;
-use r2d2_sqlite::SqliteConnectionManager;
 
-pub fn ts(ts: u64) -> String {
+pub fn from_timestamp(ts: u64) -> DateTime<Utc> {
     let naive =
         NaiveDateTime::from_timestamp_opt(ts as i64, 0).expect("NaiveDateTime Unwrap Error");
     let datetime: DateTime<Utc> = DateTime::from_utc(naive, Utc);
+    datetime
+}
+
+pub fn ts(ts: u64) -> String {
+    let datetime = from_timestamp(ts);
     datetime.format("%d.%m %H:%M").to_string()
 }
 
@@ -108,7 +111,7 @@ pub fn participants(
 }
 
 pub fn messages(
-    conn: &PooledConnection<SqliteConnectionManager>,
+    conn: &Connection,
     s: &EventStats,
     event_id: u64,
     is_admin: bool,
