@@ -21,14 +21,37 @@ impl MigrationTrait for Migration {
                     .col(ColumnDef::new(Event::Link).string().not_null())
                     .col(ColumnDef::new(Event::MaxAdults).integer().not_null())
                     .col(ColumnDef::new(Event::MaxChildren).integer().not_null())
-                    .col(ColumnDef::new(Event::MaxAdultsPerReservation).integer().not_null())
-                    .col(ColumnDef::new(Event::MaxChildrenPerReservation).integer().not_null())
+                    .col(
+                        ColumnDef::new(Event::MaxAdultsPerReservation)
+                            .integer()
+                            .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(Event::MaxChildrenPerReservation)
+                            .integer()
+                            .not_null(),
+                    )
                     .col(ColumnDef::new(Event::Ts).timestamp().not_null())
                     .col(ColumnDef::new(Event::Remind).integer().not_null())
                     .col(ColumnDef::new(Event::State).integer().not_null())
-                    .col(ColumnDef::new(Event::AdultTicketPrice).integer().not_null().default(0))
-                    .col(ColumnDef::new(Event::ChildTicketPrice).integer().not_null().default(0))
-                    .col(ColumnDef::new(Event::Currency).string().not_null().default("EUR"))
+                    .col(
+                        ColumnDef::new(Event::AdultTicketPrice)
+                            .integer()
+                            .not_null()
+                            .default(0),
+                    )
+                    .col(
+                        ColumnDef::new(Event::ChildTicketPrice)
+                            .integer()
+                            .not_null()
+                            .default(0),
+                    )
+                    .col(
+                        ColumnDef::new(Event::Currency)
+                            .string()
+                            .not_null()
+                            .default("EUR"),
+                    )
                     .to_owned(),
             )
             .await
