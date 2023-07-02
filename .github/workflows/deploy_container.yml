@@ -5,26 +5,26 @@ on:
     types:
       - published
       - updated
-  push:
-    branches:
-      - prerelease
-      - main
-    paths:
-      - iaac/ansible/docker-compose.yml
-      - iaac/ansible/playbooks/templates/**
-      - .github/workflows/deploy_container.yml
-      - '!src/**'
-      - '!Cargo.yml'
-      - '!.github/workflows/rust_create_release.yml'
-      - '!.github/workflows/build_and_deploy_container.yml'
+#  push:
+#    branches:
+#      - prerelease
+#      - main
+#    paths:
+#      - iaac/ansible/docker-compose.yml
+#      - iaac/ansible/playbooks/templates/**
+#      - .github/workflows/deploy_container.yml
+#      - '!src/**'
+#      - '!Cargo.yml'
+#      - '!.github/workflows/rust_create_release.yml'
+#      - '!.github/workflows/build_and_deploy_container.yml'
 
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
-  build-and-deploy-container:
-    environment: ${{ github.event.registry_package.prerelease && 'prerelease' || !github.event.release.prerelease && github.event.release.id > 0 && 'main' || github.event_name == 'push' && github.ref == 'refs/heads/prerelease' && 'prerelease' || github.event_name == 'push' && github.ref == 'refs/heads/main' && 'main' }}
+  deploy-container:
+    environment: ${{ github.event.registry_package.prerelease && 'prerelease' || !github.event.registry_package.prerelease && github.event.registry_package.id > 0 && 'main' || github.event_name == 'push' && github.base_ref == 'prerelease' && 'prerelease' || github.event_name == 'push' && github.base_ref == 'main' && 'main' }}
     runs-on: ubuntu-20.04
     permissions: write-all
 
@@ -43,25 +43,24 @@ jobs:
           myToken: ${{ github.token }}
           view_top: 1
           prerelease: ${{ github.environment == 'prerelease' || 'false' }}
-        if: github.event_name == 'push'
 
       - name: Debug
         run: |
           echo "environment name: ${{ vars.env_name }}"
 
-#      - name: Run docker-compose with current docker image on target instance
-#        run: |
-#          ansible-galaxy install -r iaac/ansible/roles/requirements.yml
-#          eval "$(ssh-agent -s)"
-#          echo -n ${{ secrets.DEPLOY_SSH_KEY }} | base64 -d | ssh-add -
-#          ansible-playbook --user ${{ secrets.DEPLOY_SSH_USER }} -i iaac/ansible/inventory \
-#          --limit ${{ vars.env_name }} \
-#          iaac/ansible/playbooks/docker-compose.yml --extra-vars "\
-#          ansible_sudo_pass=\"${{ secrets.DEPLOY_USER_PASSWORD }}\" \
-#          docker_compose_install_fq_link=\"/usr/bin/docker-compose\" \
-#          docker_image_version=\"${{ ( steps.last_release.outputs.prerelease || github.event.release.prerelease ) && 'prerelease' || 'latest' }}\" \
-#          TELEGRAM_BOT_TOKEN=\"${{ secrets.TELEGRAM_BOT_TOKEN }}\" \
-#          PAYMENT_PROVIDER_TOKEN=\"${{ secrets.PAYMENT_PROVIDER_TOKEN }}\"
-#          telegram_admin_ids_list=\"${{ vars.TELEGRAM_ADMIN_IDS_LIST }}\"
-#          github_repository=\"${{ github.repository }}\"
-#          github_actor=\"${{ github.actor }}\""
+      - name: Run docker-compose with current docker image on target instance
+        run: |
+          ansible-galaxy install -r iaac/ansible/roles/requirements.yml
+          eval "$(ssh-agent -s)"
+          echo -n ${{ secrets.DEPLOY_SSH_KEY }} | base64 -d | ssh-add -
+          ansible-playbook --user ${{ secrets.DEPLOY_SSH_USER }} -i iaac/ansible/inventory \
+          --limit ${{ vars.env_name }} \
+          iaac/ansible/playbooks/docker-compose.yml --extra-vars "\
+          ansible_sudo_pass=\"${{ secrets.DEPLOY_USER_PASSWORD }}\" \
+          docker_compose_install_fq_link=\"/usr/bin/docker-compose\" \
+          docker_image_version=\"${{ ( steps.last_release.outputs.prerelease && 'prerelease' || 'latest' }}\" \
+          TELEGRAM_BOT_TOKEN=\"${{ secrets.TELEGRAM_BOT_TOKEN }}\" \
+          PAYMENT_PROVIDER_TOKEN=\"${{ secrets.PAYMENT_PROVIDER_TOKEN }}\"
+          telegram_admin_ids_list=\"${{ vars.TELEGRAM_ADMIN_IDS_LIST }}\"
+          github_repository=\"${{ github.repository }}\"
+          github_actor=\"${{ github.actor }}\""
