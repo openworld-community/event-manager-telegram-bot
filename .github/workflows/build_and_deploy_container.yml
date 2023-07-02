@@ -5,6 +5,12 @@ on:
     types:
       - released
       - prereleased
+  push:
+    branches:
+      - main
+      - prerelease
+    paths:
+      - '.github/workflows/build_and_deploy_container.yml'
 
 env:
   REGISTRY: ghcr.io
@@ -48,7 +54,7 @@ jobs:
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          password: ${{ secrets.PAT_SECRET }}
 
       - name: Extract metadata (tags, labels) for Docker
         id: meta
