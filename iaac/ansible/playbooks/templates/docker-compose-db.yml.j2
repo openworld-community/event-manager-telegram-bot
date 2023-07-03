@@ -1,0 +1,15 @@
+services:
+  db:
+    image: postgres:13.3-alpine
+    container_name: db-{{ docker_image_version }}
+    restart: unless-stopped
+    volumes:
+      - /opt/{{ docker_image_version }}/data-pg:/var/lib/postgresql/data
+    networks:
+      - {{ docker_image_version }}
+    ports:
+      - "127.0.0.1:{{ db_listen_docker_port }}:5432"
+networks:
+  {{ docker_image_version }}:
+    name: {{ docker_image_version }}
+    external: true
