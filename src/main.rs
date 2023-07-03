@@ -1,4 +1,4 @@
-/// Test comment for CI 6
+/// Test comment for CI 7
 #[macro_use]
 extern crate serde;
 #[macro_use]
