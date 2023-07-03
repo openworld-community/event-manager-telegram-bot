@@ -4,7 +4,9 @@ on:
   registry_package:
     types:
       - published
-    if: github.event.registry_package.package_version.container_metadata.tag.name == 'latest' || github.event.registry_package.package_version.container_metadata.tag.name == 'prerelease'
+    tags:
+      - prerelease
+      - latest
 #  push:
 #    branches:
 #      - prerelease
@@ -24,9 +26,10 @@ env:
 
 jobs:
   deploy-container:
-    environment: ${{ github.event.registry_package.package_version.prerelease != '' && github.event.registry_package.package_version.prerelease && 'prerelease' || !github.event.registry_package.package_version.prerelease && 'main' }}
+    environment: ${{ github.event.registry_package.package_version.container_metadata.tag.name == 'prerelease' && 'prerelease' || github.event.registry_package.package_version.container_metadata.tag.name == 'latest' && 'main' }}
     runs-on: ubuntu-20.04
     permissions: write-all
+    if: github.event.registry_package.package_version.container_metadata.tag.name == 'latest' || github.event.registry_package.package_version.container_metadata.tag.name == 'prerelease'
 
     steps:
       - uses: hmarr/debug-action@v2
@@ -36,13 +39,13 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: "call action"
-        id: last_release
-        uses: InsonusK/get-latest-release@v1.0.1
-        with:
-          myToken: ${{ github.token }}
-          view_top: 1
-          exclude_types: draft ${{ github.environment == 'main' && '|prerelease' || github.environment == 'prerelease' && '|release' }}
+#      - name: "call action"
+#        id: last_release
+#        uses: InsonusK/get-latest-release@v1.0.1
+#        with:
+#          myToken: ${{ github.token }}
+#          view_top: 1
+#          exclude_types: draft ${{ github.environment == 'main' && '|prerelease' || github.environment == 'prerelease' && '|release' }}
 
       - name: Debug
         run: |
@@ -54,11 +57,11 @@ jobs:
           eval "$(ssh-agent -s)"
           echo -n ${{ secrets.DEPLOY_SSH_KEY }} | base64 -d | ssh-add -
           ansible-playbook --user ${{ secrets.DEPLOY_SSH_USER }} -i iaac/ansible/inventory \
-          --limit ${{ github.environment == 'prerelease' && 'prerelease' || github.environment == 'main' && 'main' }} \
+          --limit ${{ github.environment }} \
           iaac/ansible/playbooks/docker-compose.yml --extra-vars "\
           ansible_sudo_pass=\"${{ secrets.DEPLOY_USER_PASSWORD }}\" \
           docker_compose_install_fq_link=\"/usr/bin/docker-compose\" \
-          docker_image_version=\"${{ steps.last_release.outputs.prerelease && 'prerelease' || 'latest' }}\" \
+          docker_image_version=\"${{ github.event.registry_package.package_version.container_metadata.tag.name }}\" \
           TELEGRAM_BOT_TOKEN=\"${{ secrets.TELEGRAM_BOT_TOKEN }}\" \
           PAYMENT_PROVIDER_TOKEN=\"${{ secrets.PAYMENT_PROVIDER_TOKEN }}\"
           telegram_admin_ids_list=\"${{ vars.TELEGRAM_ADMIN_IDS_LIST }}\"
