@@ -2,7 +2,6 @@
   gather_facts: yes
   become: true
   roles:
-    - githubixx.docker
     - andrewrothstein.docker-compose
   tasks:
     - name: Create dir
@@ -29,5 +28,3 @@
         name:
           - docker-compose
           - requests==2.28.1
-
-- hosts: nginx
