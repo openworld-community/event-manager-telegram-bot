@@ -1,9 +1,10 @@
-name: Build-and-deploy-container
+name: Deploy-container
 
 on:
   registry_package:
     types:
       - published
+    if: github.event.registry_package.package_version.container_metadata.tag.name == 'latest' || github.event.registry_package.package_version.container_metadata.tag.name == 'prerelease'
 #  push:
 #    branches:
 #      - prerelease
@@ -23,7 +24,7 @@ env:
 
 jobs:
   deploy-container:
-    environment: ${{ github.event.registry_package.prerelease && 'prerelease' || !github.event.registry_package.prerelease && github.event.registry_package.id > 0 && 'main' || github.event_name == 'push' && github.base_ref == 'prerelease' && 'prerelease' || github.event_name == 'push' && github.base_ref == 'main' && 'main' }}
+    environment: ${{ github.event.registry_package.prerelease != '' && github.event.registry_package.prerelease && 'prerelease' || !github.event.registry_package.prerelease && 'main' }}
     runs-on: ubuntu-20.04
     permissions: write-all
 
