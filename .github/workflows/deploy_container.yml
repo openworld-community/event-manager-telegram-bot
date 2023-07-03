@@ -7,18 +7,18 @@ on:
     tags:
       - prerelease
       - latest
-#  push:
-#    branches:
-#      - prerelease
-#      - main
-#    paths:
-#      - iaac/ansible/docker-compose.yml
-#      - iaac/ansible/playbooks/templates/**
-#      - .github/workflows/deploy_container.yml
-#      - '!src/**'
-#      - '!Cargo.yml'
-#      - '!.github/workflows/rust_create_release.yml'
-#      - '!.github/workflows/build_and_deploy_container.yml'
+  push:
+    branches:
+      - prerelease
+      - main
+    paths:
+      - iaac/ansible/docker-compose.yml
+      - iaac/ansible/playbooks/templates/**
+      - .github/workflows/deploy_container.yml
+      - '!src/**'
+      - '!Cargo.yml'
+      - '!.github/workflows/rust_create_release.yml'
+      - '!.github/workflows/build_and_deploy_container.yml'
 
 env:
   REGISTRY: ghcr.io

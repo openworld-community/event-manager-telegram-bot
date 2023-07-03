@@ -9,6 +9,9 @@ on:
       - 'src/**'
       - 'Cargo.yml'
       - '.github/workflows/rust_create_release.yml'
+      - '!iaac/ansible/docker-compose.yml'
+      - '!iaac/ansible/playbooks/templates/**'
+      - '!.github/workflows/deploy_container.yml'
 
 #TODO: добавить отслеживание изменений по директориям
 #Разобраться с версионированием при ПР
