@@ -57,8 +57,8 @@ jobs:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
             type=raw,value=${{ steps.last_release.outputs.tag_name || github.event.release.tag_name }}
-            type=raw,value=latest,enable=${{ steps.last_release.outputs.prerelease == 'false' || github.event.release.prerelease == 'false' }}
-            type=raw,value=prerelease,enable=${{ steps.last_release.outputs.prerelease || github.event.release.prerelease }}
+            type=raw,value=latest,enable=${{ github.event.release.prerelease == 'false' }}
+            type=raw,value=prerelease,enable=${{ github.event.release.prerelease }}
 
       - name: Build and push Docker image
         uses: docker/build-push-action@f2a1d5e99d037542a71f64918e516c093c6f3fc4
