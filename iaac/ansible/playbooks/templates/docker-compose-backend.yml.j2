@@ -9,3 +9,11 @@ services:
     - /usr/local/etc/event-manager-telegram-bot.{{ docker_image_version }}.toml:/usr/local/etc/event-manager-telegram-bot.{{ docker_image_version }}.toml
     - /opt/{{ docker_image_version }}/data/:/data/
     restart: unless-stopped
+    networks:
+    - {{ docker_image_version }}
+    links:
+    - db:db-{{ docker_image_version }}
+networks:
+  {{ docker_image_version }}:
+    name: {{ docker_image_version }}
+    external: true
