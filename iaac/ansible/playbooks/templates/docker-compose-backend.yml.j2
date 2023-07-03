@@ -11,8 +11,6 @@ services:
     restart: unless-stopped
     networks:
     - {{ docker_image_version }}
-    links:
-    - db:db-{{ docker_image_version }}
 networks:
   {{ docker_image_version }}:
     name: {{ docker_image_version }}
