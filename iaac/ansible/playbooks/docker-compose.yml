@@ -11,11 +11,14 @@
 
     - name: Create dir
       file:
-        path: "/opt/{{ docker_image_version }}/data"
+        path: "/opt/{{ docker_image_version }}/{{ item }}"
         state: directory
         recurse: yes
         owner: docker
         group: docker
+      with_items:
+        - data
+        - data-pg
 
     - name: Debug
       debug:
@@ -23,22 +26,47 @@
 
     - name: Generate docker-compose file for current version
       template:
-        src: docker-compose.yml.j2
-        dest: "/opt/{{ docker_image_version }}/docker-compose.{{ docker_image_version }}.yml"
+        src: docker-compose-{{ item }}.yml.j2
+        dest: "/opt/{{ docker_image_version }}/docker-compose.{{ docker_image_version }}-{{ item }}.yml"
+      with_items:
+        - backend
+        - db
 
-    - name: Restart docker-compose for current version
+    - name: Create network for current version
+      docker_network:
+        name: "{{ docker_image_version }}"
+        state: present
+
+    - name: Restart docker-compose for current version backend
       docker_compose:
         project_src: "/opt/{{ docker_image_version }}"
         state: present
-        recreate: always
+        recreate: yes
         pull: yes
         remove_orphans: yes
         files:
-          - "docker-compose.{{ docker_image_version }}.yml"
+          - "docker-compose.{{ docker_image_version }}-backend.yml"
 
     - name: Wait for docker-compose to start
       wait_for:
           host: 127.0.0.1
           port: "{{ api_listen_docker_port }}"
+          delay: 5
+          timeout: 60
+
+    - name: Restart docker-compose for current version database
+      docker_compose:
+        project_src: "/opt/{{ docker_image_version }}"
+        state: present
+        recreate: smart
+        pull: yes
+        remove_orphans: yes
+        files:
+          - "docker-compose.{{ docker_image_version }}-db.yml"
+
+    - name: Wait for db to start
+      wait_for:
+          host: 127.0.0.1
+          port: "{{ db_listen_docker_port }}"
           delay: 5
           timeout: 60
