@@ -41,7 +41,7 @@
       docker_compose:
         project_src: "/opt/{{ docker_image_version }}"
         state: present
-        recreate: yes
+        recreate: always
         pull: yes
         remove_orphans: yes
         files:
