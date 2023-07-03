@@ -2,7 +2,6 @@
   gather_facts: yes
   become: true
   roles:
-    - githubixx.docker
     - andrewrothstein.docker-compose
   tasks:
     - name: Create dir
