@@ -64,6 +64,10 @@ jobs:
           docker_image_version=\"${{ github.event.registry_package.package_version.container_metadata.tag.name }}\" \
           TELEGRAM_BOT_TOKEN=\"${{ secrets.TELEGRAM_BOT_TOKEN }}\" \
           PAYMENT_PROVIDER_TOKEN=\"${{ secrets.PAYMENT_PROVIDER_TOKEN }}\"
+          POSTGRES_PASSWORD=\"${{ secrets.POSTGRES_SU_PASSWORD }}\"
           telegram_admin_ids_list=\"${{ vars.TELEGRAM_ADMIN_IDS_LIST }}\"
           github_repository=\"${{ github.repository }}\"
-          github_actor=\"${{ github.actor }}\""
+          github_actor=\"${{ github.actor }}\"
+          db_name=\"${{ secrets.DB_NAME }}\"
+          db_user=\"${{ secrets.DB_USER }}\"
+          db_password=\"${{ secrets.DB_PASSWORD }}\""
