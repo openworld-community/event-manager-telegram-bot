@@ -43,5 +43,5 @@ listen_port = {{ emb_listen_port | default(3000) }}
 
 # database config
 db_protocol = "{{ emb_db_protocol | default('postgres') }}"
-db_host = "{{ emb_db_host | default('localhost') }}"
-db_port = "{{ db_listen_docker_port | default('5432') }}"
+db_host = "db-{{ docker_image_version }}"
+db_port = "{{ emb_db_listen_port | default('5432') }}"
