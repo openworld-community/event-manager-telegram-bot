@@ -8,7 +8,7 @@ services:
     volumes:
     - /usr/local/etc/event-manager-telegram-bot.{{ docker_image_version }}.toml:/usr/local/etc/event-manager-telegram-bot.{{ docker_image_version }}.toml
     - /opt/{{ docker_image_version }}/data/:/data/
-    restart: unless-stopped
+    restart: always
     environment:
     - db_user={{ db_user }}
     - db_password={{ db_password }}
