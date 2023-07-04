@@ -29,7 +29,7 @@ jobs:
     environment: ${{ github.event.registry_package.package_version.container_metadata.tag.name == 'prerelease' && 'prerelease' || github.event.registry_package.package_version.container_metadata.tag.name == 'latest' && 'main' }}
     runs-on: ubuntu-20.04
     permissions: write-all
-    if: github.event.registry_package.package_version.container_metadata.tag.name == 'latest' || github.event.registry_package.package_version.container_metadata.tag.name == 'prerelease'
+    if: github.event.registry_package.package_version.container_metadata.tag.name == 'latest' || github.event.registry_package.package_version.container_metadata.tag.name == 'prerelease' || github.event_name == 'push'
 
     steps:
       - uses: hmarr/debug-action@v2
