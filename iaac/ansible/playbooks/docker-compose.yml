@@ -63,6 +63,7 @@
         remove_orphans: yes
         files:
           - "docker-compose.{{ docker_image_version }}-db.yml"
+      no_log: true
 
     - name: Wait for db to start
       wait_for:
@@ -70,3 +71,19 @@
           port: "{{ db_listen_docker_port }}"
           delay: 5
           timeout: 60
+
+    - name: Create role
+      postgresql_user:
+        name: "{{ db_user }}"
+        password: "{{ db_password }}"
+        login_host: 127.0.0.1
+        login_port: "{{ db_listen_docker_port }}"
+        login_password: "{{ POSTGRES_PASSWORD }}"
+
+    - name: Create database
+      postgresql_db:
+        name: "{{ db_name }}"
+        login_host: 127.0.0.1
+        login_port: "{{ db_listen_docker_port }}"
+        login_password: "{{ POSTGRES_PASSWORD }}"
+        owner: "{{ db_user }}"
