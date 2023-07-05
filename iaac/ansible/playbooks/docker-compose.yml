@@ -18,7 +18,6 @@
         group: docker
       with_items:
         - data
-        - data-pg
 
     - name: Debug
       debug:
@@ -49,6 +48,15 @@
           port: "{{ api_listen_docker_port }}"
           delay: 5
           timeout: 60
+
+    - name: Create dir
+      file:
+        path: "/opt/{{ docker_image_version }}/{{ item }}"
+        state: directory
+        owner: 70
+        group: 70
+      with_items:
+        - data-pg
 
     - name: Restart docker-compose for current version database
       become: true
