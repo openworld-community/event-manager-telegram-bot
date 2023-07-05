@@ -103,7 +103,7 @@
                     listen:
                       - port: 8443
                         ssl: true
-                  server_name: {{ inventory_hostname }}
+                  server_name: "{{ inventory_hostname }}"
                   log:
                     access:
                       - path: /var/log/nginx/{{ inventory_hostname }}.log
@@ -128,7 +128,7 @@
                     listen:
                       - port: 443
                         ssl: true
-                    server_name: {{ inventory_hostname }}
+                    server_name: "{{ inventory_hostname }}"
                     log:
                       access:
                         - path: /var/log/nginx/{{ inventory_hostname }}.log
