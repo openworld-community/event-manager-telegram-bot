@@ -5,3 +5,4 @@ db_listen_docker_port: 5432
 
 #nginx config
 nginx_config_main_template_enable: true
+nginx_config_http_template_enable: true
