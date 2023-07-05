@@ -15,6 +15,7 @@ jobs:
     environment: ${{ github.event.release.prerelease && 'prerelease' || 'main' }}
     runs-on: ubuntu-20.04
     permissions: write-all
+    concurrency: ${{ github.event.release.prerelease && 'prerelease-build-and-deploy-container' || !github.event.release.prerelease && 'main-build-and-deploy-container' }}
 
     steps:
       - uses: hmarr/debug-action@v2
