@@ -36,8 +36,9 @@
             config:
               servers:
                 - core:
-                  listen:
-                    - port: 80
+                    listen:
+                      - port: 80
                   rewrite:
-                    return: 301
-                    uri: https://$host$request_uri
+                    return:
+                      code: 301
+                      uri: https://$host$request_uri
