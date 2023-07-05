@@ -24,7 +24,6 @@
           - psycopg2-binary==2.8.6
   roles:
     - andrewrothstein.docker-compose
-    - nginxinc.nginx
   tasks:
     - name: Config nginx
       include_role:

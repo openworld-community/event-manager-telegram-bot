@@ -119,3 +119,24 @@
                               value: $host
                             - field: X-Real-IP
                               value: $remote_addr
+                - web:
+                    listen:
+                      - port: 443
+                        ssl: true
+                    server_name: "{{ ansible_fqdn }}"
+                    log:
+                      access:
+                        - path: /var/log/nginx/{{ ansible_fqdn }}.log
+                          format: main
+                    ssl:
+                      certificate: /etc/letsencrypt/live/test.eventmanagerbot.peredelano.io/fullchain.pem
+                      certificate_key: /etc/letsencrypt/live/test.eventmanagerbot.peredelano.io/privkey.pem
+                    locations:
+                      - location: /
+                        root: /var/www/{{ ansible_fqdn }}
+                        index: app.html
+                      - location: /50x.html
+                        root: /usr/share/nginx/html
+                    error_page:
+                      - code: 500 502 503 504
+                        uri: /50x.html
