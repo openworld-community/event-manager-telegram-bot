@@ -144,9 +144,9 @@
                     certificate_key: /etc/letsencrypt/live/test.eventmanagerbot.peredelano.io/privkey.pem
                   locations:
                     - location: /50x.html
-                      errors:
+                      core:
                         root: /usr/share/nginx/html
                     - location: /
-                      web:
+                      core:
                         root: /var/www/{{ ansible_fqdn }}
                         index: app.html
