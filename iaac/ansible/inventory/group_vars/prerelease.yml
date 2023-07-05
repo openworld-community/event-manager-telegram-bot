@@ -2,3 +2,6 @@
 api_listen_docker_port: 3001
 api_listen_docker_address: 127.0.0.1
 db_listen_docker_port: 5433
+
+#nginx config
+nginx_config_main_template_enable: true
