@@ -142,5 +142,9 @@
                       - location: /50x.html
                         root: /usr/share/nginx/html
                     error_page:
-                      - code: 500 502 503 504
+                      - code:
+                          - 500
+                          - 502
+                          - 503
+                          - 504
                         uri: /50x.html
