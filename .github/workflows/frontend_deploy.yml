@@ -1,7 +1,7 @@
 on:
-  registry_package:
+  repository_dispatch:
     types:
-      - published
+      - frontend_deploy
 
 env:
   REGISTRY: ghcr.io
