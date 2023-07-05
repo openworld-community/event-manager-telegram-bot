@@ -1,18 +1,7 @@
 - hosts: app
   gather_facts: yes
   become: true
-  roles:
-    - andrewrothstein.docker-compose
-    - nginxinc.nginx
-  tasks:
-    - name: Create dir
-      file:
-        path: "/opt/{{ docker_image_version }}/data"
-        state: directory
-        recurse: yes
-        owner: docker
-        group: docker
-
+  pre_tasks:
     - name: Install pip
       package:
         name: "{{ item }}"
@@ -33,7 +22,10 @@
           - docker-compose
           - requests==2.28.1
           - psycopg2-binary==2.8.6
-
+  roles:
+    - andrewrothstein.docker-compose
+    - nginxinc.nginx
+  tasks:
     - name: Config nginx
       include_role:
         name: nginxinc.nginx_config
