@@ -31,6 +31,7 @@
       with_items:
         - backend
         - db
+      register: docker_compose
 
     - name: Create network for current version
       docker_network:
@@ -38,14 +39,7 @@
         state: present
 
     - name: Restart docker-compose for current version backend
-      docker_compose:
-        project_src: "/opt/{{ docker_image_version }}"
-        state: present
-        recreate: always
-        pull: yes
-        remove_orphans: yes
-        files:
-          - "docker-compose.{{ docker_image_version }}-backend.yml"
+      command: docker-compose -f "/opt/{{ docker_image_version }}/docker-compose.{{ docker_image_version }}-backend.yml" up -d --force-recreate
 
     - name: Wait for docker-compose to start
       wait_for:
@@ -55,15 +49,8 @@
           timeout: 60
 
     - name: Restart docker-compose for current version database
-      docker_compose:
-        project_src: "/opt/{{ docker_image_version }}"
-        state: present
-        recreate: smart
-        pull: yes
-        remove_orphans: yes
-        files:
-          - "docker-compose.{{ docker_image_version }}-db.yml"
-      no_log: true
+      command: docker-compose -f "/opt/{{ docker_image_version }}/docker-compose.{{ docker_image_version }}-db.yml" up -d --force-recreate
+      when: docker_compose.changed
 
     - name: Wait for db to start
       wait_for:

@@ -45,3 +45,4 @@ listen_port = {{ emb_listen_port | default(3000) }}
 db_protocol = "{{ emb_db_protocol | default('postgres') }}"
 db_host = "db-{{ docker_image_version }}"
 db_port = "{{ emb_db_listen_port | default('5432') }}"
+db_name = "{{ db_name | default('postgres') }}"
