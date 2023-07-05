@@ -12,7 +12,7 @@ on:
       - prerelease
       - main
     paths:
-      - iaac/ansible/docker-compose.yml
+      - iaac/ansible/playbooks/docker-compose.yml
       - iaac/ansible/playbooks/templates/**
       - .github/workflows/deploy_container.yml
       - '!src/**'
