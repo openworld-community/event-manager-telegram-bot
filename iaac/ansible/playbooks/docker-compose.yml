@@ -103,7 +103,7 @@
                     listen:
                       - port: 8443
                         ssl: true
-                  server_name: "{{ inventory_hostname }}"
+                    server_name: "{{ inventory_hostname }}"
                   log:
                     access:
                       - path: /var/log/nginx/{{ inventory_hostname }}.log
@@ -129,18 +129,6 @@
                       - port: 443
                         ssl: true
                     server_name: "{{ inventory_hostname }}"
-                    log:
-                      access:
-                        - path: /var/log/nginx/{{ inventory_hostname }}.log
-                    ssl:
-                      certificate: /etc/letsencrypt/live/test.eventmanagerbot.peredelano.io/fullchain.pem
-                      certificate_key: /etc/letsencrypt/live/test.eventmanagerbot.peredelano.io/privkey.pem
-                    locations:
-                      - location: /
-                        root: /var/www/{{ ansible_fqdn }}
-                        index: app.html
-                      - location: /50x.html
-                        root: /usr/share/nginx/html
                     error_page:
                       - code:
                           - 500
@@ -148,3 +136,15 @@
                           - 503
                           - 504
                         uri: /50x.html
+                  log:
+                    access:
+                      - path: /var/log/nginx/{{ inventory_hostname }}.log
+                  ssl:
+                    certificate: /etc/letsencrypt/live/test.eventmanagerbot.peredelano.io/fullchain.pem
+                    certificate_key: /etc/letsencrypt/live/test.eventmanagerbot.peredelano.io/privkey.pem
+                  locations:
+                    - location: /50x.html
+                      root: /usr/share/nginx/html
+                    - location: /
+                      root: /var/www/{{ ansible_fqdn }}
+                      index: app.html
