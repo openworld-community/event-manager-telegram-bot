@@ -39,8 +39,9 @@
         state: present
 
     - name: Restart docker-compose for current version backend
+      become: true
+      become_user: docker
       command: docker-compose -f "/opt/{{ docker_image_version }}/docker-compose.{{ docker_image_version }}-backend.yml" up -d --force-recreate
-      user: docker
 
     - name: Wait for docker-compose to start
       wait_for:
@@ -50,8 +51,9 @@
           timeout: 60
 
     - name: Restart docker-compose for current version database
+      become: true
+      become_user: docker
       command: docker-compose -f "/opt/{{ docker_image_version }}/docker-compose.{{ docker_image_version }}-db.yml" up -d --force-recreate
-      user: docker
       when: docker_compose.changed
 
     - name: Wait for db to start
