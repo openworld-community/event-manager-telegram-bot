@@ -34,9 +34,10 @@
             deployment_location: /etc/nginx/conf.d/default.conf
             backup: true
             config:
-              core:
-                listen:
-                  - port: 80
-              rewrite:
-                return: 301
-                uri: https://$host$request_uri
+              servers:
+                - core:
+                  listen:
+                    - port: 80
+                  rewrite:
+                    return: 301
+                    uri: https://$host$request_uri
