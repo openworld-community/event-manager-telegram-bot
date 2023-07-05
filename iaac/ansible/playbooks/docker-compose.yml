@@ -103,11 +103,10 @@
                     listen:
                       - port: 8443
                         ssl: true
-                  server_name: "{{ ansible_fqdn }}"
+                  server_name: {{ inventory_hostname }}
                   log:
                     access:
                       - path: /var/log/nginx/{{ inventory_hostname }}.log
-                        format: main
                   ssl:
                     certificate: /etc/letsencrypt/live/test.eventmanagerbot.peredelano.io/fullchain.pem
                     certificate_key: /etc/letsencrypt/live/test.eventmanagerbot.peredelano.io/privkey.pem
@@ -115,7 +114,7 @@
                     - location: /
                       proxy:
                         pass: http://127.0.0.1:{{ api_listen_docker_port }}
-                        set_headers:
+                        set_header:
                           - field: Host
                             value: $host
                           - field: X-Real-IP
@@ -129,11 +128,10 @@
                     listen:
                       - port: 443
                         ssl: true
-                    server_name: "{{ ansible_fqdn }}"
+                    server_name: {{ inventory_hostname }}
                     log:
                       access:
                         - path: /var/log/nginx/{{ inventory_hostname }}.log
-                          format: main
                     ssl:
                       certificate: /etc/letsencrypt/live/test.eventmanagerbot.peredelano.io/fullchain.pem
                       certificate_key: /etc/letsencrypt/live/test.eventmanagerbot.peredelano.io/privkey.pem
