@@ -87,6 +87,8 @@
         login_password: "{{ POSTGRES_PASSWORD }}"
         owner: "{{ db_user }}"
 
+#TODO разделить плейбуки на отдельные файлы
+
     - name: Config nginx
       include_role:
         name: nginxinc.nginx_config
