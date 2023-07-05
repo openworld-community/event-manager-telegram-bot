@@ -1,4 +1,4 @@
-/// Test comment for CI 12
+/// Test comment for CI for nginx
 #[macro_use]
 extern crate serde;
 #[macro_use]
