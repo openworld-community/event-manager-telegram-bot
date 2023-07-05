@@ -86,3 +86,5 @@
         login_port: "{{ db_listen_docker_port }}"
         login_password: "{{ POSTGRES_PASSWORD }}"
         owner: "{{ db_user }}"
+
+#TODO разделить плейбуки на отдельные файлы
