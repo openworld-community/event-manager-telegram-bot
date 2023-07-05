@@ -95,7 +95,7 @@
       vars:
         nginx_config_http_template:
           - template_file: http/default.conf.j2
-            deployment_location: /etc/nginx/conf.d/{{ ansible_hostname }}-app.conf
+            deployment_location: /etc/nginx/conf.d/{{ inventory_hostname }}-app.conf
             backup: true
             config:
               servers:
@@ -103,11 +103,10 @@
                     listen:
                       - port: 8443
                         ssl: true
-                  server_name: "{{ ansible_fqdn }}"
+                    server_name: "{{ inventory_hostname }}"
                   log:
                     access:
-                      - path: /var/log/nginx/{{ ansible_hostname }}.log
-                        format: main
+                      - path: /var/log/nginx/{{ inventory_hostname }}.log
                   ssl:
                     certificate: /etc/letsencrypt/live/test.eventmanagerbot.peredelano.io/fullchain.pem
                     certificate_key: /etc/letsencrypt/live/test.eventmanagerbot.peredelano.io/privkey.pem
@@ -115,13 +114,13 @@
                     - location: /
                       proxy:
                         pass: http://127.0.0.1:{{ api_listen_docker_port }}
-                        set_headers:
+                        set_header:
                           - field: Host
                             value: $host
                           - field: X-Real-IP
                             value: $remote_addr
           - template_file: http/default.conf.j2
-            deployment_location: /etc/nginx/conf.d/{{ ansible_hostname }}.conf
+            deployment_location: /etc/nginx/conf.d/{{ inventory_hostname }}.conf
             backup: true
             config:
               servers:
@@ -129,20 +128,25 @@
                     listen:
                       - port: 443
                         ssl: true
-                    server_name: "{{ ansible_fqdn }}"
-                    log:
-                      access:
-                        - path: /var/log/nginx/{{ ansible_fqdn }}.log
-                          format: main
-                    ssl:
-                      certificate: /etc/letsencrypt/live/test.eventmanagerbot.peredelano.io/fullchain.pem
-                      certificate_key: /etc/letsencrypt/live/test.eventmanagerbot.peredelano.io/privkey.pem
-                    locations:
-                      - location: /
+                    server_name: "{{ inventory_hostname }}"
+                    error_page:
+                      - code:
+                          - 500
+                          - 502
+                          - 503
+                          - 504
+                        uri: /50x.html
+                  log:
+                    access:
+                      - path: /var/log/nginx/{{ inventory_hostname }}.log
+                  ssl:
+                    certificate: /etc/letsencrypt/live/test.eventmanagerbot.peredelano.io/fullchain.pem
+                    certificate_key: /etc/letsencrypt/live/test.eventmanagerbot.peredelano.io/privkey.pem
+                  locations:
+                    - location: /50x.html
+                      core:
+                        root: /usr/share/nginx/html
+                    - location: /
+                      core:
                         root: /var/www/{{ ansible_fqdn }}
                         index: app.html
-                      - location: /50x.html
-                        root: /usr/share/nginx/html
-                    error_page:
-                      - code: 500 502 503 504
-                        uri: /50x.html
