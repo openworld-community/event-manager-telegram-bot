@@ -30,7 +30,7 @@ jobs:
     runs-on: ubuntu-20.04
     permissions: write-all
     if: github.event.registry_package.package_version.container_metadata.tag.name == 'latest' || github.event.registry_package.package_version.container_metadata.tag.name == 'prerelease' || github.event_name == 'push' && (github.ref == 'refs/heads/prerelease' || github.ref == 'refs/heads/main')
-    concurrency: ${{ github.event.registry_package.package_version.container_metadata.tag.name == 'prerelease' && 'prerelease-deploy-config' || github.event.registry_package.package_version.container_metadata.tag.name == 'latest' && 'main-deploy-config' ||  github.event_name == 'push' && github.ref.name + '-deploy-config' || github.event_name == 'push' && github.ref.name + '-deploy-config' }}
+    concurrency: ${{ github.event.registry_package.package_version.container_metadata.tag.name == 'prerelease' && 'prerelease' || github.event.registry_package.package_version.container_metadata.tag.name == 'latest' && 'main' ||  github.event_name == 'push' && github.ref == 'refs/heads/prerelease' && 'prerelease' || github.ref == 'refs/heads/main' && 'main' }}-deploy-container
 
     steps:
       - uses: hmarr/debug-action@v2
