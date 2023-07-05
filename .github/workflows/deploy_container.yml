@@ -29,7 +29,7 @@ jobs:
     environment: ${{ github.event.registry_package.package_version.container_metadata.tag.name == 'prerelease' && 'prerelease' || github.event.registry_package.package_version.container_metadata.tag.name == 'latest' && 'main' ||  github.event_name == 'push' && github.ref == 'refs/heads/prerelease' && 'prerelease' || github.ref == 'refs/heads/main' && 'main' }}
     runs-on: ubuntu-20.04
     permissions: write-all
-    if: github.event.registry_package.package_version.container_metadata.tag.name == 'latest' || github.event.registry_package.package_version.container_metadata.tag.name == 'prerelease' || github.event_name == 'push'
+    if: github.event.registry_package.package_version.container_metadata.tag.name == 'latest' || github.event.registry_package.package_version.container_metadata.tag.name == 'prerelease' || github.event_name == 'push' && (github.ref == 'refs/heads/prerelease' || github.ref == 'refs/heads/main')
 
     steps:
       - uses: hmarr/debug-action@v2
@@ -38,18 +38,6 @@ jobs:
         uses: actions/checkout@v3
         with:
           fetch-depth: 0
-
-#      - name: "call action"
-#        id: last_release
-#        uses: InsonusK/get-latest-release@v1.0.1
-#        with:
-#          myToken: ${{ github.token }}
-#          view_top: 1
-#          exclude_types: draft ${{ github.environment == 'main' && '|prerelease' || github.environment == 'prerelease' && '|release' }}
-
-      - name: Debug
-        run: |
-          echo "environment name: ${{ vars.env_name }}"
 
       - name: Run docker-compose with current docker image on target instance
         run: |
