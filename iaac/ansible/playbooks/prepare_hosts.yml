@@ -34,14 +34,9 @@
             deployment_location: /etc/nginx/conf.d/default.conf
             backup: true
             config:
-              servers:
-                - core:
-                    listen:
-                      - port: 80
-                    log:
-                      access:
-                        - path: /var/log/nginx/access.log
-                          format: main
-                    rewrite:
-                      return: 301
-                      uri: https://$host$request_uri
+              core:
+                listen:
+                  - port: 80
+              rewrite:
+                return: 301
+                uri: https://$host$request_uri
