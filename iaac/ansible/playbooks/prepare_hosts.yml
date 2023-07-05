@@ -15,8 +15,11 @@
 
     - name: Install pip
       package:
-        name: pip
+        name: {{ item }}
         state: present
+      with_items:
+        - pip
+        - ca-certificates
 
     - name: Pip remove requests
       pip:
