@@ -42,6 +42,5 @@
                         - path: /var/log/nginx/access.log
                           format: main
                     rewrite:
-                      - name: redirect to https
-                        condition: $scheme = http
-                        redirect: https://$host$request_uri
+                      return: 301
+                      uri: https://$host$request_uri
