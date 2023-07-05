@@ -27,6 +27,7 @@ jobs:
     environment: ${{ github.base_ref }}
     runs-on: ubuntu-20.04
     permissions: write-all
+    concurrency: ${{ github.base_ref }}
 
     steps:
       - name: Checkout repository
