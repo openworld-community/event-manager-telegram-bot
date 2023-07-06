@@ -60,14 +60,14 @@ async fn main() -> Result<(), AppErrors> {
     let database_connection = Database::connect(&config.database_connection).await?;
     Migrator::up(&database_connection, None).await?;
 
+    tokio::spawn(setup_api_server(&config.api_socket_address, &database_connection));
+
     return Ok(());
     let manager = SqliteConnectionManager::file("./events.db3");
     let pool = r2d2::Pool::new(manager).unwrap();
     if let Ok(conn) = pool.get() {
         db::create(&conn).expect("Failed to create db.");
     }
-
-    tokio::spawn(setup_api_server(&config.api_socket_address, &pool));
 
     let bot = Bot::new(&config.telegram_bot_token).auto_send();
 

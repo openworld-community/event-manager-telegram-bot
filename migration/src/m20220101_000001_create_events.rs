@@ -32,7 +32,7 @@ impl MigrationTrait for Migration {
                             .not_null(),
                     )
                     .col(ColumnDef::new(Event::Ts).timestamp().not_null())
-                    .col(ColumnDef::new(Event::Remind).integer().not_null())
+                    .col(ColumnDef::new(Event::Remind).timestamp().not_null())
                     .col(ColumnDef::new(Event::State).integer().not_null())
                     .col(
                         ColumnDef::new(Event::AdultTicketPrice)
