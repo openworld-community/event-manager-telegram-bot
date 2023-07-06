@@ -13,14 +13,14 @@ pub struct RawEvent {
     pub name: String,
     #[validate(url)]
     pub link: String,
-    pub max_adults: u64,
-    pub max_children: u64,
-    pub max_adults_per_reservation: u64,
-    pub max_children_per_reservation: u64,
+    pub max_adults: i32,
+    pub max_children: i32,
+    pub max_adults_per_reservation: i32,
+    pub max_children_per_reservation: i32,
     pub event_start_time: DateTime<Utc>,
     pub remind: DateTime<Utc>,
-    pub adult_ticket_price: u64,
-    pub child_ticket_price: u64,
+    pub adult_ticket_price: i32,
+    pub child_ticket_price: i32,
     pub currency: String,
 }
 
@@ -42,27 +42,6 @@ pub struct OptionalRawEvent {
 }
 
 pub type EventWithId = WithId<u64, RawEvent>;
-
-impl From<Event> for EventWithId {
-    fn from(event: Event) -> Self {
-        EventWithId {
-            id: event.id,
-            entity: RawEvent {
-                name: event.name,
-                link: event.link,
-                max_adults: event.max_adults,
-                max_children: event.max_children,
-                max_adults_per_reservation: event.max_adults_per_reservation,
-                max_children_per_reservation: event.max_children_per_reservation,
-                event_start_time: from_timestamp(event.ts),
-                remind: from_timestamp(event.remind),
-                adult_ticket_price: event.adult_ticket_price,
-                child_ticket_price: event.child_ticket_price,
-                currency: event.currency,
-            },
-        }
-    }
-}
 
 impl RawEvent {
     pub fn validation(&self) -> Result<(), ValidationError> {

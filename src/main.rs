@@ -34,31 +34,40 @@ mod payments;
 mod reply;
 mod types;
 mod util;
+mod app_errors;
 
 use crate::api::setup_api_server;
 
 use crate::reply::*;
 use crate::types::MessageType;
 use r2d2_sqlite::SqliteConnectionManager;
+use sea_orm::Database;
+use migration::{Migrator, MigratorTrait};
 use tokio::sync::Mutex;
 
 use crate::configuration::get_config;
 use types::Context;
 use util::get_unix_time;
+use crate::app_errors::AppErrors;
+
 
 #[tokio::main]
-async fn main() {
+async fn main() -> Result<(), AppErrors> {
     env_logger::init();
 
     let config = get_config();
 
-    let manager = SqliteConnectionManager::file("/data/events.db3");
+    let database_connection = Database::connect(&config.database_connection).await?;
+    Migrator::up(&database_connection, None).await?;
+
+    tokio::spawn(setup_api_server(&config.api_socket_address, &database_connection));
+
+    return Ok(());
+    let manager = SqliteConnectionManager::file("./events.db3");
     let pool = r2d2::Pool::new(manager).unwrap();
     if let Ok(conn) = pool.get() {
         db::create(&conn).expect("Failed to create db.");
     }
-
-    tokio::spawn(setup_api_server(&config.api_socket_address, &pool));
 
     let bot = Bot::new(&config.telegram_bot_token).auto_send();
 
@@ -96,6 +105,8 @@ async fn main() {
         .setup_ctrlc_handler()
         .dispatch()
         .await;
+
+    Ok(())
 }
 
 async fn message_handler(
@@ -356,7 +367,7 @@ async fn perform_bulk_tasks(bot: AutoSend<Bot>, ctx: Arc<Context>) -> Result<boo
                                 offset: 0,
                             })
                         }
-                        .unwrap(),
+                            .unwrap(),
                     )]];
                 let keyboard = InlineKeyboardMarkup::new(keyboard);
                 for u in m.recipients {
@@ -389,7 +400,7 @@ async fn perform_bulk_tasks(bot: AutoSend<Bot>, ctx: Arc<Context>) -> Result<boo
                     ctx.config.cancel_future_reservations_on_ban,
                     &ctx.config.admins,
                 )
-                .is_ok()
+                    .is_ok()
                     == false
                 {
                     error!("Failed to clear old events at {}", ts);
@@ -400,7 +411,7 @@ async fn perform_bulk_tasks(bot: AutoSend<Bot>, ctx: Arc<Context>) -> Result<boo
                     &conn,
                     ts - ctx.config.delete_from_black_list_after_days * 24 * 60 * 60,
                 )
-                .is_ok()
+                    .is_ok()
                     == false
                 {
                     error!("Failed to clear black list at {}", ts);
@@ -417,11 +428,11 @@ async fn perform_bulk_tasks(bot: AutoSend<Bot>, ctx: Arc<Context>) -> Result<boo
 
         next_break = tokio::time::Instant::now()
             + Duration::from_millis(
-                if notifications > 0 && batch_contains_waiting_list_prompt == false {
-                    1000
-                } else {
-                    30000
-                },
-            );
+            if notifications > 0 && batch_contains_waiting_list_prompt == false {
+                1000
+            } else {
+                30000
+            },
+        );
     }
 }

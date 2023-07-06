@@ -24,6 +24,7 @@ pub struct RawConfiguration {
     pub mailing_hours: String,
     pub listen_address: String,
     pub listen_port: u16,
+    pub database_connection: String,
 }
 
 impl RawConfiguration {
