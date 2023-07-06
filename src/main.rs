@@ -60,7 +60,6 @@ async fn main() -> Result<(), AppErrors> {
     Migrator::up(&database_connection, None).await?;
 
     return Ok(());
-
     let manager = SqliteConnectionManager::file("./events.db3");
     let pool = r2d2::Pool::new(manager).unwrap();
     if let Ok(conn) = pool.get() {
