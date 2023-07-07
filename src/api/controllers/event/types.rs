@@ -230,7 +230,7 @@ impl Into<Event> for RawEvent {
 
 #[cfg(test)]
 mod tests {
-    use crate::api::services::event::types::RawEvent;
+    use crate::api::controllers::event::types::RawEvent;
     use serde_json;
     use serde_json::Result;
 

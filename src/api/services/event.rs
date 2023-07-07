@@ -1,28 +1,12 @@
-use crate::api::services::event::types::RawEvent;
-use crate::api::shared::AppError;
-use crate::api::utils::json_response;
-use actix_web::http::StatusCode;
-use actix_web::web::{Data, Json};
-use actix_web::{post, Responder};
 use chrono::Utc;
+use sea_orm::{ActiveModelTrait, ActiveValue, ConnectionTrait, DatabaseConnection, DbErr, EntityTrait, IntoActiveModel, QuerySelect, TransactionTrait, TryIntoModel};
 use entity::event;
 use entity::event::EventState;
-use sea_orm::{ActiveValue, DatabaseConnection, DbErr, EntityTrait};
+use crate::api::controllers::event::types::{OptionalRawEvent, RawEvent};
+use crate::api::shared::Pagination;
 
 
-#[post("")]
 pub async fn create_event(
-    pool: Data<DatabaseConnection>,
-    event_to_create: Json<RawEvent>,
-) -> Result<impl Responder, AppError> {
-    event_to_create.validation()?;
-
-    let event = add_event(&event_to_create, &pool).await?;
-
-    Ok(json_response(&event, StatusCode::CREATED))
-}
-
-async fn add_event(
     event_to_create: &RawEvent,
     pool: &DatabaseConnection,
 ) -> Result<event::Model, DbErr> {
@@ -52,4 +36,17 @@ async fn add_event(
         .one(pool)
         .await?
         .unwrap())
+}
+
+
+pub async fn event_list(pagination: &impl Pagination, pool: &DatabaseConnection) -> Result<Vec<event::Model>, DbErr> {
+    event::Entity::find()
+        .limit(pagination.limit())
+        .offset(pagination.offset())
+        .all(pool)
+        .await
+}
+
+pub async fn get_event(id: i32, pool: &DatabaseConnection) -> Result<Option<event::Model>, DbErr> {
+    event::Entity::find_by_id(id).one(pool).await
 }

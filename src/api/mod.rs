@@ -1,9 +1,10 @@
 mod middlewares;
-mod services;
+mod controllers;
 mod shared;
 mod utils;
+mod services;
 
-use crate::api::services::event::event_scope;
+use crate::api::controllers::event::event_scope;
 use actix_web::dev::Server;
 use actix_web::{web, App, HttpServer};
 use middlewares::cors_middleware;

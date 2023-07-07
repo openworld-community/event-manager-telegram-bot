@@ -1,4 +1,4 @@
-use crate::api::services::event::types::{EventWithId, RawEvent};
+use crate::api::controllers::event::types::{EventWithId, RawEvent};
 use crate::api::shared::{Pagination, QueryError};
 use crate::format::from_timestamp;
 use crate::types::{Connection, DbPool, Event};
