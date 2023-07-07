@@ -1,8 +1,8 @@
-mod middlewares;
 mod controllers;
+mod middlewares;
+mod services;
 mod shared;
 mod utils;
-mod services;
 
 use crate::api::controllers::event::event_scope;
 use actix_web::dev::Server;

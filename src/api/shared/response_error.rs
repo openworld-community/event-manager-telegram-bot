@@ -20,13 +20,13 @@ impl ResponseError for AppError {
     fn status_code(&self) -> StatusCode {
         match self {
             AppError::NotFoundError => StatusCode::NOT_FOUND,
-            _ => StatusCode::INTERNAL_SERVER_ERROR
+            _ => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
     fn error_response(&self) -> HttpResponse<BoxBody> {
         match self {
             AppError::ValidationError(err) => err.error_response(),
-            _ => HttpResponse::new(self.status_code())
+            _ => HttpResponse::new(self.status_code()),
         }
     }
 }

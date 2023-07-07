@@ -31,7 +31,7 @@ impl MigrationTrait for Migration {
                             .integer()
                             .not_null(),
                     )
-                    .col(ColumnDef::new(Event::Ts).timestamp().not_null())
+                    .col(ColumnDef::new(Event::EventStartTime).timestamp().not_null())
                     .col(ColumnDef::new(Event::Remind).timestamp().not_null())
                     .col(ColumnDef::new(Event::State).integer().not_null())
                     .col(
@@ -75,7 +75,7 @@ pub enum Event {
     MaxChildren,
     MaxAdultsPerReservation,
     MaxChildrenPerReservation,
-    Ts,
+    EventStartTime,
     Remind,
     State,
     AdultTicketPrice,

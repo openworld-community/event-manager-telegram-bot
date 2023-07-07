@@ -16,7 +16,7 @@ pub struct Model {
     pub max_children: i32,
     pub max_adults_per_reservation: i32,
     pub max_children_per_reservation: i32,
-    pub ts: DateTime,
+    pub event_start_time: DateTime,
     pub remind: DateTime,
     pub state: EventState,
     pub adult_ticket_price: i32,
