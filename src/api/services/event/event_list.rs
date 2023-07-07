@@ -11,7 +11,7 @@ pub async fn event_list(
     pool: Data<DatabaseConnection>,
     params: Query<RawPagination>,
 ) -> Result<impl Responder, AppError> {
-    let events = get_event_list(&params, &pool).await?;
+    let events = get_event_list(&params.into_inner(), &pool).await?;
 
     Ok(json_response(&events, StatusCode::OK))
 }

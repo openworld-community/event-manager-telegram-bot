@@ -1,5 +1,5 @@
 use crate::api::shared::WithId;
-use crate::api::utils::ValidationError;
+use crate::api::shared::ValidationError;
 use crate::types::Event;
 use chrono::{DateTime, Utc};
 use std::borrow::Cow;

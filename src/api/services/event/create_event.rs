@@ -3,12 +3,12 @@ use crate::api::shared::AppError;
 use crate::api::utils::json_response;
 use actix_web::http::StatusCode;
 use actix_web::web::{Data, Json};
-use actix_web::{post, Responder, ResponseError};
+use actix_web::{post, Responder};
 use chrono::Utc;
 use entity::event;
 use entity::event::EventState;
 use sea_orm::{ActiveValue, DatabaseConnection, DbErr, EntityTrait};
-use std::fmt::{Debug, Display, Formatter};
+
 
 #[post("")]
 pub async fn create_event(
