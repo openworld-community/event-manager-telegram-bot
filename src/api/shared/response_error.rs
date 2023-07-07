@@ -13,16 +13,21 @@ pub enum AppError {
     DatabaseError(#[from] DbErr),
     #[error("{0}")]
     ValidationError(#[from] ValidationError),
+    #[error("Entity {0} not found")]
+    NotFoundError(dyn Into<String>),
 }
 
 impl ResponseError for AppError {
     fn status_code(&self) -> StatusCode {
-        StatusCode::INTERNAL_SERVER_ERROR
+        match self {
+            AppError::NotFoundError(_) => StatusCode::NOT_FOUND,
+            _ => StatusCode::INTERNAL_SERVER_ERROR
+        }
     }
     fn error_response(&self) -> HttpResponse<BoxBody> {
         match self {
-            AppError::DatabaseError(_) => HttpResponse::new(self.status_code()),
             AppError::ValidationError(err) => err.error_response(),
+            _ => HttpResponse::new(self.status_code())
         }
     }
 }
