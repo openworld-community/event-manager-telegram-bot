@@ -29,8 +29,8 @@ impl MigrationTrait for Migration {
             .create_foreign_key(
                 ForeignKey::create()
                     .name("FK_attachments_event")
-                    .from(Attachment::Table, (Attachment::Event))
-                    .to(Event::Table, (Event::Id))
+                    .from(Attachment::Table, Attachment::Event)
+                    .to(Event::Table, Event::Id)
                     .to_owned(),
             )
             .await?;

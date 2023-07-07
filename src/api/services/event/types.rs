@@ -1,6 +1,5 @@
 use crate::api::shared::WithId;
-use crate::api::utils::{validation_error_to_http, ValidationError};
-use crate::format::from_timestamp;
+use crate::api::utils::ValidationError;
 use crate::types::Event;
 use chrono::{DateTime, Utc};
 use std::borrow::Cow;
@@ -104,7 +103,7 @@ impl RawEvent {
 
         match errors.is_empty() {
             true => Ok(()),
-            false => Err(validation_error_to_http(errors)),
+            false => Err(errors.into()),
         }
     }
 }
@@ -177,7 +176,7 @@ impl OptionalRawEvent {
 
         match errors.is_empty() {
             true => Ok(()),
-            false => Err(validation_error_to_http(errors)),
+            false => Err(errors.into()),
         }
     }
 

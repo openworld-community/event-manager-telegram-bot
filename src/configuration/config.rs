@@ -48,7 +48,7 @@ impl From<RawConfiguration> for Config {
             limit_bulk_notifications_per_second: value.limit_bulk_notifications_per_second,
             mailing_hours_from: mailing_hours.0,
             mailing_hours_to: mailing_hours.1,
-            database_connection: value.database_connection
+            database_connection: value.database_connection,
         }
     }
 }

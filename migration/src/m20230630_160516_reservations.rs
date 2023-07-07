@@ -41,8 +41,8 @@ impl MigrationTrait for Migration {
             .create_foreign_key(
                 ForeignKey::create()
                     .name("FK_reservation_event")
-                    .from(Reservation::Table, (Reservation::Event))
-                    .to(Event::Table, (Event::Id))
+                    .from(Reservation::Table, Reservation::Event)
+                    .to(Event::Table, Event::Id)
                     .to_owned(),
             )
             .await
