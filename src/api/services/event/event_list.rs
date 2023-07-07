@@ -1,23 +1,26 @@
-use crate::api::shared::{into_internal_server_error_response, RawPagination};
+use crate::api::shared::{AppError, Pagination, RawPagination};
 use crate::api::utils::json_response;
-
-use crate::types::DbPool;
 use actix_web::http::StatusCode;
 use actix_web::web::{Data, Query};
 use actix_web::{get, Responder};
-
-use crate::api::services::event::db;
-use tokio::task::spawn_blocking;
+use sea_orm::{DatabaseConnection, DbErr, EntityTrait, QuerySelect};
+use entity::event;
 
 #[get("")]
 pub async fn event_list(
-    pool: Data<DbPool>,
+    pool: Data<DatabaseConnection>,
     params: Query<RawPagination>,
-) -> actix_web::Result<impl Responder> {
-    let events = spawn_blocking(move || db::get_event_list(&pool, &params.into_inner().into()))
-        .await
-        .map_err(into_internal_server_error_response)?
-        .map_err(into_internal_server_error_response)?;
+) -> Result<impl Responder, AppError> {
+    let events = get_event_list(&params, &pool).await?;
 
     Ok(json_response(&events, StatusCode::OK))
 }
+
+async fn get_event_list(pagination: &impl Pagination, pool: &DatabaseConnection) -> Result<Vec<event::Model>, DbErr> {
+    event::Entity::find()
+        .limit(pagination.limit())
+        .offset(pagination.offset())
+        .all(pool)
+        .await
+}
+
