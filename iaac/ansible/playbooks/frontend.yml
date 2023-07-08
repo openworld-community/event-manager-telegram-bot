@@ -1,4 +1,4 @@
-- hosts: frontend
+- hosts: app
   become: true
   gather_facts: yes
   tasks:
