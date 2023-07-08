@@ -28,7 +28,6 @@ jobs:
 
       - name: Deploy frontend
         run: |
-          ansible-galaxy install -r iaac/ansible/roles/requirements.yml
           eval "$(ssh-agent -s)"
           echo -n ${{ secrets.DEPLOY_SSH_KEY }} | base64 -d | ssh-add -
           ansible-playbook --user ${{ secrets.DEPLOY_SSH_USER }} -i iaac/ansible/inventory \
