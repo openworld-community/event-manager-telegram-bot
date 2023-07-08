@@ -8,6 +8,12 @@
         dest: /tmp/event-manager-telegram-bot-front-{{version}}.tar.gz
         validate_certs: false
 
+    - name: Create directory
+      file:
+        path: /var/www/event-manager-telegram-bot-front-{{version}}
+        state: directory
+        mode: '0755'
+
     - name: Unpack release
       unarchive:
           src: /tmp/event-manager-telegram-bot-front-{{version}}.tar.gz
