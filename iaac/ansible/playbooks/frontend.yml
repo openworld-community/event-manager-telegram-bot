@@ -2,12 +2,17 @@
   become: true
   gather_facts: yes
   tasks:
+    - name: Create directory
+      file:
+        path: /var/www/event-manager-telegram-bot-front-{{version}}
+        state: directory
+        mode: '0755'
+
     - name: Unpack release
       unarchive:
         src: https://github.com/openworld-community/event-manager-bot-frontend/releases/download/{{ version }}/event-manager-telegram-bot-front.tar.gz
         dest: /var/www/event-manager-telegram-bot-front-{{version}}
         remote_src: yes
-        creates: /var/www/event-manager-telegram-bot-front-{{version}}
         mode: '0755'
 
     - name: Remove old symlink
