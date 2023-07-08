@@ -23,14 +23,14 @@
 
     - name: Remove old symlink
       file:
-        path: /var/www/{{ ansible_fqdn }}
+        path: /var/www/{{ inventory_hostname }}
         state: absent
         force: yes
 
     - name: Create new symlink
       file:
           src: /var/www/event-manager-telegram-bot-front-{{version}}
-          dest: /var/www/{{ ansible_fqdn }}
+          dest: /var/www/{{ inventory_hostname }}
           state: link
           force: yes
 
