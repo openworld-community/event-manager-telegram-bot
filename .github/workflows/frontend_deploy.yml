@@ -18,6 +18,8 @@ jobs:
         with:
           fetch-depth: 0
 
+      - uses: hmarr/debug-action@v2
+
       - name: Debug
         run: |
-          echo "GITHUB_REF: ${{ github.ref }}"
+          echo "GITHUB_REF: ${{ github.event.env }}"
