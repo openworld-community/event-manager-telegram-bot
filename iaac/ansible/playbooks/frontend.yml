@@ -6,7 +6,7 @@
       get_url:
         url: https://github.com/openworld-community/event-manager-telegram-bot-frontend/releases/download/{{ version }}/event-manager-telegram-bot-front.tar.gz
         dest: /tmp/event-manager-telegram-bot-front-{{version}}.tar.gz
-        ssl_no_verify: yes
+        validate_certs: false
 
     - name: Unpack release
       unarchive:
