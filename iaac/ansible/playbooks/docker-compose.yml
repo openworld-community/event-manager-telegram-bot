@@ -148,5 +148,5 @@
                         root: /usr/share/nginx/html
                     - location: /
                       core:
-                        root: /var/www/{{ ansible_fqdn }}
+                        root: /var/www/{{ inventory_hostname }}
                         index: app.html
