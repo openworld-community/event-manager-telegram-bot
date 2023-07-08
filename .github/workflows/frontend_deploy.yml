@@ -22,4 +22,4 @@ jobs:
 
       - name: Debug
         run: |
-          echo "GITHUB_REF: ${{ github.event.env }}"
+          echo "GITHUB_REF: ${{ github.event.repository_dispatch.env }}"
