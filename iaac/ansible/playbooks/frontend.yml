@@ -2,12 +2,6 @@
   become: true
   gather_facts: yes
   tasks:
-    - name: Download release
-      get_url:
-        url: https://github.com/openworld-community/event-manager-bot-frontend/releases/download/{{ version }}/event-manager-telegram-bot-front.tar.gz
-        dest: /tmp/event-manager-telegram-bot-front-{{version}}.tar.gz
-        validate_certs: false
-
     - name: Create directory
       file:
         path: /var/www/event-manager-telegram-bot-front-{{version}}
@@ -16,10 +10,10 @@
 
     - name: Unpack release
       unarchive:
-          src: /tmp/event-manager-telegram-bot-front-{{version}}.tar.gz
-          dest: /var/www/event-manager-telegram-bot-front-{{version}}
-          remote_src: yes
-          creates: /var/www/event-manager-telegram-bot-front-{{version}}
+        src: https://github.com/openworld-community/event-manager-bot-frontend/releases/download/{{ version }}/event-manager-telegram-bot-front.tar.gz
+        dest: /var/www/event-manager-telegram-bot-front-{{version}}
+        remote_src: yes
+        creates: /var/www/event-manager-telegram-bot-front-{{version}}
 
     - name: Remove old symlink
       file:
