@@ -35,4 +35,4 @@ jobs:
             --limit ${{ github.event.client_payload.env }} \
             iaac/ansible/playbooks/frontend.yml --extra-vars "\
             ansible_sudo_pass=\"${{ secrets.DEPLOY_USER_PASSWORD }}\" \
-            version = \"${{ github.event.client_payload.version }}\""
+            version=\"${{ github.event.client_payload.version }}\""
