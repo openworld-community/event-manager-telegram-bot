@@ -13,7 +13,6 @@
         src: https://github.com/openworld-community/event-manager-bot-frontend/releases/download/{{ version }}/event-manager-telegram-bot-front.tar.gz
         dest: /var/www/event-manager-telegram-bot-front-{{version}}
         remote_src: yes
-        mode: '0755'
 
     - name: Remove old symlink
       file:
