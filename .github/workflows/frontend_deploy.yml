@@ -23,3 +23,4 @@ jobs:
       - name: Debug
         run: |
           echo "GITHUB_REF: ${{ github.event.client_payload.env }}"
+          echo "GITHUB_REF: ${{ github.event.client_payload.version }}"
