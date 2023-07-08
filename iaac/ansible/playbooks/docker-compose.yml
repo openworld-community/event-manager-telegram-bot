@@ -149,4 +149,4 @@
                     - location: /
                       core:
                         root: /var/www/{{ inventory_hostname }}
-                        index: app.html
+                        index: index.html

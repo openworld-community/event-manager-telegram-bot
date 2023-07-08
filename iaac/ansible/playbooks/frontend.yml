@@ -23,7 +23,7 @@
 
     - name: Create new symlink
       file:
-          src: /var/www/event-manager-telegram-bot-front-{{version}}
+          src: /var/www/event-manager-telegram-bot-front-{{version}}/build
           dest: /var/www/{{ inventory_hostname }}
           state: link
           force: yes
