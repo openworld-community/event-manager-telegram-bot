@@ -5,7 +5,7 @@ use entity::event;
 use entity::event::EventState;
 use sea_orm::{
     ActiveModelTrait, ActiveValue, ConnectionTrait, DatabaseConnection, DbErr, EntityTrait,
-    QuerySelect,
+    IntoActiveModel, QuerySelect,
 };
 
 pub async fn create_event(
@@ -60,49 +60,80 @@ where
 
 pub async fn update_event<C>(
     id: &i32,
-    raw_event: OptionalRawEvent,
+    raw_event: &OptionalRawEvent,
     poll: &C,
 ) -> Result<event::Model, DbErr>
 where
     C: ConnectionTrait,
 {
-    let ac = event::ActiveModel {
-        id: ActiveValue::Unchanged(id.clone()),
-        state: ActiveValue::Unchanged(EventState::Open),
-        name: raw_event
-            .name
-            .map_or(ActiveValue::NotSet, |val| ActiveValue::Set(val.clone())),
-        link: raw_event
-            .link
-            .map_or(ActiveValue::NotSet, |val| ActiveValue::Set(val.clone())),
-        max_adults: raw_event
-            .max_adults
-            .map_or(ActiveValue::NotSet, |val| ActiveValue::Set(val.clone())),
-        max_children: raw_event
-            .max_children
-            .map_or(ActiveValue::NotSet, |val| ActiveValue::Set(val.clone())),
-        max_adults_per_reservation: raw_event
-            .max_adults_per_reservation
-            .map_or(ActiveValue::NotSet, |val| ActiveValue::Set(val.clone())),
-        max_children_per_reservation: raw_event
-            .max_children_per_reservation
-            .map_or(ActiveValue::NotSet, |val| ActiveValue::Set(val.clone())),
-        event_start_time: raw_event
-            .event_start_time
-            .map_or(ActiveValue::NotSet, |val| ActiveValue::Set(val.naive_utc())),
-        remind: raw_event
-            .remind
-            .map_or(ActiveValue::NotSet, |val| ActiveValue::Set(val.naive_utc())),
-        adult_ticket_price: raw_event
-            .adult_ticket_price
-            .map_or(ActiveValue::NotSet, |val| ActiveValue::Set(val.clone())),
-        child_ticket_price: raw_event
-            .child_ticket_price
-            .map_or(ActiveValue::NotSet, |val| ActiveValue::Set(val.clone())),
-        currency: raw_event
-            .currency
-            .map_or(ActiveValue::NotSet, |val| ActiveValue::Set(val.clone())),
-    };
+    let event = get_event(id, poll).await?;
 
-    ac.update(poll).await
+    match event {
+        None => Err(DbErr::RecordNotFound(format!(
+            "Event not found with id {}",
+            id
+        ))),
+        Some(current_event) => {
+            let mut ac = current_event.into_active_model();
+
+            ac.name = match &raw_event.name {
+                Some(name) => ActiveValue::Set(name.clone()),
+                _ => ac.name,
+            };
+
+            ac.link = match &raw_event.link {
+                Some(link) => ActiveValue::Set(link.clone()),
+                _ => ac.link,
+            };
+
+            ac.max_adults = match &raw_event.max_adults {
+                Some(max_adults) => ActiveValue::Set(*max_adults),
+                _ => ac.max_adults,
+            };
+
+            ac.max_children = match &raw_event.max_children {
+                Some(max_children) => ActiveValue::Set(*max_children),
+                _ => ac.max_children,
+            };
+
+            ac.max_adults_per_reservation = match &raw_event.max_adults_per_reservation {
+                Some(max_adults_per_reservation) => ActiveValue::Set(*max_adults_per_reservation),
+                _ => ac.max_adults_per_reservation,
+            };
+
+            ac.max_children_per_reservation = match &raw_event.max_children_per_reservation {
+                Some(max_children_per_reservation) => {
+                    ActiveValue::Set(*max_children_per_reservation)
+                }
+                _ => ac.max_children_per_reservation,
+            };
+
+            ac.event_start_time = match &raw_event.event_start_time {
+                Some(event_start_time) => ActiveValue::Set(event_start_time.naive_utc()),
+                _ => ac.event_start_time,
+            };
+
+            ac.remind = match &raw_event.remind {
+                Some(remind) => ActiveValue::Set(remind.naive_utc()),
+                _ => ac.remind,
+            };
+
+            ac.adult_ticket_price = match &raw_event.adult_ticket_price {
+                Some(adult_ticket_price) => ActiveValue::Set(*adult_ticket_price),
+                _ => ac.adult_ticket_price,
+            };
+
+            ac.child_ticket_price = match &raw_event.child_ticket_price {
+                Some(child_ticket_price) => ActiveValue::Set(*child_ticket_price),
+                _ => ac.child_ticket_price,
+            };
+
+            ac.currency = match &raw_event.currency {
+                Some(currency) => ActiveValue::Set(currency.clone()),
+                _ => ac.currency,
+            };
+
+            ac.update(poll).await
+        }
+    }
 }

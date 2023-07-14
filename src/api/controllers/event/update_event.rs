@@ -16,6 +16,8 @@ pub async fn update_event(
     pool: Data<DatabaseConnection>,
 ) -> Result<impl Responder, AppError> {
     let id = id.into_inner();
+    let event_to_update = event_to_update.into_inner();
+
     let transaction = pool.begin().await?;
 
     let event = event::get_event(&id, &transaction)
@@ -24,9 +26,9 @@ pub async fn update_event(
 
     event_to_update.validation(&event)?;
 
-    let updated = event::update_event(&id, event_to_update.into_inner(), &transaction).await?;
+    let updated = event::update_event(&id, &event_to_update, &transaction).await?;
 
-    transaction.commit();
+    transaction.commit().await?;
 
     Ok(json_response(&updated, StatusCode::OK))
 }
