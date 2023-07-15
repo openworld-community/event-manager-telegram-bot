@@ -48,9 +48,11 @@ impl TryGetable for EventState {
                     source: Box::new(ErrorToConvertFromI32(state)),
                 })),
             },
-            None => Err(
-                TryGetError::Null(format!("can not get {} from index {:?}", stringify!(EventState), index))
-            ),
+            None => Err(TryGetError::Null(format!(
+                "can not get {} from index {:?}",
+                stringify!(EventState),
+                index
+            ))),
         }
     }
 }
@@ -58,9 +60,7 @@ impl TryGetable for EventState {
 impl ValueType for EventState {
     fn try_from(v: Value) -> Result<Self, ValueTypeErr> {
         match v {
-            Value::Int(Some(val)) => {
-                EventState::from_i32(val).ok_or(ValueTypeErr)
-            }
+            Value::Int(Some(val)) => EventState::from_i32(val).ok_or(ValueTypeErr),
             _ => Err(ValueTypeErr),
         }
     }

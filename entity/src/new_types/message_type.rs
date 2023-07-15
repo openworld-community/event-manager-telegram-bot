@@ -1,10 +1,10 @@
-use std::error::Error;
-use std::fmt::{Display, Formatter};
 use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
-use sea_orm::{ColIdx, ColumnType, DbErr, QueryResult, TryGetable, TryGetError, Value};
 use sea_orm::sea_query::{ArrayType, Nullable, ValueType, ValueTypeErr};
+use sea_orm::{ColIdx, ColumnType, DbErr, QueryResult, TryGetError, TryGetable, Value};
 use serde::{Deserialize, Serialize};
+use std::error::Error;
+use std::fmt::{Display, Formatter};
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, FromPrimitive)]
 pub enum MessageType {
@@ -48,9 +48,11 @@ impl TryGetable for MessageType {
                     source: Box::new(ErrorToConvertFromI32(state)),
                 })),
             },
-            None => Err(
-                TryGetError::Null(format!("can not get {} from index {:?}", stringify!(MessageType), index))
-            ),
+            None => Err(TryGetError::Null(format!(
+                "can not get {} from index {:?}",
+                stringify!(MessageType),
+                index
+            ))),
         }
     }
 }
@@ -58,9 +60,7 @@ impl TryGetable for MessageType {
 impl ValueType for MessageType {
     fn try_from(v: Value) -> Result<Self, ValueTypeErr> {
         match v {
-            Value::Int(Some(value)) => {
-                MessageType::from_i32(value).ok_or(ValueTypeErr)
-            }
+            Value::Int(Some(value)) => MessageType::from_i32(value).ok_or(ValueTypeErr),
             _ => Err(ValueTypeErr),
         }
     }

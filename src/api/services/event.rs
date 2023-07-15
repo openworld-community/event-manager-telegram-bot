@@ -1,8 +1,9 @@
 use crate::api::controllers::event::types::{OptionalRawEvent, RawEvent};
+use crate::api::services::message::delete_enqueued_messages;
 use crate::api::shared::Pagination;
 use chrono::Utc;
 use entity::event;
-use entity::new_types::EventState;
+use entity::new_types::{EventState, MessageType};
 use sea_orm::{
     ActiveModelTrait, ActiveValue, ConnectionTrait, DatabaseConnection, DbErr, EntityTrait,
     IntoActiveModel, QuerySelect,
@@ -133,7 +134,11 @@ where
                 _ => ac.currency,
             };
 
-            ac.update(poll).await
+            let updated_event = ac.update(poll).await?;
+
+            delete_enqueued_messages(&updated_event.id, &MessageType::Reminder, poll).await?;
+
+            Ok(updated_event)
         }
     }
 }
