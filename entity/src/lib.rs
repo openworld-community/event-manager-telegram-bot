@@ -10,5 +10,6 @@ pub mod group_leader;
 pub mod message;
 pub mod message_outbox;
 pub mod message_sent;
+pub mod new_types;
 pub mod presence;
 pub mod reservation;

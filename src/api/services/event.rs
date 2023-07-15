@@ -2,7 +2,7 @@ use crate::api::controllers::event::types::{OptionalRawEvent, RawEvent};
 use crate::api::shared::Pagination;
 use chrono::Utc;
 use entity::event;
-use entity::event::EventState;
+use entity::new_types::EventState;
 use sea_orm::{
     ActiveModelTrait, ActiveValue, ConnectionTrait, DatabaseConnection, DbErr, EntityTrait,
     IntoActiveModel, QuerySelect,
