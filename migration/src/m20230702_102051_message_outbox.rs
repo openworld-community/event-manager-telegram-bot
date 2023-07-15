@@ -1,3 +1,4 @@
+use crate::m20230702_094319_messages::Message;
 use sea_orm_migration::prelude::*;
 
 #[derive(DeriveMigrationName)]
@@ -19,6 +20,16 @@ impl MigrationTrait for Migration {
                     )
                     .col(ColumnDef::new(MessageOutbox::Message).integer().not_null())
                     .col(ColumnDef::new(MessageOutbox::SendAt).timestamp().not_null())
+                    .to_owned(),
+            )
+            .await?;
+
+        manager
+            .create_foreign_key(
+                ForeignKey::create()
+                    .name("FK_message_outbox_message")
+                    .from(MessageOutbox::Table, MessageOutbox::Message)
+                    .to(Message::Table, Message::Id)
                     .to_owned(),
             )
             .await
