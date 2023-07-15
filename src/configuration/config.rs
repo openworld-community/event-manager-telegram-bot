@@ -22,6 +22,7 @@ pub struct Config {
     pub mailing_hours_from: u64,
     pub mailing_hours_to: u64,
     pub api_socket_address: SocketAddr,
+    pub database_connection: String,
 }
 
 impl From<RawConfiguration> for Config {
@@ -47,6 +48,7 @@ impl From<RawConfiguration> for Config {
             limit_bulk_notifications_per_second: value.limit_bulk_notifications_per_second,
             mailing_hours_from: mailing_hours.0,
             mailing_hours_to: mailing_hours.1,
+            database_connection: value.database_connection,
         }
     }
 }

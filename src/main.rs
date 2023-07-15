@@ -26,6 +26,7 @@ use teloxide::{
 
 mod admin_message_handler;
 mod api;
+mod app_errors;
 mod configuration;
 mod db;
 mod format;
@@ -39,26 +40,36 @@ use crate::api::setup_api_server;
 
 use crate::reply::*;
 use crate::types::MessageType;
+use migration::{Migrator, MigratorTrait};
 use r2d2_sqlite::SqliteConnectionManager;
+use sea_orm::Database;
 use tokio::sync::Mutex;
 
+use crate::app_errors::AppErrors;
 use crate::configuration::get_config;
 use types::Context;
 use util::get_unix_time;
 
 #[tokio::main]
-async fn main() {
+async fn main() -> Result<(), AppErrors> {
     env_logger::init();
 
     let config = get_config();
 
-    let manager = SqliteConnectionManager::file("/data/events.db3");
+    let database_connection = Database::connect(&config.database_connection).await?;
+    Migrator::up(&database_connection, None).await?;
+
+    tokio::spawn(setup_api_server(
+        &config.api_socket_address,
+        &database_connection,
+    ));
+
+    return Ok(());
+    let manager = SqliteConnectionManager::file("./events.db3");
     let pool = r2d2::Pool::new(manager).unwrap();
     if let Ok(conn) = pool.get() {
         db::create(&conn).expect("Failed to create db.");
     }
-
-    tokio::spawn(setup_api_server(&config.api_socket_address, &pool));
 
     let bot = Bot::new(&config.telegram_bot_token).auto_send();
 
@@ -96,6 +107,8 @@ async fn main() {
         .setup_ctrlc_handler()
         .dispatch()
         .await;
+
+    Ok(())
 }
 
 async fn message_handler(
