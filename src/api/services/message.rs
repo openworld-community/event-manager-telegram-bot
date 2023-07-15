@@ -28,8 +28,8 @@ where
 
 #[derive(Debug)]
 pub struct ResultCreateMessage {
-    message: message::Model,
-    message_outbox: message_outbox::Model,
+    pub message: message::Model,
+    pub message_outbox: message_outbox::Model,
 }
 
 pub async fn create_message<C>(

@@ -1,5 +1,7 @@
 use crate::api::controllers::event::types::{OptionalRawEvent, RawEvent};
-use crate::api::services::message::delete_enqueued_messages;
+use crate::api::services::message::{
+    create_message, delete_enqueued_messages, ResultCreateMessage,
+};
 use crate::api::shared::Pagination;
 use chrono::Utc;
 use entity::event;
@@ -9,10 +11,19 @@ use sea_orm::{
     IntoActiveModel, QuerySelect,
 };
 
-pub async fn create_event(
+#[derive(Debug)]
+pub struct ResultCreateEvent {
+    pub event: event::Model,
+    pub result_create_message: Option<ResultCreateMessage>,
+}
+
+pub async fn create_event<C>(
     event_to_create: &RawEvent,
-    pool: &DatabaseConnection,
-) -> Result<event::Model, DbErr> {
+    con: &C,
+) -> Result<ResultCreateEvent, DbErr>
+where
+    C: ConnectionTrait,
+{
     let now = Utc::now().naive_utc();
 
     let event = event::ActiveModel {
@@ -33,12 +44,39 @@ pub async fn create_event(
         currency: ActiveValue::Set(event_to_create.currency.clone()),
     };
 
-    let result = event::Entity::insert(event).exec(pool).await?;
+    let result = event.insert(con).await?;
 
-    Ok(event::Entity::find_by_id(result.last_insert_id)
-        .one(pool)
-        .await?
-        .unwrap())
+    if result.event_type() != event::EventType::Announcement {
+        let text = format!(
+            "\nЗдравствуйте!\nНе забудьте, пожалуйста, что вы записались на\n<a href=\"{}\">{}</a>\
+            \nНачало: {}\nПожалуйста, вовремя откажитесь от мест, если ваши планы изменились.\n",
+            result.link,
+            result.name,
+            // todo: fix problem with timezone
+            result.event_start_time.format("%d.%m %H:%M"),
+        );
+
+        let result_create_message = create_message(
+            result.id,
+            "Bot",
+            0,
+            MessageType::Reminder,
+            &text,
+            event_to_create.remind,
+            con,
+        )
+        .await?;
+
+        return Ok(ResultCreateEvent {
+            event: result,
+            result_create_message: Some(result_create_message),
+        });
+    }
+
+    return Ok(ResultCreateEvent {
+        event: result,
+        result_create_message: None,
+    });
 }
 
 pub async fn event_list(
@@ -137,6 +175,8 @@ where
             let updated_event = ac.update(poll).await?;
 
             delete_enqueued_messages(&updated_event.id, &MessageType::Reminder, poll).await?;
+
+            // todo: Remained that event details was changed
 
             Ok(updated_event)
         }

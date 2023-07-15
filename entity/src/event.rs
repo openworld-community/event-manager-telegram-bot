@@ -23,6 +23,25 @@ pub struct Model {
     pub currency: String,
 }
 
+#[derive(Debug, PartialEq, Eq)]
+pub enum EventType {
+    Paid,
+    Free,
+    Announcement,
+}
+
+impl Model {
+    pub fn event_type(&self) -> EventType {
+        if self.adult_ticket_price != 0 || self.child_ticket_price != 0 {
+            EventType::Paid
+        } else if self.max_adults != 0 || self.max_children != 0 {
+            EventType::Free
+        } else {
+            EventType::Announcement
+        }
+    }
+}
+
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
 pub enum Relation {
     #[sea_orm(has_many = "super::attachment::Entity")]
