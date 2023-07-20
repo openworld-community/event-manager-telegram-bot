@@ -1,11 +1,11 @@
 use crate::api::shared::ValidationError;
 use crate::api::shared::WithId;
-use crate::types::Event;
 use chrono::{DateTime, Utc};
 use entity::event;
 use std::borrow::Cow;
 use std::collections::HashMap;
 use validator::{Validate, ValidationErrors};
+use serde::{Serialize,Deserialize};
 
 #[derive(Debug, Serialize, Deserialize, Validate)]
 pub struct RawEvent {
@@ -40,8 +40,6 @@ pub struct OptionalRawEvent {
     pub child_ticket_price: Option<i32>,
     pub currency: Option<String>,
 }
-
-pub type EventWithId = WithId<u64, RawEvent>;
 
 impl RawEvent {
     pub fn validation(&self) -> Result<(), ValidationError> {
@@ -207,25 +205,6 @@ impl OptionalRawEvent {
     fn get_max_children_per_reservation(&self, current_event: &event::Model) -> i32 {
         self.max_children_per_reservation
             .unwrap_or(current_event.max_children_per_reservation)
-    }
-}
-
-impl Into<Event> for RawEvent {
-    fn into(self) -> Event {
-        Event {
-            id: 0,
-            name: self.name,
-            link: self.link,
-            max_adults: self.max_adults as u64,
-            max_children: self.max_children as u64,
-            max_adults_per_reservation: self.max_adults_per_reservation as u64,
-            max_children_per_reservation: self.max_children_per_reservation as u64,
-            ts: self.event_start_time.timestamp() as u64,
-            remind: self.remind.timestamp() as u64,
-            adult_ticket_price: self.adult_ticket_price as u64,
-            child_ticket_price: self.child_ticket_price as u64,
-            currency: self.currency,
-        }
     }
 }
 

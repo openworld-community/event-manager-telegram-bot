@@ -2,6 +2,7 @@ use chrono::DateTime;
 use regex::Regex;
 use std::collections::HashSet;
 use std::net::{SocketAddr, ToSocketAddrs};
+use serde::{Serialize, Deserialize};
 
 #[derive(Deserialize, Serialize, Clone, Default, Debug)]
 pub struct RawConfiguration {
