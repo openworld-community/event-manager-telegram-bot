@@ -34,6 +34,7 @@ impl MigrationTrait for Migration {
                     .name("FK_message_event")
                     .from(Message::Table, Message::Event)
                     .to(Event::Table, Event::Id)
+                    .on_delete(ForeignKeyAction::Cascade)
                     .to_owned(),
             )
             .await

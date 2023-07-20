@@ -174,7 +174,7 @@ pub async fn update_event<C>(
 
             let updated_event = ac.update(poll).await?;
 
-            delete_enqueued_messages(&updated_event.id, &MessageType::Reminder, poll).await?;
+            delete_enqueued_messages(&updated_event.id, Some(&MessageType::Reminder), poll).await?;
 
             // todo: Remained that event details was changed
 

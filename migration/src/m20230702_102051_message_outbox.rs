@@ -30,6 +30,7 @@ impl MigrationTrait for Migration {
                     .name("FK_message_outbox_message")
                     .from(MessageOutbox::Table, MessageOutbox::Message)
                     .to(Message::Table, Message::Id)
+                    .on_delete(ForeignKeyAction::Cascade)
                     .to_owned(),
             )
             .await
