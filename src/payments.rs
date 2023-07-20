@@ -4,7 +4,7 @@ use crate::types::{Booking, Connection, Context, EventState, OrderInfo, Reservat
 use crate::util::get_unix_time;
 use anyhow::anyhow;
 use teloxide::types::{InlineKeyboardButton, PreCheckoutQuery, SuccessfulPayment};
-use tracing::{error};
+use tracing::error;
 
 use crate::db;
 use crate::format;

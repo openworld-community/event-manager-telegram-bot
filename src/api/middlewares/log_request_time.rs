@@ -1,11 +1,10 @@
-use std::future::{Future, Ready, ready};
-use std::pin::Pin;
-use std::task::{Context, Poll};
 use actix_web::dev::{Service, ServiceRequest, ServiceResponse, Transform};
 use actix_web::Error;
 use chrono::Utc;
+use std::future::{ready, Future, Ready};
+use std::pin::Pin;
+use std::task::{Context, Poll};
 use tracing::info;
-
 
 pub struct LogTime;
 
@@ -15,12 +14,11 @@ impl LogTime {
     }
 }
 
-
 impl<S, B> Transform<S, ServiceRequest> for LogTime
-    where
-        S: Service<ServiceRequest, Response=ServiceResponse<B>, Error=Error>,
-        S::Future: 'static,
-        B: 'static,
+where
+    S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
+    S::Future: 'static,
+    B: 'static,
 {
     type Response = ServiceResponse<B>;
     type Error = Error;
@@ -33,21 +31,20 @@ impl<S, B> Transform<S, ServiceRequest> for LogTime
     }
 }
 
-
 pub struct LogTimeMiddleware<S> {
     service: S,
 }
 
 impl<S, B> Service<ServiceRequest> for LogTimeMiddleware<S>
-    where
-        S: Service<ServiceRequest, Response=ServiceResponse<B>, Error=Error>,
-        S::Future: 'static,
-        B: 'static,
+where
+    S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
+    S::Future: 'static,
+    B: 'static,
 {
     type Response = ServiceResponse<B>;
     type Error = Error;
 
-    type Future = Pin<Box<dyn Future<Output=Result<Self::Response, Self::Error>> + 'static>>;
+    type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + 'static>>;
 
     fn poll_ready(&self, _: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         Poll::Ready(Ok(()))
@@ -63,7 +60,7 @@ impl<S, B> Service<ServiceRequest> for LogTimeMiddleware<S>
 
             let request_time = end_time - start_time;
 
-            info!( "request time: {}", request_time);
+            info!("request time: {}", request_time);
 
             res
         })

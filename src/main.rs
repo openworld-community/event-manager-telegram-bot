@@ -7,7 +7,7 @@ extern crate num;
 use std::env;
 use std::sync::Arc;
 use std::time::Duration;
-use tracing::{trace, warn, error, debug};
+use tracing::{debug, error, trace, warn};
 
 extern crate r2d2;
 extern crate r2d2_sqlite;
@@ -30,9 +30,9 @@ mod format;
 mod message_handler;
 mod payments;
 mod reply;
+mod set_up_logger;
 mod types;
 mod util;
-mod set_up_logger;
 
 use crate::api::setup_api_server;
 
@@ -42,9 +42,9 @@ use r2d2_sqlite::SqliteConnectionManager;
 use tokio::sync::Mutex;
 
 use crate::configuration::get_config;
+use crate::set_up_logger::set_up_logger;
 use types::Context;
 use util::get_unix_time;
-use crate::set_up_logger::set_up_logger;
 
 #[tokio::main]
 async fn main() {
