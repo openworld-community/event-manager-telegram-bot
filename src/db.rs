@@ -6,6 +6,7 @@ use crate::util::{self, get_unix_time};
 use fallible_streaming_iterator::FallibleStreamingIterator;
 use rusqlite::{params, Result, Row};
 use std::collections::HashSet;
+use tracing::{debug, error, warn};
 use url::Url;
 
 use crate::format;
