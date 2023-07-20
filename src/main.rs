@@ -1,4 +1,3 @@
-/// Test comment for CI 13
 #[macro_use]
 extern crate serde;
 #[macro_use]
@@ -8,9 +7,8 @@ extern crate num;
 use std::env;
 use std::sync::Arc;
 use std::time::Duration;
+use tracing::{debug, error, trace, warn};
 
-#[macro_use]
-extern crate log;
 extern crate r2d2;
 extern crate r2d2_sqlite;
 extern crate rusqlite;
@@ -32,6 +30,7 @@ mod format;
 mod message_handler;
 mod payments;
 mod reply;
+mod set_up_logger;
 mod types;
 mod util;
 
@@ -43,12 +42,13 @@ use r2d2_sqlite::SqliteConnectionManager;
 use tokio::sync::Mutex;
 
 use crate::configuration::get_config;
+use crate::set_up_logger::set_up_logger;
 use types::Context;
 use util::get_unix_time;
 
 #[tokio::main]
 async fn main() {
-    env_logger::init();
+    set_up_logger();
 
     let config = get_config();
 
@@ -87,7 +87,7 @@ async fn main() {
     Dispatcher::builder(bot, handler)
         .dependencies(dptree::deps![context])
         .default_handler(|upd| async move {
-            log::warn!("Unhandled update: {:?}", upd);
+            warn!("Unhandled update: {:?}", upd);
         })
         .error_handler(LoggingErrorHandler::with_custom_text(
             "An error has occurred in the dispatcher",
