@@ -107,8 +107,7 @@ fn build_pending_messages_query(
 
 #[test]
 fn check_query() {
-    use sea_orm::{QueryTrait, DbBackend};
-
+    use sea_orm::{DbBackend, QueryTrait};
 
     let time = Utc::now().naive_utc();
     let query = build_pending_messages_query(50, time.clone())

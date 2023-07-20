@@ -5,8 +5,6 @@ extern crate serde;
 extern crate num_derive;
 extern crate num;
 
-
-
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -45,7 +43,6 @@ use crate::types::MessageType;
 use migration::{Migrator, MigratorTrait};
 
 use sea_orm::Database;
-
 
 use crate::app_errors::AppErrors;
 use crate::background_task::perform_background_task;

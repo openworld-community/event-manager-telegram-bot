@@ -11,6 +11,6 @@ pub fn event_scope() -> Scope {
     web::scope("/event")
         .service(event_list::event_list)
         .service(create_event::create_event)
-        .service(remove_event::remove_event)
+        .service(remove_event::remove_event_handler)
         .service(update_event::update_event)
 }
