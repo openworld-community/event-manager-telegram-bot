@@ -7,6 +7,7 @@ use fallible_streaming_iterator::FallibleStreamingIterator;
 use rusqlite::{params, Result, Row};
 use std::collections::HashSet;
 use url::Url;
+use tracing::{debug, warn, error};
 
 use crate::format;
 use anyhow::anyhow;
