@@ -5,6 +5,7 @@ use crate::types::{Connection, Context, EventState, EventType, ReservationState,
 use anyhow::anyhow;
 use teloxide::{types::InlineKeyboardButton, utils::html};
 use url::Url;
+use tracing::{error};
 
 use crate::db;
 use crate::format;
