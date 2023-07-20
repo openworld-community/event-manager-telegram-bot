@@ -21,8 +21,8 @@ pub async fn create_event<C>(
     event_to_create: &RawEvent,
     con: &C,
 ) -> Result<ResultCreateEvent, DbErr>
-    where
-        C: ConnectionTrait,
+where
+    C: ConnectionTrait,
 {
     let now = Utc::now().naive_utc();
 
@@ -65,7 +65,7 @@ pub async fn create_event<C>(
             event_to_create.remind,
             con,
         )
-            .await?;
+        .await?;
 
         return Ok(ResultCreateEvent {
             event: result,
@@ -91,8 +91,8 @@ pub async fn event_list(
 }
 
 pub async fn get_event<C>(id: &i32, pool: &C) -> Result<Option<event::Model>, DbErr>
-    where
-        C: ConnectionTrait,
+where
+    C: ConnectionTrait,
 {
     event::Entity::find_by_id(id.clone()).one(pool).await
 }
@@ -102,8 +102,8 @@ pub async fn update_event<C>(
     raw_event: &OptionalRawEvent,
     poll: &C,
 ) -> Result<event::Model, DbErr>
-    where
-        C: ConnectionTrait,
+where
+    C: ConnectionTrait,
 {
     let event = get_event(id, poll).await?;
 
@@ -184,8 +184,8 @@ pub async fn update_event<C>(
 }
 
 pub async fn remove_event<C>(id: &i32, pool: &C) -> Result<(), DbErr>
-    where
-        C: ConnectionTrait,
+where
+    C: ConnectionTrait,
 {
     event::Entity::delete_by_id(*id).exec(pool).await?;
 

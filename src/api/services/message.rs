@@ -11,25 +11,17 @@ pub async fn delete_enqueued_messages<C>(
     message_type: Option<&MessageType>,
     con: &C,
 ) -> Result<u64, DbErr>
-    where
-        C: ConnectionTrait,
+where
+    C: ConnectionTrait,
 {
     let filter = match message_type {
-        None => {
-            Column::Event.eq(*event_id)
-        }
-        Some(message_type) => {
-            Column::Event
-                .eq(*event_id)
-                .and(Column::Type.eq(message_type.clone()))
-        }
+        None => Column::Event.eq(*event_id),
+        Some(message_type) => Column::Event
+            .eq(*event_id)
+            .and(Column::Type.eq(message_type.clone())),
     };
 
-
-    let res: DeleteResult = Entity::delete_many()
-        .filter(filter)
-        .exec(con)
-        .await?;
+    let res: DeleteResult = Entity::delete_many().filter(filter).exec(con).await?;
 
     Ok(res.rows_affected)
 }
@@ -49,8 +41,8 @@ pub async fn create_message<C>(
     send_at: chrono::DateTime<Utc>,
     con: &C,
 ) -> Result<ResultCreateMessage, DbErr>
-    where
-        C: ConnectionTrait,
+where
+    C: ConnectionTrait,
 {
     let ac = ActiveModel {
         id: ActiveValue::NotSet,
@@ -81,8 +73,8 @@ pub struct PendingMessages {
 }
 
 pub async fn get_pending_messages<C>(limit: u64, con: &C) -> Result<(), DbErr>
-    where
-        C: ConnectionTrait,
+where
+    C: ConnectionTrait,
 {
     let now = Utc::now().naive_utc();
     let pending_messages = build_pending_messages_query(limit, now)

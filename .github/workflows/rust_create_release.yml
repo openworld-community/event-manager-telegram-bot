@@ -9,6 +9,9 @@ on:
       - 'src/**'
       - 'Cargo.yml'
       - '.github/workflows/rust_create_release.yml'
+      - '!iaac/ansible/docker-compose.yml'
+      - '!iaac/ansible/playbooks/templates/**'
+      - '!.github/workflows/deploy_container.yml'
 
 #TODO: добавить отслеживание изменений по директориям
 #Разобраться с версионированием при ПР
@@ -22,6 +25,7 @@ jobs:
     environment: ${{ github.base_ref }}
     runs-on: ubuntu-20.04
     permissions: write-all
+    concurrency: ${{ github.base_ref }}
 
     steps:
       - uses: hmarr/debug-action@v2
@@ -53,6 +57,7 @@ jobs:
 
       - name: Test
         run: cargo test --verbose
+        if: github.base_ref == 'main'
 
       - name: Create Release
         uses: actions/create-release@v1

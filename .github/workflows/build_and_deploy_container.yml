@@ -15,6 +15,7 @@ jobs:
     environment: ${{ github.event.release.prerelease && 'prerelease' || 'main' }}
     runs-on: ubuntu-20.04
     permissions: write-all
+    concurrency: ${{ github.event.release.prerelease && 'prerelease-build-and-deploy-container' || !github.event.release.prerelease && 'main-build-and-deploy-container' }}
 
     steps:
       - uses: hmarr/debug-action@v2
@@ -57,7 +58,7 @@ jobs:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
             type=raw,value=${{ steps.last_release.outputs.tag_name || github.event.release.tag_name }}
-            type=raw,value=latest,enable=${{ github.event.release.prerelease == 'false' }}
+            type=raw,value=latest,enable=${{ !github.event.release.prerelease }}
             type=raw,value=prerelease,enable=${{ github.event.release.prerelease }}
 
       - name: Build and push Docker image

@@ -1,6 +1,9 @@
 name: Lint and test
 
-on: [ push ]
+on:
+  push:
+    paths:
+      - src/**
 
 jobs:
   run:

@@ -1,4 +1,3 @@
-/// Test comment for CI 4
 #[macro_use]
 extern crate serde;
 #[macro_use]
@@ -7,12 +6,7 @@ extern crate num;
 
 use std::sync::Arc;
 use std::time::Duration;
-
-#[macro_use]
-extern crate log;
-extern crate r2d2;
-extern crate r2d2_sqlite;
-extern crate rusqlite;
+use tracing::{debug, error, trace, warn};
 
 use teloxide::{
     prelude::*,
@@ -33,6 +27,7 @@ mod format;
 mod message_handler;
 mod payments;
 mod reply;
+mod set_up_logger;
 mod types;
 mod util;
 
@@ -47,12 +42,13 @@ use sea_orm::Database;
 use crate::app_errors::AppErrors;
 use crate::background_task::perform_background_task;
 use crate::configuration::get_config;
+use crate::set_up_logger::set_up_logger;
 use types::Context;
 use util::get_unix_time;
 
 #[tokio::main]
 async fn main() -> Result<(), AppErrors> {
-    env_logger::init();
+    set_up_logger();
 
     let config = get_config();
 
