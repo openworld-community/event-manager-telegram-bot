@@ -1,9 +1,8 @@
 mod create_event;
-mod db;
 mod event_list;
 mod get_event;
 mod remove_event;
-mod types;
+pub(crate) mod types;
 mod update_event;
 
 use actix_web::{web, Scope};

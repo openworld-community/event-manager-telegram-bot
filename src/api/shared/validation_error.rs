@@ -2,9 +2,10 @@ use actix_web::body::BoxBody;
 use actix_web::http::StatusCode;
 use actix_web::{HttpResponse, ResponseError};
 use std::fmt::{Debug, Display, Formatter};
+use thiserror::Error;
 use validator::ValidationErrors;
 
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub struct ValidationError {
     errors: ValidationErrors,
 }
@@ -29,8 +30,4 @@ impl ResponseError for ValidationError {
     fn error_response(&self) -> HttpResponse<BoxBody> {
         HttpResponse::BadRequest().body(serde_json::to_string(&self.errors).unwrap())
     }
-}
-
-pub fn validation_error_to_http(err: ValidationErrors) -> ValidationError {
-    ValidationError::from(err)
 }
