@@ -3,6 +3,7 @@ use teloxide::{
     types::{InlineKeyboardButton, InlineKeyboardMarkup, ParseMode},
     RequestError,
 };
+use tracing::error;
 
 /// Internal presentation for bot replies.
 pub enum Reply {

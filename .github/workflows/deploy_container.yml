@@ -7,18 +7,18 @@ on:
     tags:
       - prerelease
       - latest
-#  push:
-#    branches:
-#      - prerelease
-#      - main
-#    paths:
-#      - iaac/ansible/docker-compose.yml
-#      - iaac/ansible/playbooks/templates/**
-#      - .github/workflows/deploy_container.yml
-#      - '!src/**'
-#      - '!Cargo.yml'
-#      - '!.github/workflows/rust_create_release.yml'
-#      - '!.github/workflows/build_and_deploy_container.yml'
+  push:
+    branches:
+      - prerelease
+      - main
+    paths:
+      - iaac/ansible/playbooks/docker-compose.yml
+      - iaac/ansible/playbooks/templates/**
+      - .github/workflows/deploy_container.yml
+      - '!src/**'
+      - '!Cargo.yml'
+      - '!.github/workflows/rust_create_release.yml'
+      - '!.github/workflows/build_and_deploy_container.yml'
 
 env:
   REGISTRY: ghcr.io
@@ -26,10 +26,11 @@ env:
 
 jobs:
   deploy-container:
-    environment: ${{ github.event.registry_package.package_version.container_metadata.tag.name == 'prerelease' && 'prerelease' || github.event.registry_package.package_version.container_metadata.tag.name == 'latest' && 'main' }}
+    environment: ${{ github.event.registry_package.package_version.container_metadata.tag.name == 'prerelease' && 'prerelease' || github.event.registry_package.package_version.container_metadata.tag.name == 'latest' && 'main' ||  github.event_name == 'push' && github.ref == 'refs/heads/prerelease' && 'prerelease' || github.ref == 'refs/heads/main' && 'main' }}
     runs-on: ubuntu-20.04
     permissions: write-all
-    if: github.event.registry_package.package_version.container_metadata.tag.name == 'latest' || github.event.registry_package.package_version.container_metadata.tag.name == 'prerelease'
+    if: github.event.registry_package.package_version.container_metadata.tag.name == 'latest' || github.event.registry_package.package_version.container_metadata.tag.name == 'prerelease' || github.event_name == 'push' && (github.ref == 'refs/heads/prerelease' || github.ref == 'refs/heads/main')
+    concurrency: ${{ github.event.registry_package.package_version.container_metadata.tag.name == 'prerelease' && 'prerelease' || github.event.registry_package.package_version.container_metadata.tag.name == 'latest' && 'main' ||  github.event_name == 'push' && github.ref == 'refs/heads/prerelease' && 'prerelease' || github.ref == 'refs/heads/main' && 'main' }}-deploy-container
 
     steps:
       - uses: hmarr/debug-action@v2
@@ -38,18 +39,6 @@ jobs:
         uses: actions/checkout@v3
         with:
           fetch-depth: 0
-
-#      - name: "call action"
-#        id: last_release
-#        uses: InsonusK/get-latest-release@v1.0.1
-#        with:
-#          myToken: ${{ github.token }}
-#          view_top: 1
-#          exclude_types: draft ${{ github.environment == 'main' && '|prerelease' || github.environment == 'prerelease' && '|release' }}
-
-      - name: Debug
-        run: |
-          echo "environment name: ${{ vars.env_name }}"
 
       - name: Run docker-compose with current docker image on target instance
         run: |
@@ -61,9 +50,13 @@ jobs:
           iaac/ansible/playbooks/docker-compose.yml --extra-vars "\
           ansible_sudo_pass=\"${{ secrets.DEPLOY_USER_PASSWORD }}\" \
           docker_compose_install_fq_link=\"/usr/bin/docker-compose\" \
-          docker_image_version=\"${{ github.event.registry_package.package_version.container_metadata.tag.name }}\" \
+          docker_image_version=\"${{ vars.env_name == 'prerelease' && 'prerelease' || vars.env_name == 'main' && 'latest' }}\" \
           TELEGRAM_BOT_TOKEN=\"${{ secrets.TELEGRAM_BOT_TOKEN }}\" \
           PAYMENT_PROVIDER_TOKEN=\"${{ secrets.PAYMENT_PROVIDER_TOKEN }}\"
+          POSTGRES_PASSWORD=\"${{ secrets.POSTGRES_SU_PASSWORD }}\"
           telegram_admin_ids_list=\"${{ vars.TELEGRAM_ADMIN_IDS_LIST }}\"
           github_repository=\"${{ github.repository }}\"
-          github_actor=\"${{ github.actor }}\""
+          github_actor=\"${{ github.actor }}\"
+          db_name=\"${{ secrets.DB_NAME }}\"
+          db_user=\"${{ secrets.DB_USER }}\"
+          db_password=\"${{ secrets.DB_PASSWORD }}\""

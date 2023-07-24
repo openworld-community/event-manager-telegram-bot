@@ -11,11 +11,13 @@
 
     - name: Create dir
       file:
-        path: "/opt/{{ docker_image_version }}/data"
+        path: "/opt/{{ docker_image_version }}/{{ item }}"
         state: directory
         recurse: yes
         owner: docker
         group: docker
+      with_items:
+        - data
 
     - name: Debug
       debug:
@@ -23,18 +25,22 @@
 
     - name: Generate docker-compose file for current version
       template:
-        src: docker-compose.yml.j2
-        dest: "/opt/{{ docker_image_version }}/docker-compose.{{ docker_image_version }}.yml"
+        src: docker-compose-{{ item }}.yml.j2
+        dest: "/opt/{{ docker_image_version }}/docker-compose.{{ docker_image_version }}-{{ item }}.yml"
+      with_items:
+        - backend
+        - db
+      register: docker_compose
 
-    - name: Restart docker-compose for current version
-      docker_compose:
-        project_src: "/opt/{{ docker_image_version }}"
+    - name: Create network for current version
+      docker_network:
+        name: "{{ docker_image_version }}"
         state: present
-        recreate: always
-        pull: yes
-        remove_orphans: yes
-        files:
-          - "docker-compose.{{ docker_image_version }}.yml"
+
+    - name: Restart docker-compose for current version backend
+      become: true
+      become_user: docker
+      command: docker-compose -f "/opt/{{ docker_image_version }}/docker-compose.{{ docker_image_version }}-backend.yml" up -d --force-recreate
 
     - name: Wait for docker-compose to start
       wait_for:
@@ -42,3 +48,105 @@
           port: "{{ api_listen_docker_port }}"
           delay: 5
           timeout: 60
+
+    - name: Create dir
+      file:
+        path: "/opt/{{ docker_image_version }}/{{ item }}"
+        state: directory
+        owner: 70
+        group: 70
+      with_items:
+        - data-pg
+
+    - name: Restart docker-compose for current version database
+      become: true
+      become_user: docker
+      command: docker-compose -f "/opt/{{ docker_image_version }}/docker-compose.{{ docker_image_version }}-db.yml" up -d --force-recreate
+      when: docker_compose.changed
+
+    - name: Wait for db to start
+      wait_for:
+          host: 127.0.0.1
+          port: "{{ db_listen_docker_port }}"
+          delay: 5
+          timeout: 60
+
+    - name: Create role
+      postgresql_user:
+        name: "{{ db_user }}"
+        password: "{{ db_password }}"
+        login_host: 127.0.0.1
+        login_port: "{{ db_listen_docker_port }}"
+        login_password: "{{ POSTGRES_PASSWORD }}"
+
+    - name: Create database
+      postgresql_db:
+        name: "{{ db_name }}"
+        login_host: 127.0.0.1
+        login_port: "{{ db_listen_docker_port }}"
+        login_password: "{{ POSTGRES_PASSWORD }}"
+        owner: "{{ db_user }}"
+
+#TODO разделить плейбуки на отдельные файлы
+
+    - name: Config nginx
+      include_role:
+        name: nginxinc.nginx_config
+      vars:
+        nginx_config_http_template:
+          - template_file: http/default.conf.j2
+            deployment_location: /etc/nginx/conf.d/{{ inventory_hostname }}-app.conf
+            backup: true
+            config:
+              servers:
+                - core:
+                    listen:
+                      - port: 8443
+                        ssl: true
+                    server_name: "{{ inventory_hostname }}"
+                  log:
+                    access:
+                      - path: /var/log/nginx/{{ inventory_hostname }}.log
+                  ssl:
+                    certificate: /etc/letsencrypt/live/test.eventmanagerbot.peredelano.io/fullchain.pem
+                    certificate_key: /etc/letsencrypt/live/test.eventmanagerbot.peredelano.io/privkey.pem
+                  locations:
+                    - location: /
+                      proxy:
+                        pass: http://127.0.0.1:{{ api_listen_docker_port }}
+                        set_header:
+                          - field: Host
+                            value: $host
+                          - field: X-Real-IP
+                            value: $remote_addr
+          - template_file: http/default.conf.j2
+            deployment_location: /etc/nginx/conf.d/{{ inventory_hostname }}.conf
+            backup: true
+            config:
+              servers:
+                - core:
+                    listen:
+                      - port: 443
+                        ssl: true
+                    server_name: "{{ inventory_hostname }}"
+                    error_page:
+                      - code:
+                          - 500
+                          - 502
+                          - 503
+                          - 504
+                        uri: /50x.html
+                  log:
+                    access:
+                      - path: /var/log/nginx/{{ inventory_hostname }}.log
+                  ssl:
+                    certificate: /etc/letsencrypt/live/test.eventmanagerbot.peredelano.io/fullchain.pem
+                    certificate_key: /etc/letsencrypt/live/test.eventmanagerbot.peredelano.io/privkey.pem
+                  locations:
+                    - location: /50x.html
+                      core:
+                        root: /usr/share/nginx/html
+                    - location: /
+                      core:
+                        root: /var/www/{{ inventory_hostname }}
+                        index: index.html

@@ -5,10 +5,10 @@ extern crate serde;
 extern crate num_derive;
 extern crate num;
 
-
-
+use std::env;
 use std::sync::Arc;
 use std::time::Duration;
+use tracing::{debug, error, trace, warn};
 
 #[macro_use]
 extern crate log;
@@ -35,6 +35,7 @@ mod format;
 mod message_handler;
 mod payments;
 mod reply;
+mod set_up_logger;
 mod types;
 mod util;
 
@@ -42,6 +43,8 @@ use crate::api::setup_api_server;
 
 use crate::reply::*;
 use crate::types::MessageType;
+use r2d2_sqlite::SqliteConnectionManager;
+use tokio::sync::Mutex;
 use migration::{Migrator, MigratorTrait};
 
 use sea_orm::Database;
@@ -50,28 +53,75 @@ use sea_orm::Database;
 use crate::app_errors::AppErrors;
 use crate::background_task::perform_background_task;
 use crate::configuration::get_config;
+use crate::set_up_logger::set_up_logger;
 use types::Context;
 use util::get_unix_time;
 
 #[tokio::main]
 async fn main() -> Result<(), AppErrors> {
-    env_logger::init();
+    set_up_logger();
 
     let config = get_config();
 
-    let database_connection = Database::connect(&config.database_connection).await?;
-    Migrator::up(&database_connection, None).await?;
+    if &config.db_protocol = "postgres" {
+        let database_connection = Database::connect(&config.database_connection).await?;
+        Migrator::up(&database_connection, None).await?;
 
-    tokio::spawn(setup_api_server(
-        &config.api_socket_address,
-        &database_connection,
-    ));
+        tokio::spawn(setup_api_server(
+            &config.api_socket_address,
+            &database_connection,
+        ));
+
 
     let bot = Bot::new(&config.telegram_bot_token).auto_send();
 
     perform_background_task(bot.clone(), &config, &database_connection).await;
 
     return Ok(());
+    } else {
+        let manager = SqliteConnectionManager::file("/data/events.db3");
+        let pool = r2d2::Pool::new(manager).unwrap();
+        if let Ok(conn) = pool.get() {
+            db::create(&conn).expect("Failed to create db.");
+        }
+
+        tokio::spawn(setup_api_server(&config.api_socket_address, &pool));
+
+        let bot_info = bot.get_me().await.unwrap();
+
+        let bot_name = bot_info
+            .user
+            .username
+            .unwrap_or("default_bot_name".to_string());
+
+        env::set_var("BOT_NAME", bot_name);
+
+        let context = Arc::new(Context {
+            config,
+            pool,
+            sign_up_mutex: Arc::new(Mutex::new(0u64)),
+        });
+
+        tokio::spawn(perform_bulk_tasks(bot.clone(), context.clone()));
+
+        let handler = dptree::entry()
+            .branch(Update::filter_pre_checkout_query().endpoint(pre_checkout_handler))
+            .branch(Update::filter_message().endpoint(message_handler))
+            .branch(Update::filter_callback_query().endpoint(callback_handler));
+
+        Dispatcher::builder(bot, handler)
+            .dependencies(dptree::deps![context])
+            .default_handler(|upd| async move {
+                log::warn!("Unhandled update: {:?}", upd);
+            })
+            .error_handler(LoggingErrorHandler::with_custom_text(
+                "An error has occurred in the dispatcher",
+            ))
+            .build()
+            .setup_ctrlc_handler()
+            .dispatch()
+            .await;
+    }
 }
 
 async fn message_handler(

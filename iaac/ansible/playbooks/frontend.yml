@@ -1,0 +1,36 @@
+- hosts: app
+  become: true
+  gather_facts: yes
+  tasks:
+    - name: Create directory
+      file:
+        path: /var/www/event-manager-telegram-bot-front-{{version}}
+        state: directory
+        mode: '0755'
+
+    - name: Unpack release
+      unarchive:
+        src: https://github.com/openworld-community/event-manager-bot-frontend/releases/download/{{ version }}/event-manager-telegram-bot-front.tar.gz
+        dest: /var/www/event-manager-telegram-bot-front-{{version}}
+        remote_src: yes
+        validate_certs: false
+        owner: nginx
+        group: nginx
+
+    - name: Remove old symlink
+      file:
+        path: /var/www/{{ inventory_hostname }}
+        state: absent
+        force: yes
+
+    - name: Create new symlink
+      file:
+          src: /var/www/event-manager-telegram-bot-front-{{version}}/build
+          dest: /var/www/{{ inventory_hostname }}
+          state: link
+          force: yes
+
+    - name: Nginx reload
+      service:
+        name: nginx
+        state: reloaded

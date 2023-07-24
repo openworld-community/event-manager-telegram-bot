@@ -1,22 +1,14 @@
 - hosts: app
   gather_facts: yes
   become: true
-  roles:
-    - githubixx.docker
-    - andrewrothstein.docker-compose
-  tasks:
-    - name: Create dir
-      file:
-        path: "/opt/{{ docker_image_version }}/data"
-        state: directory
-        recurse: yes
-        owner: docker
-        group: docker
-
+  pre_tasks:
     - name: Install pip
       package:
-        name: pip
+        name: "{{ item }}"
         state: present
+      with_items:
+        - pip
+        - ca-certificates
 
     - name: Pip remove requests
       pip:
@@ -24,8 +16,29 @@
           - requests
         state: absent
 
-    - name: Pip install docker-compose and requests
+    - name: Pip install necessary libraries
       pip:
         name:
           - docker-compose
           - requests==2.28.1
+          - psycopg2-binary==2.8.6
+  roles:
+    - andrewrothstein.docker-compose
+  tasks:
+    - name: Config nginx
+      include_role:
+        name: nginxinc.nginx_config
+      vars:
+        nginx_config_http_template:
+          - template_file: http/default.conf.j2
+            deployment_location: /etc/nginx/conf.d/default.conf
+            backup: true
+            config:
+              servers:
+                - core:
+                    listen:
+                      - port: 80
+                  rewrite:
+                    return:
+                      code: 301
+                      url: https://$host$request_uri

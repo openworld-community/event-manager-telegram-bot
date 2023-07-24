@@ -27,6 +27,7 @@ jobs:
     environment: ${{ github.base_ref }}
     runs-on: ubuntu-20.04
     permissions: write-all
+    concurrency: ${{ github.base_ref }}
 
     steps:
       - name: Checkout repository
@@ -34,16 +35,15 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Install docker and docker-compose on target instance
+      - name: Prepare hosts
         run: |
           ansible-galaxy install -r iaac/ansible/roles/requirements.yml
           eval "$(ssh-agent -s)"
           echo -n ${{ secrets.DEPLOY_SSH_KEY }} | base64 -d | ssh-add -
           ansible-playbook --user ${{ secrets.DEPLOY_SSH_USER }} -i iaac/ansible/inventory \
           iaac/ansible/playbooks/prepare_hosts.yml \
-          --limit ${{ github.ref == 'refs/heads/main' && 'main' || 'prerelease' }} \
+          --limit ${{ github.base_ref }} \
           --extra-vars "\
-          target_host=\"${{ secrets.DOCKER_HOST_ADDRESS }}\" \
           ansible_sudo_pass=\"${{ secrets.DEPLOY_USER_PASSWORD }}\" \
           docker_compose_install_fq_link=\"/usr/bin/docker-compose\" \
           docker_image_version=\"${{ github.event.release.prerelease && 'prerelease' || 'latest' }}\" \
