@@ -6,7 +6,6 @@ mod utils;
 
 use crate::api::middlewares::LogTime;
 use crate::api::controllers::event::event_scope;
-use crate::api::services::event::event_scope;
 use crate::types::DbPool;
 use actix_web::dev::Server;
 use actix_web::{web, App, HttpServer};

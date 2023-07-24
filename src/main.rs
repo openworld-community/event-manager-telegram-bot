@@ -99,7 +99,7 @@ async fn main() -> Result<(), AppErrors> {
 
         let context = Arc::new(Context {
             config,
-            pool,
+            DatabaseConnection,
             sign_up_mutex: Arc::new(Mutex::new(0u64)),
         });
 

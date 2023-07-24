@@ -29,7 +29,7 @@ pub struct Config {
 impl From<RawConfiguration> for Config {
     fn from(value: RawConfiguration) -> Self {
         let mailing_hours = value.parse_mailing_hours().unwrap();
-        let database_connection = value.db_protocol() + &value.db_host() + ":" + &value.db_port() + "/" + &value.db_name();
+        let database_connection = value.db_protocol + &value.db_host + ":" + &value.db_port + "/" + &value.db_name;
         Config {
             api_socket_address: value.socket_address(),
             telegram_bot_token: value.telegram_bot_token.clone(),
