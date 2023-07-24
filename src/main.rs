@@ -63,6 +63,8 @@ async fn main() -> Result<(), AppErrors> {
 
     let config = get_config();
 
+    let bot = Bot::new(&config.telegram_bot_token).auto_send();
+
     if &config.db_protocol = "postgres" {
         let database_connection = Database::connect(&config.database_connection).await?;
         Migrator::up(&database_connection, None).await?;
@@ -73,19 +75,18 @@ async fn main() -> Result<(), AppErrors> {
         ));
 
 
-    let bot = Bot::new(&config.telegram_bot_token).auto_send();
 
     perform_background_task(bot.clone(), &config, &database_connection).await;
 
     return Ok(());
     } else {
         let manager = SqliteConnectionManager::file("/data/events.db3");
-        let pool = r2d2::Pool::new(manager).unwrap();
-        if let Ok(conn) = pool.get() {
+        let DatabaseConnection = r2d2::Pool::new(manager).unwrap();
+        if let Ok(conn) = DatabaseConnection.get() {
             db::create(&conn).expect("Failed to create db.");
         }
 
-        tokio::spawn(setup_api_server(&config.api_socket_address, &pool));
+        tokio::spawn(setup_api_server(&config.api_socket_address, &DatabaseConnection));
 
         let bot_info = bot.get_me().await.unwrap();
 
