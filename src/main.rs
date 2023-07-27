@@ -39,6 +39,7 @@ use crate::api::setup_api_server;
 use crate::reply::*;
 use crate::types::MessageType;
 use r2d2_sqlite::SqliteConnectionManager;
+use r2d2_postgres::{postgres::NoTls, PostgresConnectionManager};
 use tokio::sync::Mutex;
 
 use crate::configuration::get_config;
@@ -52,7 +53,14 @@ async fn main() {
 
     let config = get_config();
 
-    let manager = SqliteConnectionManager::file("/data/events.db3");
+    if &config.db_protocol = "postgres" {
+    let manager = PostgresConnectionManager::new(
+        config.db_url.parse().expect("Failed to parse db url."),
+        tokio_postgres::NoTls,
+    );
+} else {
+    let manager = SqliteConnectionManager::file("./data/events.db3");
+    }
     let pool = r2d2::Pool::new(manager).unwrap();
     if let Ok(conn) = pool.get() {
         db::create(&conn).expect("Failed to create db.");
