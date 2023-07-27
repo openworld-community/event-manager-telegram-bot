@@ -114,7 +114,7 @@ async fn main() -> Result<(), AppErrors> {
         .dispatch()
         .await;
     }
-}
+
 
 async fn message_handler(
     msg: Message,
