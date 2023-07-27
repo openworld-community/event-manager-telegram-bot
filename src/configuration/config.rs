@@ -23,6 +23,7 @@ pub struct Config {
     pub mailing_hours_to: u64,
     pub api_socket_address: SocketAddr,
     pub database_connection: String,
+    pub db_protocol: String,
 }
 
 impl From<RawConfiguration> for Config {
@@ -50,6 +51,7 @@ impl From<RawConfiguration> for Config {
             mailing_hours_from: mailing_hours.0,
             mailing_hours_to: mailing_hours.1,
             database_connection,
+            db_protocol: value.db_protocol,
         }
     }
 }
