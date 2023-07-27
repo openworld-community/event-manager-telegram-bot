@@ -1,3 +1,4 @@
+/// Test comment for CI 4
 #[macro_use]
 extern crate serde;
 #[macro_use]
@@ -9,6 +10,8 @@ use std::sync::Arc;
 use std::time::Duration;
 use tracing::{debug, error, trace, warn};
 
+#[macro_use]
+extern crate log;
 extern crate r2d2;
 extern crate r2d2_sqlite;
 extern crate rusqlite;
@@ -24,6 +27,8 @@ use teloxide::{
 
 mod admin_message_handler;
 mod api;
+mod app_errors;
+mod background_task;
 mod configuration;
 mod db;
 mod format;
@@ -40,27 +45,39 @@ use crate::reply::*;
 use crate::types::MessageType;
 use r2d2_sqlite::SqliteConnectionManager;
 use tokio::sync::Mutex;
+use migration::{Migrator, MigratorTrait};
 
+use sea_orm::Database;
+
+
+use crate::app_errors::AppErrors;
+use crate::background_task::perform_background_task;
 use crate::configuration::get_config;
 use crate::set_up_logger::set_up_logger;
 use types::Context;
 use util::get_unix_time;
 
 #[tokio::main]
-async fn main() {
+async fn main() -> Result<(), AppErrors> {
     set_up_logger();
 
     let config = get_config();
 
-    let manager = SqliteConnectionManager::file("/data/events.db3");
-    let pool = r2d2::Pool::new(manager).unwrap();
-    if let Ok(conn) = pool.get() {
-        db::create(&conn).expect("Failed to create db.");
-    }
 
-    tokio::spawn(setup_api_server(&config.api_socket_address, &pool));
+    let database_connection = Database::connect(&config.database_connection).await?;
+    Migrator::up(&database_connection, None).await?;
+
+    tokio::spawn(setup_api_server(
+        &config.api_socket_address,
+        &database_connection,
+    ));
+
 
     let bot = Bot::new(&config.telegram_bot_token).auto_send();
+
+    perform_background_task(bot.clone(), &config, &database_connection).await;
+
+    return Ok(());
 
     let bot_info = bot.get_me().await.unwrap();
 
@@ -87,7 +104,7 @@ async fn main() {
     Dispatcher::builder(bot, handler)
         .dependencies(dptree::deps![context])
         .default_handler(|upd| async move {
-            warn!("Unhandled update: {:?}", upd);
+            log::warn!("Unhandled update: {:?}", upd);
         })
         .error_handler(LoggingErrorHandler::with_custom_text(
             "An error has occurred in the dispatcher",
@@ -96,7 +113,8 @@ async fn main() {
         .setup_ctrlc_handler()
         .dispatch()
         .await;
-}
+    }
+
 
 async fn message_handler(
     msg: Message,
