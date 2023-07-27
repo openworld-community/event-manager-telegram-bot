@@ -59,70 +59,23 @@ use util::get_unix_time;
 
 #[tokio::main]
 async fn main() -> Result<(), AppErrors> {
-    set_up_logger();
+    env_logger::init();
 
     let config = get_config();
 
+    let database_connection = Database::connect(&config.database_connection).await?;
+    Migrator::up(&database_connection, None).await?;
+
+    tokio::spawn(setup_api_server(
+        &config.api_socket_address,
+        &database_connection,
+    ));
+
     let bot = Bot::new(&config.telegram_bot_token).auto_send();
-
-    if &config.db_protocol = "postgres" {
-        let database_connection = Database::connect(&config.database_connection).await?;
-        Migrator::up(&database_connection, None).await?;
-
-        tokio::spawn(setup_api_server(
-            &config.api_socket_address,
-            &database_connection,
-        ));
-
-
 
     perform_background_task(bot.clone(), &config, &database_connection).await;
 
     return Ok(());
-    } else {
-        let manager = SqliteConnectionManager::file("/data/events.db3");
-        let DatabaseConnection = r2d2::Pool::new(manager).unwrap();
-        if let Ok(conn) = DatabaseConnection.get() {
-            db::create(&conn).expect("Failed to create db.");
-        }
-
-        tokio::spawn(setup_api_server(&config.api_socket_address, &DatabaseConnection));
-
-        let bot_info = bot.get_me().await.unwrap();
-
-        let bot_name = bot_info
-            .user
-            .username
-            .unwrap_or("default_bot_name".to_string());
-
-        env::set_var("BOT_NAME", bot_name);
-
-        let context = Arc::new(Context {
-            config,
-            DatabaseConnection,
-            sign_up_mutex: Arc::new(Mutex::new(0u64)),
-        });
-
-        tokio::spawn(perform_bulk_tasks(bot.clone(), context.clone()));
-
-        let handler = dptree::entry()
-            .branch(Update::filter_pre_checkout_query().endpoint(pre_checkout_handler))
-            .branch(Update::filter_message().endpoint(message_handler))
-            .branch(Update::filter_callback_query().endpoint(callback_handler));
-
-        Dispatcher::builder(bot, handler)
-            .dependencies(dptree::deps![context])
-            .default_handler(|upd| async move {
-                log::warn!("Unhandled update: {:?}", upd);
-            })
-            .error_handler(LoggingErrorHandler::with_custom_text(
-                "An error has occurred in the dispatcher",
-            ))
-            .build()
-            .setup_ctrlc_handler()
-            .dispatch()
-            .await;
-    }
 }
 
 async fn message_handler(
