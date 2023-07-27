@@ -56,10 +56,10 @@ async fn main() {
 
     let mut manager = SqliteConnectionManager::file("./data/events.db3");
 
-    if &config.db_protocol = "postgres" {
+    if &config.db_protocol == "postgres" {
         manager = PostgresConnectionManager::new(
-        config.db_url.parse().expect("Failed to parse db url."),
-        tokio_postgres::NoTls,
+        config.database_connection.parse().expect("Failed to parse db url."),
+        postgres::NoTls,
     );
     }
     let pool = r2d2::Pool::new(manager).unwrap();
