@@ -11,6 +11,7 @@ use tracing::{debug, error, trace, warn};
 
 extern crate r2d2;
 extern crate r2d2_sqlite;
+extern crate r2d2_postgres;
 extern crate rusqlite;
 
 use teloxide::{
