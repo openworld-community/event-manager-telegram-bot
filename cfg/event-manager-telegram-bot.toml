@@ -40,9 +40,3 @@ mailing_hours = "08:00 +02:00..21:00 +02:00"
 # api config
 listen_address = "0.0.0.0"
 listen_port = 3000
-
-# database config
-db_protocol = "postgres"
-db_host = "localhost"
-db_port = 5432
-db_name = "postgres"
