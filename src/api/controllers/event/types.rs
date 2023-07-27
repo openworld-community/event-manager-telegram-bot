@@ -1,8 +1,8 @@
+use crate::api::shared::ValidationError;
 use crate::api::shared::WithId;
-use crate::api::utils::{validation_error_to_http, ValidationError};
-use crate::format::from_timestamp;
 use crate::types::Event;
 use chrono::{DateTime, Utc};
+use entity::event;
 use std::borrow::Cow;
 use std::collections::HashMap;
 use validator::{Validate, ValidationErrors};
@@ -13,14 +13,14 @@ pub struct RawEvent {
     pub name: String,
     #[validate(url)]
     pub link: String,
-    pub max_adults: u64,
-    pub max_children: u64,
-    pub max_adults_per_reservation: u64,
-    pub max_children_per_reservation: u64,
+    pub max_adults: i32,
+    pub max_children: i32,
+    pub max_adults_per_reservation: i32,
+    pub max_children_per_reservation: i32,
     pub event_start_time: DateTime<Utc>,
     pub remind: DateTime<Utc>,
-    pub adult_ticket_price: u64,
-    pub child_ticket_price: u64,
+    pub adult_ticket_price: i32,
+    pub child_ticket_price: i32,
     pub currency: String,
 }
 
@@ -30,39 +30,18 @@ pub struct OptionalRawEvent {
     pub name: Option<String>,
     #[validate(url)]
     pub link: Option<String>,
-    pub max_adults: Option<u64>,
-    pub max_children: Option<u64>,
-    pub max_adults_per_reservation: Option<u64>,
-    pub max_children_per_reservation: Option<u64>,
+    pub max_adults: Option<i32>,
+    pub max_children: Option<i32>,
+    pub max_adults_per_reservation: Option<i32>,
+    pub max_children_per_reservation: Option<i32>,
     pub event_start_time: Option<DateTime<Utc>>,
     pub remind: Option<DateTime<Utc>>,
-    pub adult_ticket_price: Option<u64>,
-    pub child_ticket_price: Option<u64>,
+    pub adult_ticket_price: Option<i32>,
+    pub child_ticket_price: Option<i32>,
     pub currency: Option<String>,
 }
 
 pub type EventWithId = WithId<u64, RawEvent>;
-
-impl From<Event> for EventWithId {
-    fn from(event: Event) -> Self {
-        EventWithId {
-            id: event.id,
-            entity: RawEvent {
-                name: event.name,
-                link: event.link,
-                max_adults: event.max_adults,
-                max_children: event.max_children,
-                max_adults_per_reservation: event.max_adults_per_reservation,
-                max_children_per_reservation: event.max_children_per_reservation,
-                event_start_time: from_timestamp(event.ts),
-                remind: from_timestamp(event.remind),
-                adult_ticket_price: event.adult_ticket_price,
-                child_ticket_price: event.child_ticket_price,
-                currency: event.currency,
-            },
-        }
-    }
-}
 
 impl RawEvent {
     pub fn validation(&self) -> Result<(), ValidationError> {
@@ -125,13 +104,13 @@ impl RawEvent {
 
         match errors.is_empty() {
             true => Ok(()),
-            false => Err(validation_error_to_http(errors)),
+            false => Err(errors.into()),
         }
     }
 }
 
 impl OptionalRawEvent {
-    pub fn validation(&self, current_event: &Event) -> Result<(), ValidationError> {
+    pub fn validation(&self, current_event: &event::Model) -> Result<(), ValidationError> {
         let mut errors = match self.validate() {
             Ok(_) => ValidationErrors::new(),
             Err(err) => err,
@@ -198,34 +177,34 @@ impl OptionalRawEvent {
 
         match errors.is_empty() {
             true => Ok(()),
-            false => Err(validation_error_to_http(errors)),
+            false => Err(errors.into()),
         }
     }
 
-    fn get_max_adults(&self, current_event: &Event) -> u64 {
+    fn get_max_adults(&self, current_event: &event::Model) -> i32 {
         self.max_adults.unwrap_or(current_event.max_adults)
     }
 
-    fn get_max_children(&self, current_event: &Event) -> u64 {
+    fn get_max_children(&self, current_event: &event::Model) -> i32 {
         self.max_children.unwrap_or(current_event.max_children)
     }
 
-    fn get_adult_ticket_price(&self, current_event: &Event) -> u64 {
+    fn get_adult_ticket_price(&self, current_event: &event::Model) -> i32 {
         self.adult_ticket_price
             .unwrap_or(current_event.adult_ticket_price)
     }
 
-    fn get_child_ticket_price(&self, current_event: &Event) -> u64 {
+    fn get_child_ticket_price(&self, current_event: &event::Model) -> i32 {
         self.child_ticket_price
             .unwrap_or(current_event.child_ticket_price)
     }
 
-    fn get_max_adults_per_reservation(&self, current_event: &Event) -> u64 {
+    fn get_max_adults_per_reservation(&self, current_event: &event::Model) -> i32 {
         self.max_adults_per_reservation
             .unwrap_or(current_event.max_adults_per_reservation)
     }
 
-    fn get_max_children_per_reservation(&self, current_event: &Event) -> u64 {
+    fn get_max_children_per_reservation(&self, current_event: &event::Model) -> i32 {
         self.max_children_per_reservation
             .unwrap_or(current_event.max_children_per_reservation)
     }
@@ -252,7 +231,7 @@ impl Into<Event> for RawEvent {
 
 #[cfg(test)]
 mod tests {
-    use crate::api::services::event::types::RawEvent;
+    use crate::api::controllers::event::types::RawEvent;
     use serde_json;
     use serde_json::Result;
 
