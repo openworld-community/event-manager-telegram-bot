@@ -11,7 +11,6 @@ use tracing::{debug, error, trace, warn};
 
 extern crate r2d2;
 extern crate r2d2_sqlite;
-extern crate r2d2_postgres;
 extern crate rusqlite;
 
 use teloxide::{
@@ -40,7 +39,7 @@ use crate::api::setup_api_server;
 use crate::reply::*;
 use crate::types::MessageType;
 use r2d2_sqlite::SqliteConnectionManager;
-use r2d2_postgres::PostgresConnectionManager;
+use r2d2_postgres::{postgres::NoTls, PostgresConnectionManager};
 use tokio::sync::Mutex;
 
 use crate::configuration::get_config;
