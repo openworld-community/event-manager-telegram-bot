@@ -2,7 +2,7 @@ mod response_error;
 mod validation_error;
 
 pub use response_error::AppError;
-use serde::{Serialize,Deserialize};
+use serde::{Deserialize, Serialize};
 pub use validation_error::ValidationError;
 
 #[derive(Deserialize)]

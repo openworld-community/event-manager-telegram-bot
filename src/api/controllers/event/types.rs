@@ -2,10 +2,10 @@ use crate::api::shared::ValidationError;
 use crate::api::shared::WithId;
 use chrono::{DateTime, Utc};
 use entity::event;
+use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
 use std::collections::HashMap;
 use validator::{Validate, ValidationErrors};
-use serde::{Serialize,Deserialize};
 
 #[derive(Debug, Serialize, Deserialize, Validate)]
 pub struct RawEvent {

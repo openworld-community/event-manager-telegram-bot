@@ -1,8 +1,8 @@
 use chrono::DateTime;
 use regex::Regex;
+use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::net::{SocketAddr, ToSocketAddrs};
-use serde::{Serialize, Deserialize};
 
 #[derive(Deserialize, Serialize, Clone, Default, Debug)]
 pub struct RawConfiguration {

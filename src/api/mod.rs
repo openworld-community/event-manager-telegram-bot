@@ -1,6 +1,6 @@
 mod controllers;
 mod middlewares;
-mod services;
+pub mod services;
 mod shared;
 mod utils;
 

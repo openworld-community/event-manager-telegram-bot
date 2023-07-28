@@ -1,10 +1,15 @@
 use crate::api::services::message_outbox::create_message_outbox;
+use crate::api::services::reservation::get_vacancies;
 use chrono::Utc;
 use entity::message::{ActiveModel, Column, Entity};
 use entity::new_types::MessageType;
 use entity::{event, message, message_outbox};
+use futures::TryStreamExt;
 use sea_orm::prelude::*;
-use sea_orm::{ActiveValue, DeleteResult, FromQueryResult, Iterable, JoinType, QuerySelect};
+use sea_orm::{
+    ActiveValue, DeleteResult, FromQueryResult, Iterable, JoinType, QuerySelect, SelectModel,
+    SelectorRaw, Statement, StreamTrait,
+};
 
 pub async fn delete_enqueued_messages<C>(
     event_id: &i32,
@@ -62,63 +67,111 @@ where
     })
 }
 
-#[derive(FromQueryResult)]
-pub struct PendingMessages {
-    pub id: u64,
-    pub message: String,
-    pub send_at: DateTime,
-    pub adult_ticket_price: u64,
-    pub child_ticket_price: u64,
-    pub waiting_list: u64,
+pub async fn get_pending_messages<C>(
+    time: &chrono::DateTime<Utc>,
+    mut max_messages: i32,
+    con: &C,
+) -> Result<Vec<MessageBatch>, DbErr>
+where
+    C: ConnectionTrait + StreamTrait,
+{
+    let mut stream = batch_query(con, time).stream(con).await?;
+
+    let mut result = Vec::new();
+    while let Some(message_batch) = stream.try_next().await? {
+        let mut message_batch = message_batch;
+
+        let vacancies = get_vacancies(message_batch.event_id, con).await?.unwrap();
+        let collect_users = message_batch.message_type == MessageType::WaitingListPrompt
+            && vacancies.is_have_vacancies();
+
+        if collect_users {
+            let mut user_stream = users_query(&message_batch, max_messages, con).stream(con).await?;
+
+            while let Some(user) = user_stream.try_next().await? {
+                message_batch.recipients.push(user.user);
+
+                max_messages -= 1;
+                if max_messages == 0 {
+                    result.push(message_batch);
+                    return Ok(result);
+                }
+
+                if message_batch.message_type == MessageType::WaitingListPrompt {
+                    break; // take not more than one at a time
+                }
+            }
+        }
+
+        // TODO: remove message
+
+        result.push(message_batch);
+    }
+
+    Ok(result)
 }
 
-pub async fn get_pending_messages<C>(limit: u64, con: &C) -> Result<(), DbErr>
+#[derive(FromQueryResult)]
+pub struct MessageBatch {
+    pub message_id: i32,
+    pub event_id: i32,
+    pub sender: String,
+    pub message_type: MessageType,
+    pub waiting_list: i32,
+    pub text: String,
+    pub adult_ticket_price: i32,
+    pub child_ticket_price: i32,
+    pub recipients: Vec<i32>,
+}
+
+fn batch_query<C>(conn: &C, time: &chrono::DateTime<Utc>) -> SelectorRaw<SelectModel<MessageBatch>>
 where
     C: ConnectionTrait,
 {
-    let now = Utc::now().naive_utc();
-    let pending_messages = build_pending_messages_query(limit, now)
-        .into_model::<PendingMessages>()
-        .all(con)
-        .await?;
-
-    for _message in pending_messages {}
-
-    Ok(())
+    MessageBatch::find_by_statement(Statement::from_sql_and_values(
+        conn.get_database_backend(),
+        r#"SELECT
+                        m.*,
+                        m.type as message_type,
+                        o.send_at,
+                        e.adult_ticket_price,
+                        e.child_ticket_price
+                    FROM message_outbox as o
+                        JOIN messages as m ON o.message = m.id
+                        JOIN events as e ON m.event = e.id
+                    WHERE o.send_at < $1"#,
+        [time.naive_utc().into()],
+    ))
 }
 
-fn build_pending_messages_query(
-    limit: u64,
-    time: DateTime,
-) -> Select<entity::message_outbox::Entity> {
-    message_outbox::Entity::find()
-        .select_only()
-        .columns(message_outbox::Column::iter())
-        .columns([
-            event::Column::AdultTicketPrice,
-            event::Column::ChildTicketPrice,
-        ])
-        .columns([message::Column::WaitingList])
-        .join(JoinType::LeftJoin, message_outbox::Relation::Message.def())
-        .join(JoinType::LeftJoin, message::Relation::Event.def())
-        .filter(message_outbox::Column::SendAt.lt(time))
-        .limit(limit)
+#[derive(FromQueryResult)]
+struct User {
+    user: i32,
+    sent: String,
 }
 
-#[test]
-fn check_query() {
-    use sea_orm::{DbBackend, QueryTrait};
-
-    let time = Utc::now().naive_utc();
-    let query = build_pending_messages_query(50, time.clone())
-        .build(DbBackend::Postgres)
-        .to_string();
-
-    let expected_query = format!(
-        "SELECT \"message_outbox\".\"id\", \"message_outbox\".\"message\", \"message_outbox\".\"send_at\", \"event\".\"adult_ticket_price\", \"event\".\"child_ticket_price\", \"message\".\"waiting_list\" FROM \"message_outbox\" LEFT JOIN \"message\" ON \"message_outbox\".\"message\" = \"message\".\"id\" LEFT JOIN \"event\" ON \"message\".\"event\" = \"event\".\"id\" WHERE \"message_outbox\".\"send_at\" < \'{}\' LIMIT {}",
-        time.format("%Y-%m-%d %H:%M:%S").to_string(),
-        50
-    );
-
-    assert_eq!(query, expected_query)
+fn users_query<C>(
+    message_batch: &MessageBatch,
+    max_messages: i32,
+    conn: &C,
+) -> SelectorRaw<SelectModel<User>>
+where
+    C: ConnectionTrait,
+{
+    User::find_by_statement(
+        Statement::from_sql_and_values(
+            conn.get_database_backend(),
+            "SELECT r.user, s.message as sent FROM \
+                        (select user, ts from reservations WHERE event = $1 AND waiting_list = $2 GROUP BY user) as r
+                        LEFT JOIN (select user, message from message_sent where message = $3) as s
+                        ON r.user = s.user
+                        WHERE sent is null ORDER BY r.ts LIMIT $4",
+            [
+                message_batch.event_id.into(),
+                message_batch.waiting_list.into(),
+                message_batch.message_id.into(),
+                max_messages.into(),
+            ]
+        )
+    )
 }
