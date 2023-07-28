@@ -1,0 +1,20 @@
+# for debug only use
+version: "3"
+
+services:
+  database:
+    image: postgres:15
+    environment:
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5432:5432"
+  app:
+    image: ubuntu:20.04
+    depends_on:
+      - database
+    volumes:
+      - ./:/src
+    working_dir: /src
+    command: ./target/debug/event-manager-telegram-bot
+    ports:
+      - "3000:3000"

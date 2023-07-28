@@ -1,5 +1,6 @@
 use chrono::DateTime;
 use regex::Regex;
+use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::net::{SocketAddr, ToSocketAddrs};
 
@@ -24,6 +25,7 @@ pub struct RawConfiguration {
     pub mailing_hours: String,
     pub listen_address: String,
     pub listen_port: u16,
+    pub database_connection: String,
 }
 
 impl RawConfiguration {
