@@ -54,14 +54,14 @@ async fn main() {
 
     let config = get_config();
 
-    let mut manager = SqliteConnectionManager::file("./data/events.db3");
+    /**let mut manager = SqliteConnectionManager::file("./data/events.db3");**/
 
-    if &config.db_protocol == "postgres" {
-        manager = PostgresConnectionManager::new(
-        config.database_connection.parse().expect("Failed to parse db url."),
-        NoTls,
-    );
-    }
+    /**if &config.db_protocol == "postgres" {**/
+    manager = PostgresConnectionManager::new(
+    config.database_connection.parse().expect("Failed to parse db url."),
+    NoTls,
+    );/**
+    }**/
     let pool = r2d2::Pool::new(manager).unwrap();
     if let Ok(conn) = pool.get() {
         db::create(&conn).expect("Failed to create db.");
