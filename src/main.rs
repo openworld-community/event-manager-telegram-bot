@@ -59,7 +59,7 @@ async fn main() {
     if &config.db_protocol == "postgres" {
         manager = PostgresConnectionManager::new(
         config.database_connection.parse().expect("Failed to parse db url."),
-        postgres::NoTls,
+        NoTls,
     );
     }
     let pool = r2d2::Pool::new(manager).unwrap();
