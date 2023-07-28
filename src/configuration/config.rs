@@ -23,13 +23,11 @@ pub struct Config {
     pub mailing_hours_to: u64,
     pub api_socket_address: SocketAddr,
     pub database_connection: String,
-    pub db_protocol: String,
 }
 
 impl From<RawConfiguration> for Config {
     fn from(value: RawConfiguration) -> Self {
         let mailing_hours = value.parse_mailing_hours().unwrap();
-        let database_connection = value.db_protocol + &value.db_host + ":" + &value.db_port + "/" + &value.db_name;
         Config {
             api_socket_address: value.socket_address(),
             telegram_bot_token: value.telegram_bot_token.clone(),
@@ -51,7 +49,6 @@ impl From<RawConfiguration> for Config {
             mailing_hours_from: mailing_hours.0,
             mailing_hours_to: mailing_hours.1,
             database_connection: value.database_connection,
-            db_protocol: value.db_protocol,
         }
     }
 }

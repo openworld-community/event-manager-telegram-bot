@@ -24,7 +24,7 @@ pub async fn send_notifications(
         return Ok((notifications, batch_contains_waiting_list_prompt));
     }
 
-    let messages = get_pending_messages(&current_time, connection).await?;
+    let messages = get_pending_messages(&current_time, cfg.limit_bulk_notifications_per_second as i32, connection).await?;
 
     return Ok((notifications, batch_contains_waiting_list_prompt));
 }
