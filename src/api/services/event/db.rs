@@ -28,7 +28,7 @@ pub fn select_event(conn: &Connection, id: i64) -> Result<Event, QueryError> {
 }
 
 pub fn get_event_list(pool: &DbPool, pag: &Pagination) -> Result<Vec<EventWithId>, QueryError> {
-    let conn = poolget().await;
+    let conn = pool.get()?;
     let mut stmt = conn.prepare("select * from events limit ? offset ?")?;
     let mut rows = stmt.query(params![pag.limit(), pag.offset()])?;
     let mut events: Vec<EventWithId> = Vec::new();
