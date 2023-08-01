@@ -50,7 +50,7 @@ pub fn perform_update_event(
     event_to_update: OptionalRawEvent,
     current_event: &Event,
 ) -> Result<Event, QueryError> {
-    let conn = pool.get()?;
+    let conn = pool.get();
 
     let new_event = Event {
         id: id as u64,
