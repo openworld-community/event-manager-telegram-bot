@@ -47,9 +47,9 @@ use crate::set_up_logger::set_up_logger;
 use types::Context;
 use util::get_unix_time;
 
-use deadpool_postgres::{ManagerConfig, Pool, RecyclingMethod};
-use deadpool_postgres::tokio_postgres::NoTls;
 use deadpool_postgres::config::Config;
+use deadpool_postgres::tokio_postgres::NoTls;
+use deadpool_postgres::{ManagerConfig, Pool, RecyclingMethod};
 
 #[tokio::main]
 async fn main() {
@@ -75,7 +75,9 @@ async fn main() {
     cfg.user = Some(config.db_user.clone());
     cfg.password = Some(env::var("DB_PASSWORD").unwrap_or("postgres".to_string()));
     cfg.dbname = Some(config.db_name.clone());
-    cfg.manager = Some(ManagerConfig { recycling_method: RecyclingMethod::Fast });
+    cfg.manager = Some(ManagerConfig {
+        recycling_method: RecyclingMethod::Fast,
+    });
 
     let test_pool: Pool = cfg.create_pool(NoTls).unwrap();
 
