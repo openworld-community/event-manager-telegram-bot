@@ -40,7 +40,7 @@ use crate::reply::*;
 use crate::types::MessageType;
 use r2d2_sqlite::SqliteConnectionManager;
 use tokio::sync::Mutex;
-use tokio_postgres::NoTls;
+// use tokio_postgres::NoTls;
 
 use crate::configuration::get_config;
 use crate::set_up_logger::set_up_logger;
