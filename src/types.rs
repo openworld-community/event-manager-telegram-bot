@@ -1,4 +1,4 @@
-use deadpool_postgres::{ManagerConfig, ManagedConnection, Pool, PoolError, RecyclingMethod};
+use deadpool_postgres::{ManagedConnection, ManagerConfig, Pool, PoolError, RecyclingMethod};
 // use r2d2::PooledConnection;
 // use r2d2_sqlite::SqliteConnectionManager;
 use serde_compact::compact;
