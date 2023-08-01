@@ -29,7 +29,7 @@ pub fn select_event(conn: &Connection, id: i64) -> Result<Event, QueryError> {
 
 pub async fn get_event_list(
     pool: &DbPool,
-    pag: &Pagination
+    pag: &Pagination,
 ) -> Result<Vec<EventWithId>, QueryError> {
     let conn = pool.get().await;
     let mut stmt = conn.prepare("select * from events limit ? offset ?")?;
