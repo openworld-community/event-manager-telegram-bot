@@ -94,7 +94,7 @@ pub struct GroupMessage {
     pub waiting_list: u64,
 }
 
-pub fn mutate_event(conn: &Connection, e: &Event) -> Result<u64, rusqlite::Error> {
+pub fn mutate_event(conn: &Client, e: &Event) -> Result<u64, rusqlite::Error> {
     let event_type = e.get_type();
     if event_type == EventType::Announcement {
         if let Err(err) = Url::parse(&e.link) {
@@ -150,7 +150,7 @@ pub fn mutate_event(conn: &Connection, e: &Event) -> Result<u64, rusqlite::Error
 }
 
 pub fn enqueue_message(
-    conn: &Connection,
+    conn: &Client,
     event_id: u64,
     sender: &str,
     waiting_list: u64,
@@ -176,7 +176,7 @@ pub fn enqueue_message(
 }
 
 pub fn delete_enqueued_messages(
-    conn: &Connection,
+    conn: &Client,
     event_id: u64,
     message_type: MessageType,
 ) -> Result<(), rusqlite::Error> {
@@ -193,7 +193,7 @@ pub fn delete_enqueued_messages(
     Ok(())
 }
 
-pub fn prompt_waiting_list(conn: &Connection, event_id: u64) -> Result<(), rusqlite::Error> {
+pub fn prompt_waiting_list(conn: &Client, event_id: u64) -> Result<(), rusqlite::Error> {
     if have_vacancies(conn, event_id)? == false {
         debug!("prompt_waiting_list - no tickets, event {}", event_id);
         return Ok(());
@@ -224,7 +224,7 @@ pub fn prompt_waiting_list(conn: &Connection, event_id: u64) -> Result<(), rusql
 }
 
 pub fn blacklist_absent_participants(
-    conn: &Connection,
+    conn: &Client,
     event_id: u64,
     admins: &HashSet<u64>,
     cancel_future_reservations: bool,
@@ -272,7 +272,7 @@ pub fn blacklist_absent_participants(
     Ok(())
 }
 
-pub fn get_ban_reason(conn: &Connection, user_id: u64) -> Result<String, rusqlite::Error> {
+pub fn get_ban_reason(conn: &Client, user_id: u64) -> Result<String, rusqlite::Error> {
     let mut stmt = conn.prepare("SELECT reason FROM black_list WHERE user = ?1")?;
     let mut rows = stmt.query([user_id])?;
     if let Some(row) = rows.next()? {
@@ -284,7 +284,7 @@ pub fn get_ban_reason(conn: &Connection, user_id: u64) -> Result<String, rusqlit
 }
 
 pub fn delete_event(
-    conn: &Connection,
+    conn: &Client,
     event_id: u64,
     automatic_blacklisting: bool,
     cancel_future_reservations_on_ban: bool,
@@ -328,7 +328,7 @@ pub fn delete_event(
     Ok(())
 }
 
-pub fn delete_link(conn: &Connection, link: &str) -> Result<(), rusqlite::Error> {
+pub fn delete_link(conn: &Client, link: &str) -> Result<(), rusqlite::Error> {
     let mut stmt = conn.prepare("select id from events where link = ?1")?;
     let mut rows = stmt.query(params![link])?;
     if let Some(row) = rows.next()? {
@@ -340,7 +340,7 @@ pub fn delete_link(conn: &Connection, link: &str) -> Result<(), rusqlite::Error>
 }
 
 pub fn sign_up(
-    conn: &Connection,
+    conn: &Client,
     event_id: u64,
     user: &User,
     adults: u64,
@@ -423,7 +423,7 @@ pub fn sign_up(
     )?, false))
 }
 
-pub fn checkout(conn: &Connection, booking: &Booking, order_info: OrderInfo) -> anyhow::Result<()> {
+pub fn checkout(conn: &Client, booking: &Booking, order_info: OrderInfo) -> anyhow::Result<()> {
     let s = get_event(conn, booking.event_id, booking.user_id)?;
     if s.event.adult_ticket_price * booking.adults + s.event.child_ticket_price * booking.children
         != order_info.amount
@@ -462,7 +462,7 @@ pub fn checkout(conn: &Connection, booking: &Booking, order_info: OrderInfo) -> 
 }
 
 fn move_from_waiting_list(
-    conn: &Connection,
+    conn: &Client,
     event_id: u64,
     user_id: u64,
     adults: u64,
@@ -476,7 +476,7 @@ fn move_from_waiting_list(
 }
 
 pub fn add_attachment(
-    conn: &Connection,
+    conn: &Client,
     event_id: u64,
     user: u64,
     attachment: &str,
@@ -503,12 +503,7 @@ pub fn add_attachment(
     }
 }
 
-pub fn cancel(
-    conn: &Connection,
-    event_id: u64,
-    user: u64,
-    adults: u64,
-) -> Result<(), rusqlite::Error> {
+pub fn cancel(conn: &Client, event_id: u64, user: u64, adults: u64) -> Result<(), rusqlite::Error> {
     let state_changed = have_vacancies(conn, event_id)? == false;
     conn.execute(
         "DELETE FROM reservations WHERE id IN (SELECT id FROM reservations WHERE event=?1 AND user=?2 AND adults = ?3 ORDER BY waiting_list DESC LIMIT 1)",
@@ -521,7 +516,7 @@ pub fn cancel(
     }
 }
 
-pub fn wontgo(conn: &Connection, event_id: u64, user: u64) -> Result<(), rusqlite::Error> {
+pub fn wontgo(conn: &Client, event_id: u64, user: u64) -> Result<(), rusqlite::Error> {
     let state_changed = have_vacancies(conn, event_id)? == false;
     conn.execute(
         "DELETE FROM reservations WHERE event=?1 AND user=?2",
@@ -534,7 +529,7 @@ pub fn wontgo(conn: &Connection, event_id: u64, user: u64) -> Result<(), rusqlit
     }
 }
 
-fn have_vacancies(conn: &Connection, event_id: u64) -> Result<bool, rusqlite::Error> {
+fn have_vacancies(conn: &Client, event_id: u64) -> Result<bool, rusqlite::Error> {
     let (vacant_adults, vacant_children) = get_vacancies(conn, event_id)?;
     if vacant_adults + vacant_children > 0 {
         Ok(true)
@@ -543,7 +538,7 @@ fn have_vacancies(conn: &Connection, event_id: u64) -> Result<bool, rusqlite::Er
     }
 }
 
-fn get_vacancies(conn: &Connection, event_id: u64) -> Result<(u64, u64), rusqlite::Error> {
+fn get_vacancies(conn: &Client, event_id: u64) -> Result<(u64, u64), rusqlite::Error> {
     let mut vacant_adults: u64 = 0;
     let mut vacant_children: u64 = 0;
     let mut stmt = conn.prepare(
@@ -570,7 +565,7 @@ fn get_vacancies(conn: &Connection, event_id: u64) -> Result<(u64, u64), rusqlit
 }
 
 pub fn get_attachment(
-    conn: &Connection,
+    conn: &Client,
     event_id: u64,
     user: u64,
 ) -> Result<Option<String>, rusqlite::Error> {
@@ -586,7 +581,7 @@ pub fn get_attachment(
 }
 
 pub fn get_events(
-    conn: &Connection,
+    conn: &Client,
     user: u64,
     offset: u64,
     limit: u64,
@@ -606,11 +601,7 @@ pub fn get_events(
     Ok(res)
 }
 
-pub fn get_event(
-    conn: &Connection,
-    event_id: u64,
-    user: u64,
-) -> Result<EventStats, rusqlite::Error> {
+pub fn get_event(conn: &Client, event_id: u64, user: u64) -> Result<EventStats, rusqlite::Error> {
     let mut stmt = conn.prepare(
         "select a.*, b.my_adults, b.my_children, c.my_wait_adults, c.my_wait_children FROM \
         (SELECT events.id, events.name, events.link, events.max_adults, events.max_children, events.max_adults_per_reservation, events.max_children_per_reservation, events.ts, r.adults, r.children, events.state, events.adult_ticket_price, events.child_ticket_price, events.currency FROM events \
@@ -630,7 +621,7 @@ pub fn get_event(
     }
 }
 
-pub fn get_event_name(conn: &Connection, event_id: u64) -> Result<String, rusqlite::Error> {
+pub fn get_event_name(conn: &Client, event_id: u64) -> Result<String, rusqlite::Error> {
     let mut stmt = conn.prepare("SELECT events.name, events.ts FROM events WHERE id = ?1")?;
     let mut rows = stmt.query([event_id])?;
     if let Some(row) = rows.next()? {
@@ -645,7 +636,7 @@ pub fn get_event_name(conn: &Connection, event_id: u64) -> Result<String, rusqli
 }
 
 pub fn get_participants(
-    conn: &Connection,
+    conn: &Client,
     event_id: u64,
     waiting_list: u64,
     offset: u64,
@@ -684,7 +675,7 @@ pub fn get_participants(
 }
 
 pub fn get_presence_list(
-    conn: &Connection,
+    conn: &Client,
     event_id: u64,
     offset: u64,
     limit: u64,
@@ -712,11 +703,7 @@ pub fn get_presence_list(
     Ok(res)
 }
 
-pub fn confirm_presence(
-    conn: &Connection,
-    event_id: u64,
-    user_id: u64,
-) -> Result<(), rusqlite::Error> {
+pub fn confirm_presence(conn: &Client, event_id: u64, user_id: u64) -> Result<(), rusqlite::Error> {
     conn.execute(
         "insert into presence (event, user) values (?1, ?2)",
         params![event_id, user_id],
@@ -725,7 +712,7 @@ pub fn confirm_presence(
 }
 
 pub fn is_group_leader(
-    conn: &Connection,
+    conn: &Client,
     event_id: u64,
     user_id: u64,
 ) -> Result<bool, rusqlite::Error> {
@@ -739,11 +726,7 @@ pub fn is_group_leader(
     }
 }
 
-pub fn set_group_leader(
-    conn: &Connection,
-    event_id: u64,
-    user_id: u64,
-) -> Result<(), rusqlite::Error> {
+pub fn set_group_leader(conn: &Client, event_id: u64, user_id: u64) -> Result<(), rusqlite::Error> {
     conn.execute(
         "insert into group_leaders (event, user) values (?1, ?2)",
         params![event_id, user_id],
@@ -752,7 +735,7 @@ pub fn set_group_leader(
 }
 
 pub fn delete_reservation(
-    conn: &Connection,
+    conn: &Client,
     event_id: u64,
     user_id: u64,
 ) -> Result<(), rusqlite::Error> {
@@ -769,7 +752,7 @@ pub fn delete_reservation(
 }
 
 pub fn get_pending_messages(
-    conn: &Connection,
+    conn: &Client,
     ts: u64,
     mut max_messages: u64,
 ) -> Result<Vec<MessageBatch>, rusqlite::Error> {
@@ -849,11 +832,7 @@ pub fn get_pending_messages(
     Ok(res)
 }
 
-fn set_current_event(
-    conn: &Connection,
-    user_id: u64,
-    event_id: u64,
-) -> Result<(), rusqlite::Error> {
+fn set_current_event(conn: &Client, user_id: u64, event_id: u64) -> Result<(), rusqlite::Error> {
     conn.execute(
         "insert or replace into current_events (user, event) values (?1, ?2)",
         params![user_id, event_id],
@@ -861,7 +840,7 @@ fn set_current_event(
     Ok(())
 }
 
-pub fn get_current_event(conn: &Connection, user_id: u64) -> Result<u64, rusqlite::Error> {
+pub fn get_current_event(conn: &Client, user_id: u64) -> Result<u64, rusqlite::Error> {
     let mut stmt = conn.prepare("SELECT event FROM current_events WHERE user=?1")?;
     let mut rows = stmt.query([user_id])?;
     if let Some(row) = rows.next()? {
@@ -873,7 +852,7 @@ pub fn get_current_event(conn: &Connection, user_id: u64) -> Result<u64, rusqlit
 }
 
 pub fn clear_old_events(
-    conn: &Connection,
+    conn: &Client,
     ts: u64,
     automatic_blacklisting: bool,
     cancel_future_reservations: bool,
@@ -894,7 +873,7 @@ pub fn clear_old_events(
     Ok(())
 }
 
-pub fn create(conn: &Connection) -> Result<(), rusqlite::Error> {
+pub fn create(conn: &Client) -> Result<(), rusqlite::Error> {
     let mut stmt =
         conn.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='events'")?;
     match stmt.query([]) {
@@ -1035,7 +1014,7 @@ pub fn create(conn: &Connection) -> Result<(), rusqlite::Error> {
     Ok(())
 }
 
-pub fn save_receipt(conn: &Connection, message_id: u64, user: u64) -> Result<(), rusqlite::Error> {
+pub fn save_receipt(conn: &Client, message_id: u64, user: u64) -> Result<(), rusqlite::Error> {
     conn.execute(
         "INSERT INTO message_sent (message, user, ts) VALUES (?1, ?2, ?3)",
         params![message_id, user, util::get_unix_time()],
@@ -1044,7 +1023,7 @@ pub fn save_receipt(conn: &Connection, message_id: u64, user: u64) -> Result<(),
 }
 
 pub fn add_to_black_list(
-    conn: &Connection,
+    conn: &Client,
     user: u64,
     cancel_future_reservations: bool,
 ) -> Result<(), rusqlite::Error> {
@@ -1070,7 +1049,7 @@ pub fn add_to_black_list(
 }
 
 pub fn ban_user(
-    conn: &Connection,
+    conn: &Client,
     user: u64,
     user_name1: &str,
     user_name2: &str,
@@ -1090,13 +1069,13 @@ pub fn ban_user(
     Ok(())
 }
 
-pub fn remove_from_black_list(conn: &Connection, user: u64) -> Result<(), rusqlite::Error> {
+pub fn remove_from_black_list(conn: &Client, user: u64) -> Result<(), rusqlite::Error> {
     conn.execute("DELETE FROM black_list WHERE user=?1", params![user])?;
     Ok(())
 }
 
 pub fn get_black_list(
-    conn: &Connection,
+    conn: &Client,
     offset: u64,
     limit: u64,
 ) -> Result<Vec<User>, rusqlite::Error> {
@@ -1116,7 +1095,7 @@ pub fn get_black_list(
     Ok(res)
 }
 
-pub fn is_in_black_list(conn: &Connection, user: u64) -> Result<bool, rusqlite::Error> {
+pub fn is_in_black_list(conn: &Client, user: u64) -> Result<bool, rusqlite::Error> {
     let mut stmt = conn.prepare("SELECT * FROM black_list WHERE user = ?1")?;
     let mut rows = stmt.query([user])?;
     if let Some(_) = rows.next()? {
@@ -1126,12 +1105,12 @@ pub fn is_in_black_list(conn: &Connection, user: u64) -> Result<bool, rusqlite::
     }
 }
 
-pub fn clear_black_list(conn: &Connection, ts: u64) -> Result<(), rusqlite::Error> {
+pub fn clear_black_list(conn: &Client, ts: u64) -> Result<(), rusqlite::Error> {
     conn.execute("DELETE FROM black_list WHERE ts < ?1", params![ts])?;
     Ok(())
 }
 
-pub fn clear_failed_payments(conn: &Connection, ts: u64) -> Result<(), rusqlite::Error> {
+pub fn clear_failed_payments(conn: &Client, ts: u64) -> Result<(), rusqlite::Error> {
     conn.execute(
         "DELETE FROM reservations WHERE state = ?1 AND ts < ?2",
         params![ReservationState::PaymentPending as u64, ts],
@@ -1139,11 +1118,7 @@ pub fn clear_failed_payments(conn: &Connection, ts: u64) -> Result<(), rusqlite:
     Ok(())
 }
 
-pub fn change_event_state(
-    conn: &Connection,
-    event_id: u64,
-    state: u64,
-) -> Result<(), rusqlite::Error> {
+pub fn change_event_state(conn: &Client, event_id: u64, state: u64) -> Result<(), rusqlite::Error> {
     conn.execute(
         "UPDATE events SET state = ?1 WHERE id = ?2",
         params![state, event_id],
@@ -1152,7 +1127,7 @@ pub fn change_event_state(
 }
 
 pub fn set_event_limits(
-    conn: &Connection,
+    conn: &Client,
     event_id: u64,
     max_adults: u64,
     max_children: u64,
@@ -1170,7 +1145,7 @@ pub fn set_event_limits(
 }
 
 pub fn get_group_messages(
-    conn: &Connection,
+    conn: &Client,
     event_id: u64,
     waiting_list: Option<u64>,
 ) -> Result<Vec<GroupMessage>, rusqlite::Error> {
