@@ -46,11 +46,7 @@ pub fn pre_checkout(
 }
 
 /// Payment successful.
-pub fn checkout(
-    conn: &Client,
-    payment: &SuccessfulPayment,
-    _ctx: &Context,
-) -> anyhow::Result<()> {
+pub fn checkout(conn: &Client, payment: &SuccessfulPayment, _ctx: &Context) -> anyhow::Result<()> {
     if let Some(name) = &payment.order_info.name {
         let booking: Booking = serde_json::from_str(&payment.invoice_payload)?;
         if booking.event_id == 0 {
