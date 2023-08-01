@@ -1,6 +1,6 @@
 use deadpool_postgres::Pool;
-use r2d2::PooledConnection;
-use r2d2_sqlite::SqliteConnectionManager;
+// use r2d2::PooledConnection;
+// use r2d2_sqlite::SqliteConnectionManager;
 use serde_compact::compact;
 use std::collections::HashSet;
 use std::sync::Arc;
