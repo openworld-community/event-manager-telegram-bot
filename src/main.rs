@@ -151,7 +151,7 @@ async fn message_handler(
                     }
                     trace!("received {:?}", msg);
                     let u = crate::types::User::new(&user, &context.config.admins);
-                    if let Ok(conn) = context.pool.get() {
+                    if let Ok(conn) = context.pool.get().await {
                         let reply = if u.is_admin {
                             crate::admin_message_handler::handle_message(&conn, &u, text, &context)
                         } else {
@@ -203,7 +203,7 @@ async fn message_handler(
         }
         MessageKind::SuccessfulPayment(MessageSuccessfulPayment { successful_payment }) => {
             trace!("successful_payment {:?}", &successful_payment);
-            if let Ok(conn) = context.pool.get() {
+            if let Ok(conn) = context.pool.get().await {
                 let res = crate::payments::checkout(&conn, successful_payment, &context);
                 if let Err(e) = res {
                     error!("Failed to check out: {}", e);
@@ -233,7 +233,7 @@ async fn callback_handler(
                 *lock = *lock + 1;
                 // todo: use event based locking
             }
-            if let Ok(conn) = context.pool.get() {
+            if let Ok(conn) = context.pool.get().await {
                 let reply = if u.is_admin {
                     crate::admin_message_handler::handle_callback(&conn, &u, &data, &context)
                 } else {
@@ -328,7 +328,7 @@ async fn pre_checkout_handler(
 ) -> Result<(), RequestError> {
     trace!("pre_checkout_handler::received {:?}", pre_checkout);
     let u = crate::types::User::new(&pre_checkout.from, &context.config.admins);
-    if let Ok(conn) = context.pool.get() {
+    if let Ok(conn) = context.pool.get().await {
         let mut lock = context.sign_up_mutex.lock().await;
         *lock = *lock + 1;
 
@@ -361,7 +361,7 @@ async fn perform_bulk_tasks(bot: AutoSend<Bot>, ctx: Arc<Context>) -> Result<boo
         if num_seconds_from_midnight >= ctx.config.mailing_hours_from
             && num_seconds_from_midnight < ctx.config.mailing_hours_to
         {
-            let messages = if let Ok(conn) = ctx.pool.get() {
+            let messages = if let Ok(conn) = ctx.pool.get().await{
                 match db::get_pending_messages(
                     &conn,
                     ts,
@@ -403,7 +403,7 @@ async fn perform_bulk_tasks(bot: AutoSend<Bot>, ctx: Arc<Context>) -> Result<boo
                         .reply_markup(keyboard.clone())
                         .await?;
 
-                    if let Ok(conn) = ctx.pool.get() {
+                    if let Ok(conn) = ctx.pool.get().await{
                         if let Err(e) = db::save_receipt(&conn, m.message_id, u) {
                             error!("Failed to save receipt: {}", e);
                         }
@@ -416,7 +416,7 @@ async fn perform_bulk_tasks(bot: AutoSend<Bot>, ctx: Arc<Context>) -> Result<boo
         }
 
         if ctx.config.cleanup_old_events {
-            if let Ok(conn) = ctx.pool.get() {
+            if let Ok(conn) = ctx.pool.get().await{
                 // Clean up.
                 if db::clear_old_events(
                     &conn,
@@ -445,7 +445,7 @@ async fn perform_bulk_tasks(bot: AutoSend<Bot>, ctx: Arc<Context>) -> Result<boo
         }
 
         // Clear failed payments.
-        if let Ok(conn) = ctx.pool.get() {
+        if let Ok(conn) = ctx.pool.get().await{
             if db::clear_failed_payments(&conn, ts - 5 * 60).is_ok() == false {
                 error!("Failed to clear failed payments at {}", ts);
             }
