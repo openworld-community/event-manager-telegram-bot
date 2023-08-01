@@ -23,6 +23,10 @@ pub struct Config {
     pub mailing_hours_to: u64,
     pub api_socket_address: SocketAddr,
     pub db_connection_string: String,
+    pub db_user: String,
+    pub db_host: String,
+    pub db_port: u16,
+    pub db_name: String,
 }
 
 impl From<RawConfiguration> for Config {
@@ -52,6 +56,11 @@ impl From<RawConfiguration> for Config {
             limit_bulk_notifications_per_second: value.limit_bulk_notifications_per_second,
             mailing_hours_from: mailing_hours.0,
             mailing_hours_to: mailing_hours.1,
+            db_user: value.db_user,
+            db_password: value.db_password,
+            db_host: value.db_host,
+            db_port: value.db_port,
+            db_name: value.db_name,
             db_connection_string,
         }
     }
