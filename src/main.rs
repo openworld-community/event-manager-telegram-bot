@@ -53,7 +53,7 @@ async fn main() {
 
     let config = get_config();
 
-    let db_connection_string = &config.db_connection;
+    let db_connection_string = &config.db_connection_string;
     let (client, connection) = tokio_postgres::connect(db_connection_string, NoTls).await;
     tokio::spawn(async move {
         if let Err(e) = connection.await {
