@@ -29,7 +29,7 @@ impl From<RawConfiguration> for Config {
     fn from(value: RawConfiguration) -> Self {
         let mailing_hours = value.parse_mailing_hours().unwrap();
         let db_connection_string = format!(
-            "host={} port={} user={} password={} dbname={}"
+            "host={} port={} user={} password={} dbname={}",
             value.db_host,
             value.db_port,
             value.db_user,
