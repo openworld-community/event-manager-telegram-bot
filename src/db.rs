@@ -503,12 +503,7 @@ pub fn add_attachment(
     }
 }
 
-pub fn cancel(
-    conn: &Client,
-    event_id: u64,
-    user: u64,
-    adults: u64,
-) -> Result<(), rusqlite::Error> {
+pub fn cancel(conn: &Client, event_id: u64, user: u64, adults: u64) -> Result<(), rusqlite::Error> {
     let state_changed = have_vacancies(conn, event_id)? == false;
     conn.execute(
         "DELETE FROM reservations WHERE id IN (SELECT id FROM reservations WHERE event=?1 AND user=?2 AND adults = ?3 ORDER BY waiting_list DESC LIMIT 1)",
@@ -606,11 +601,7 @@ pub fn get_events(
     Ok(res)
 }
 
-pub fn get_event(
-    conn: &Client,
-    event_id: u64,
-    user: u64,
-) -> Result<EventStats, rusqlite::Error> {
+pub fn get_event(conn: &Client, event_id: u64, user: u64) -> Result<EventStats, rusqlite::Error> {
     let mut stmt = conn.prepare(
         "select a.*, b.my_adults, b.my_children, c.my_wait_adults, c.my_wait_children FROM \
         (SELECT events.id, events.name, events.link, events.max_adults, events.max_children, events.max_adults_per_reservation, events.max_children_per_reservation, events.ts, r.adults, r.children, events.state, events.adult_ticket_price, events.child_ticket_price, events.currency FROM events \
@@ -712,11 +703,7 @@ pub fn get_presence_list(
     Ok(res)
 }
 
-pub fn confirm_presence(
-    conn: &Client,
-    event_id: u64,
-    user_id: u64,
-) -> Result<(), rusqlite::Error> {
+pub fn confirm_presence(conn: &Client, event_id: u64, user_id: u64) -> Result<(), rusqlite::Error> {
     conn.execute(
         "insert into presence (event, user) values (?1, ?2)",
         params![event_id, user_id],
@@ -739,11 +726,7 @@ pub fn is_group_leader(
     }
 }
 
-pub fn set_group_leader(
-    conn: &Client,
-    event_id: u64,
-    user_id: u64,
-) -> Result<(), rusqlite::Error> {
+pub fn set_group_leader(conn: &Client, event_id: u64, user_id: u64) -> Result<(), rusqlite::Error> {
     conn.execute(
         "insert into group_leaders (event, user) values (?1, ?2)",
         params![event_id, user_id],
@@ -849,11 +832,7 @@ pub fn get_pending_messages(
     Ok(res)
 }
 
-fn set_current_event(
-    conn: &Client,
-    user_id: u64,
-    event_id: u64,
-) -> Result<(), rusqlite::Error> {
+fn set_current_event(conn: &Client, user_id: u64, event_id: u64) -> Result<(), rusqlite::Error> {
     conn.execute(
         "insert or replace into current_events (user, event) values (?1, ?2)",
         params![user_id, event_id],
@@ -1139,11 +1118,7 @@ pub fn clear_failed_payments(conn: &Client, ts: u64) -> Result<(), rusqlite::Err
     Ok(())
 }
 
-pub fn change_event_state(
-    conn: &Client,
-    event_id: u64,
-    state: u64,
-) -> Result<(), rusqlite::Error> {
+pub fn change_event_state(conn: &Client, event_id: u64, state: u64) -> Result<(), rusqlite::Error> {
     conn.execute(
         "UPDATE events SET state = ?1 WHERE id = ?2",
         params![state, event_id],
