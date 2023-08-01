@@ -30,11 +30,7 @@ impl From<RawConfiguration> for Config {
         let mailing_hours = value.parse_mailing_hours().unwrap();
         let db_connection_string = format!(
             "host={} port={} user={} password={} dbname={}",
-            value.db_host,
-            value.db_port,
-            value.db_user,
-            value.db_password,
-            value.db_name
+            value.db_host, value.db_port, value.db_user, value.db_password, value.db_name
         );
         Config {
             api_socket_address: value.socket_address(),
