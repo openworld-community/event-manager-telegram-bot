@@ -34,7 +34,7 @@ impl From<RawConfiguration> for Config {
             value.db_port,
             value.db_user,
             value.db_password,
-            value.db_name
+            value.db_name,
         );
         Config {
             api_socket_address: value.socket_address(),
