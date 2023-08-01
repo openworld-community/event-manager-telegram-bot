@@ -40,17 +40,44 @@ use crate::reply::*;
 use crate::types::MessageType;
 use r2d2_sqlite::SqliteConnectionManager;
 use tokio::sync::Mutex;
+use tokio_postgres::NoTls;
 
 use crate::configuration::get_config;
 use crate::set_up_logger::set_up_logger;
 use types::Context;
 use util::get_unix_time;
 
+use deadpool_postgres::{ManagerConfig, Pool, RecyclingMethod};
+use deadpool_postgres::tokio_postgres::NoTls;
+use deadpool_postgres::config::Config;
+
 #[tokio::main]
 async fn main() {
     set_up_logger();
 
     let config = get_config();
+
+    let db_connection_string = &config.db_connection_string;
+    if let Ok((client, connection)) = tokio_postgres::connect(db_connection_string, NoTls).await {
+        debug!("Connected to db");
+        tokio::spawn(async move {
+            if let Err(e) = connection.await {
+                error!("Connection error: {}", e);
+            }
+        });
+        client
+    } else {
+        panic!("Failed to connect to db");
+    };
+
+    let mut cfg = Config::new();
+    cfg.host = Some(config.db_host.clone());
+    cfg.user = Some(config.db_user.clone());
+    cfg.password = Some(env::var("DB_PASSWORD").unwrap_or("postgres".to_string()));
+    cfg.dbname = Some(config.db_name.clone());
+    cfg.manager = Some(ManagerConfig { recycling_method: RecyclingMethod::Fast });
+
+    let test_pool: Pool = cfg.create_pool(NoTls).unwrap();
 
     let manager = SqliteConnectionManager::file("/data/events.db3");
     let pool = r2d2::Pool::new(manager).unwrap();
