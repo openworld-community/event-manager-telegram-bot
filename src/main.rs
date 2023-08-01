@@ -88,7 +88,7 @@ async fn main() {
     //     db::create(&conn).expect("Failed to create db.");
     // }
 
-    if let Ok(conn) = pool.get().await. {
+    if let Ok(conn) = pool.get().await {
         db::create(&conn).expect("Failed to create db.");
     } else {
         panic!("Failed to connect to db");
