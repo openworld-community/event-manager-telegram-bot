@@ -9,8 +9,8 @@ use tokio::sync::Mutex;
 use crate::configuration::config::Config;
 use teloxide::types::UserId;
 
-pub type DbPool = Pool<PostgresConnectionManager<NoTls>>;
-pub type Connection = PooledConnection<PostgresConnectionManager<NoTls>>;
+pub type DbPool = Pool<deadpool_postgres::Pool, NoTls>;
+pub type Connection = PooledConnection<deadpool_postgres::Manager, NoTls>;
 //pub type EventId = u64;
 
 #[derive(PartialEq)]
