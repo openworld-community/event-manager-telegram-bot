@@ -7,6 +7,7 @@ use crate::reply::*;
 use crate::types::{Connection, Context, Event, MessageType, User};
 use anyhow::anyhow;
 use chrono::DateTime;
+use tracing::error;
 
 use std::env;
 use teloxide::{
