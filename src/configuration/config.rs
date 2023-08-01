@@ -32,8 +32,8 @@ impl From<RawConfiguration> for Config {
             "host={} port={} user={} password={} dbname={}",
             value.db_host,
             value.db_port,
-            value.db_user,
-            value.db_password,
+            env::var("POSTGRES_USER").unwrap_or(value.db_user),
+            env::var("POSTGRES_PASSWORD").unwrap_or(value.db_password),
             value.db_name
         );
         Config {
