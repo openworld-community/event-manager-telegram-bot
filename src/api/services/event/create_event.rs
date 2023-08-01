@@ -27,7 +27,7 @@ pub async fn create_event(
     Ok(json_response(&event, StatusCode::CREATED))
 }
 
-fn insert_event(pool: &DbPool, event: &Event) -> Result<u64, QueryError> {
-    let con = pool.get();
-    Ok(mutate_event(&con, &event)?)
+async fn insert_event(pool: &DbPool, event: &Event) -> Result<u64, QueryError> {
+    let conn = pool.get().await.unwrap();
+    Ok(mutate_event(&conn, &event)?)
 }
