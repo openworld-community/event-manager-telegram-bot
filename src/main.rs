@@ -57,18 +57,18 @@ async fn main() {
 
     let config = get_config();
 
-    let db_connection_string = &config.db_connection_string;
-    if let Ok((client, connection)) = tokio_postgres::connect(db_connection_string, NoTls).await {
-        debug!("Connected to db");
-        tokio::spawn(async move {
-            if let Err(e) = connection.await {
-                error!("Connection error: {}", e);
-            }
-        });
-        client
-    } else {
-        panic!("Failed to connect to db");
-    };
+    // let db_connection_string = &config.db_connection_string;
+    // if let Ok((client, connection)) = tokio_postgres::connect(db_connection_string, NoTls).await {
+    //     debug!("Connected to db");
+    //     tokio::spawn(async move {
+    //         if let Err(e) = connection.await {
+    //             error!("Connection error: {}", e);
+    //         }
+    //     });
+    //     client
+    // } else {
+    //     panic!("Failed to connect to db");
+    // };
 
     let mut cfg = Config::new();
     cfg.host = Some(config.db_host.clone());
@@ -79,16 +79,16 @@ async fn main() {
         recycling_method: RecyclingMethod::Fast,
     });
 
-    let test_pool: Pool = cfg.create_pool(NoTls).unwrap();
+    let pool: Pool = cfg.create_pool(NoTls).unwrap();
 
-    let manager = SqliteConnectionManager::file("/data/events.db3");
-    let pool = r2d2::Pool::new(manager).unwrap();
+    // let manager = SqliteConnectionManager::file("/data/events.db3");
+    // let pool = r2d2::Pool::new(manager).unwrap();
+    //
+    // if let Ok(conn) = pool.get() {
+    //     db::create(&conn).expect("Failed to create db.");
+    // }
 
-    if let Ok(conn) = pool.get() {
-        db::create(&conn).expect("Failed to create db.");
-    }
-
-    if let Ok(conn) = test_pool.get().await {
+    if let Ok(conn) = pool.get().await. {
         db::create(&conn).expect("Failed to create db.");
     } else {
         panic!("Failed to connect to db");
