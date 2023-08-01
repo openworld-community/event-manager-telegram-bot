@@ -10,7 +10,7 @@ use crate::configuration::config::Config;
 use teloxide::types::UserId;
 
 pub type DbPool = r2d2::Pool<SqliteConnectionManager>;
-pub type Connection = PooledConnection<PostgresConnectionManager<NoTls>>;
+pub type Connection = Pool<PostgresConnectionManager<NoTls>>;
 //pub type EventId = u64;
 
 #[derive(PartialEq)]
