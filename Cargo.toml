@@ -15,7 +15,7 @@ serde_json = { version = "1.0.73", features = ["preserve_order"] }
 clap = { version = "4.3.0", features = ["derive"] }
 toml = "0.5.8"
 deadpool = "0.8"
-deadpool_postgres = "0.9"
+deadpool-postgres = "0.9"
 tokio = { version = "1.8", features = ["rt-multi-thread", "macros","full"] }
 tokio-postgres = "0.7.2"
 fallible-streaming-iterator = "0.1.9"
