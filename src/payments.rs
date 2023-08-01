@@ -12,7 +12,7 @@ use db::EventStats;
 
 /// Book tickets and wait for payment checkout.
 pub fn pre_checkout(
-    conn: &Connection,
+    conn: &Client,
     user: &User,
     pre_checkout: &PreCheckoutQuery,
     _ctx: &Context,
@@ -47,7 +47,7 @@ pub fn pre_checkout(
 
 /// Payment successful.
 pub fn checkout(
-    conn: &Connection,
+    conn: &Client,
     payment: &SuccessfulPayment,
     _ctx: &Context,
 ) -> anyhow::Result<()> {
@@ -81,7 +81,7 @@ pub fn show_paid_event(
     adults: u64,
     children: u64,
     offset: u64,
-    conn: &Connection,
+    conn: &Client,
     user: &User,
     ctx: &Context,
 ) -> anyhow::Result<Reply> {
@@ -250,7 +250,7 @@ fn get_controls(
     no_age_distinction: bool,
     is_admin: bool,
     _user_id: u64,
-    _conn: &Connection,
+    _conn: &Client,
 ) -> anyhow::Result<Vec<Vec<InlineKeyboardButton>>> {
     let mut keyboard: Vec<Vec<InlineKeyboardButton>> = Vec::new();
     let mut row: Vec<InlineKeyboardButton> = Vec::new();
@@ -364,7 +364,7 @@ pub fn prepare_invoice(
     event_id: u64,
     adults: u64,
     children: u64,
-    conn: &Connection,
+    conn: &Client,
     user: &User,
     _ctx: &Context,
 ) -> anyhow::Result<Reply> {

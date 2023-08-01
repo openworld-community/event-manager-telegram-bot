@@ -10,7 +10,7 @@ use crate::configuration::config::Config;
 use teloxide::types::UserId;
 
 pub type DbPool = deadpool_postgres::Pool;
-pub type Connection = deadpool::managed::Object<Manager>;
+//pub type Connection = deadpool::Client<Manager>;
 //pub type EventId = u64;
 
 #[derive(PartialEq)]

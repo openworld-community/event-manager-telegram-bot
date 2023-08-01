@@ -33,7 +33,7 @@ struct NewEvent {
 
 /// Command line processor.
 pub fn handle_message(
-    conn: &Connection,
+    conn: &Client,
     user: &User,
     data: &str,
     ctx: &Context,
@@ -218,7 +218,7 @@ pub fn handle_message(
 
 /// Callback query processor.
 pub fn handle_callback(
-    conn: &Connection,
+    conn: &Client,
     user: &User,
     data: &str,
     ctx: &Context,
@@ -267,7 +267,7 @@ pub fn handle_callback(
     }
 }
 
-fn add_event(conn: &Connection, data: &str) -> anyhow::Result<Reply> {
+fn add_event(conn: &Client, data: &str) -> anyhow::Result<Reply> {
     match serde_json::from_str::<NewEvent>(&data) {
         Ok(v) => {
             match (
@@ -323,7 +323,7 @@ fn add_event(conn: &Connection, data: &str) -> anyhow::Result<Reply> {
     }
 }
 
-fn show_black_list(conn: &Connection, config: &Config, offset: u64) -> anyhow::Result<Reply> {
+fn show_black_list(conn: &Client, config: &Config, offset: u64) -> anyhow::Result<Reply> {
     match db::get_black_list(conn, offset, config.presence_page_size) {
         Ok(participants) => {
             Ok(

@@ -111,7 +111,7 @@ pub fn participants(
 }
 
 pub fn messages(
-    conn: &Connection,
+    conn: &Client,
     s: &EventStats,
     event_id: u64,
     is_admin: bool,
