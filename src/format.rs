@@ -114,7 +114,7 @@ pub fn messages(
     conn: &Connection,
     s: &EventStats,
     event_id: u64,
-    is_admin: bool,
+    is_admin: bool
 ) -> Option<String> {
     let waiting_list = if is_admin {
         None

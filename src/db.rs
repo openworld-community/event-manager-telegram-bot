@@ -609,7 +609,7 @@ pub fn get_events(
 pub fn get_event(
     conn: &Connection,
     event_id: u64,
-    user: u64,
+    user: u64
 ) -> Result<EventStats, rusqlite::Error> {
     let mut stmt = conn.prepare(
         "select a.*, b.my_adults, b.my_children, c.my_wait_adults, c.my_wait_children FROM \
@@ -715,7 +715,7 @@ pub fn get_presence_list(
 pub fn confirm_presence(
     conn: &Connection,
     event_id: u64,
-    user_id: u64,
+    user_id: u64
 ) -> Result<(), rusqlite::Error> {
     conn.execute(
         "insert into presence (event, user) values (?1, ?2)",
@@ -742,7 +742,7 @@ pub fn is_group_leader(
 pub fn set_group_leader(
     conn: &Connection,
     event_id: u64,
-    user_id: u64,
+    user_id: u64
 ) -> Result<(), rusqlite::Error> {
     conn.execute(
         "insert into group_leaders (event, user) values (?1, ?2)",
@@ -852,7 +852,7 @@ pub fn get_pending_messages(
 fn set_current_event(
     conn: &Connection,
     user_id: u64,
-    event_id: u64,
+    event_id: u64
 ) -> Result<(), rusqlite::Error> {
     conn.execute(
         "insert or replace into current_events (user, event) values (?1, ?2)",
@@ -1142,7 +1142,7 @@ pub fn clear_failed_payments(conn: &Connection, ts: u64) -> Result<(), rusqlite:
 pub fn change_event_state(
     conn: &Connection,
     event_id: u64,
-    state: u64,
+    state: u64
 ) -> Result<(), rusqlite::Error> {
     conn.execute(
         "UPDATE events SET state = ?1 WHERE id = ?2",
