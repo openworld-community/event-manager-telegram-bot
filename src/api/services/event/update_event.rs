@@ -20,7 +20,7 @@ pub async fn update_event(
 
     let pool_for_current_event = pool.clone();
     let current_event = spawn_blocking(move || {
-        let conn = pool_for_current_event.get()?;
+        let conn = pool_for_current_event.get();
         db::select_event(&conn, id)
     })
     .await
@@ -50,7 +50,7 @@ pub fn perform_update_event(
     event_to_update: OptionalRawEvent,
     current_event: &Event,
 ) -> Result<Event, QueryError> {
-    let conn = pool.get()?;
+    let conn = pool.get();
 
     let new_event = Event {
         id: id as u64,
