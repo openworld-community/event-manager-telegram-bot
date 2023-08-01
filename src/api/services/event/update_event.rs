@@ -19,8 +19,8 @@ pub async fn update_event(
     let id = id.into_inner();
 
     let pool_for_current_event = pool.clone();
-    let current_event = spawn_blocking(move || {
-        let conn = pool_for_current_eventpool.get().await
+    let current_event = spawn_blocking(async move || {
+        let conn = pool_for_current_eventpool.get().await;
         db::select_event(&conn, id)
     })
     .await
@@ -44,13 +44,13 @@ pub async fn update_event(
     Ok(json_response(&new_event, StatusCode::OK))
 }
 
-pub fn perform_update_event(
+pub async fn perform_update_event(
     pool: &DbPool,
     id: i64,
     event_to_update: OptionalRawEvent,
     current_event: &Event,
 ) -> Result<Event, QueryError> {
-    let conn = poolpool.get().await
+    let conn = poolpool.get().await;
 
     let new_event = Event {
         id: id as u64,
