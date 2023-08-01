@@ -83,9 +83,16 @@ async fn main() {
 
     let manager = SqliteConnectionManager::file("/data/events.db3");
     let pool = r2d2::Pool::new(manager).unwrap();
+
     if let Ok(conn) = pool.get() {
         db::create(&conn).expect("Failed to create db.");
     }
+
+    if let Ok(conn) = test_pool.get().await {
+        db::create(&conn).expect("Failed to create db.");
+    } else {
+        panic!("Failed to connect to db");
+    };
 
     tokio::spawn(setup_api_server(&config.api_socket_address, &pool));
 
