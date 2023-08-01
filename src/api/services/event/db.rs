@@ -31,7 +31,7 @@ pub async fn get_event_list(
     pool: &DbPool,
     pag: &Pagination
 ) -> Result<Vec<EventWithId>, QueryError> {
-    let conn = poolpool.get().await;
+    let conn = pool.get().await;
     let mut stmt = conn.prepare("select * from events limit ? offset ?")?;
     let mut rows = stmt.query(params![pag.limit(), pag.offset()])?;
     let mut events: Vec<EventWithId> = Vec::new();
