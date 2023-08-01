@@ -1,16 +1,16 @@
+use deadpool_postgres::Pool;
 use r2d2::PooledConnection;
 use r2d2_sqlite::SqliteConnectionManager;
 use serde_compact::compact;
 use std::collections::HashSet;
 use std::sync::Arc;
-
 use tokio::sync::Mutex;
 
 use crate::configuration::config::Config;
 use teloxide::types::UserId;
 
 pub type DbPool = r2d2::Pool<SqliteConnectionManager>;
-pub type Connection = PooledConnection<SqliteConnectionManager>;
+pub type Connection = PooledConnection<PostgresConnectionManager<NoTls>>;
 //pub type EventId = u64;
 
 #[derive(PartialEq)]
