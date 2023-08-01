@@ -110,12 +110,7 @@ pub fn participants(
     list
 }
 
-pub fn messages(
-    conn: &Connection,
-    s: &EventStats,
-    event_id: u64,
-    is_admin: bool,
-) -> Option<String> {
+pub fn messages(conn: &Client, s: &EventStats, event_id: u64, is_admin: bool) -> Option<String> {
     let waiting_list = if is_admin {
         None
     } else {
