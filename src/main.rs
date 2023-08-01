@@ -54,12 +54,17 @@ async fn main() {
     let config = get_config();
 
     let db_connection_string = &config.db_connection_string;
-    let (client, connection) = tokio_postgres::connect(db_connection_string, NoTls).await?;
-    tokio::spawn(async move {
-        if let Err(e) = connection.await {
-            eprintln!("Connection error: {}", e);
-        }
-    });
+    if let Ok((client, connection)) = tokio_postgres::connect(db_connection_string, NoTls).await {
+        debug!("Connected to db");
+        tokio::spawn(async move {
+            if let Err(e) = connection.await {
+                error!("Connection error: {}", e);
+            }
+        });
+        client
+    } else {
+        panic!("Failed to connect to db");
+    };
 
     let manager = SqliteConnectionManager::file("/data/events.db3");
     let pool = r2d2::Pool::new(manager).unwrap();
