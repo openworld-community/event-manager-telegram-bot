@@ -4,7 +4,7 @@ use crate::format::from_timestamp;
 use crate::types::{Connection, DbPool, Event};
 use rusqlite::{params, Error, Row};
 
-pub fn select_event(conn: &Client, id: i64) -> Result<Event, QueryError> {
+pub fn select_event(conn: &Connection, id: i64) -> Result<Event, QueryError> {
     let mut stmt = conn.prepare("select * from events where id=?1")?;
     let mut result = stmt.query(params![id])?;
     let some_row = result.next()?;

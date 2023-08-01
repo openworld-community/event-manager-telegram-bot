@@ -12,7 +12,7 @@ use db::EventStats;
 
 /// Book tickets and wait for payment checkout.
 pub fn pre_checkout(
-    conn: &Client,
+    conn: &Connection,
     user: &User,
     pre_checkout: &PreCheckoutQuery,
     _ctx: &Context,
@@ -46,7 +46,7 @@ pub fn pre_checkout(
 }
 
 /// Payment successful.
-pub fn checkout(conn: &Client, payment: &SuccessfulPayment, _ctx: &Context) -> anyhow::Result<()> {
+pub fn checkout(conn: &Connection, payment: &SuccessfulPayment, _ctx: &Context) -> anyhow::Result<()> {
     if let Some(name) = &payment.order_info.name {
         let booking: Booking = serde_json::from_str(&payment.invoice_payload)?;
         if booking.event_id == 0 {
@@ -77,7 +77,7 @@ pub fn show_paid_event(
     adults: u64,
     children: u64,
     offset: u64,
-    conn: &Client,
+    conn: &Connection,
     user: &User,
     ctx: &Context,
 ) -> anyhow::Result<Reply> {
@@ -246,7 +246,7 @@ fn get_controls(
     no_age_distinction: bool,
     is_admin: bool,
     _user_id: u64,
-    _conn: &Client,
+    _conn: &Connection,
 ) -> anyhow::Result<Vec<Vec<InlineKeyboardButton>>> {
     let mut keyboard: Vec<Vec<InlineKeyboardButton>> = Vec::new();
     let mut row: Vec<InlineKeyboardButton> = Vec::new();
@@ -360,7 +360,7 @@ pub fn prepare_invoice(
     event_id: u64,
     adults: u64,
     children: u64,
-    conn: &Client,
+    conn: &Connection,
     user: &User,
     _ctx: &Context,
 ) -> anyhow::Result<Reply> {

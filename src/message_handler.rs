@@ -16,7 +16,7 @@ use serde_compact::compact;
 /// User dialog handler.
 /// Command line processor.
 pub fn handle_message(
-    conn: &Client,
+    conn: &Connection,
     user: &User,
     data: &str,
     ctx: &Context,
@@ -129,7 +129,7 @@ pub enum CallbackQuery {
 
 /// Callback query processor.
 pub fn handle_callback(
-    conn: &Client,
+    conn: &Connection,
     user: &User,
     data: &str,
     ctx: &Context,
@@ -274,7 +274,7 @@ pub fn handle_callback(
 }
 
 pub fn add_attachment(
-    conn: &Client,
+    conn: &Connection,
     user: &User,
     data: &str,
     ctx: &Context,
@@ -305,7 +305,7 @@ pub fn add_attachment(
 }
 
 pub fn show_event_list(
-    conn: &Client,
+    conn: &Connection,
     user_id: u64,
     ctx: &Context,
     offset: u64,
@@ -398,7 +398,7 @@ pub fn show_event_list(
 }
 
 pub fn show_event(
-    conn: &Client,
+    conn: &Connection,
     user: &User,
     event_id: u64,
     ctx: &Context,
@@ -526,7 +526,7 @@ fn get_signup_controls(
     no_age_distinction: bool,
     is_admin: bool,
     user_id: u64,
-    conn: &Client,
+    conn: &Connection,
 ) -> anyhow::Result<Vec<Vec<InlineKeyboardButton>>> {
     let mut keyboard: Vec<Vec<InlineKeyboardButton>> = Vec::new();
     let mut row: Vec<InlineKeyboardButton> = Vec::new();
@@ -681,7 +681,7 @@ fn get_signup_controls(
 }
 
 fn show_waiting_list(
-    conn: &Client,
+    conn: &Connection,
     user: &User,
     event_id: u64,
     ctx: &Context,
@@ -776,7 +776,7 @@ fn show_waiting_list(
     }
 }
 
-fn is_too_late_to_cancel(conn: &Client, event_id: u64, user: &User, ctx: &Context) -> bool {
+fn is_too_late_to_cancel(conn: &Connection, event_id: u64, user: &User, ctx: &Context) -> bool {
     if let Ok(s) = db::get_event(conn, event_id, user.id.0) {
         if s.event.ts - get_unix_time() < ctx.config.too_late_to_cancel_hours * 60 * 60 {
             return true;
@@ -786,7 +786,7 @@ fn is_too_late_to_cancel(conn: &Client, event_id: u64, user: &User, ctx: &Contex
 }
 
 fn show_presence_list(
-    conn: &Client,
+    conn: &Connection,
     event_id: u64,
     user: &User,
     ctx: &Context,
