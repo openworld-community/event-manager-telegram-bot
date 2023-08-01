@@ -40,6 +40,7 @@ use crate::reply::*;
 use crate::types::MessageType;
 use r2d2_sqlite::SqliteConnectionManager;
 use tokio::sync::Mutex;
+use tokio_postgres::NoTls;
 
 use crate::configuration::get_config;
 use crate::set_up_logger::set_up_logger;
@@ -51,6 +52,14 @@ async fn main() {
     set_up_logger();
 
     let config = get_config();
+
+    let db_connection_string = &config.db_connection_string;
+    let (client, connection) = tokio_postgres::connect(db_connection_string, NoTls).await?;
+    tokio::spawn(async move {
+        if let Err(e) = connection.await {
+            eprintln!("Connection error: {}", e);
+        }
+    });
 
     let manager = SqliteConnectionManager::file("/data/events.db3");
     let pool = r2d2::Pool::new(manager).unwrap();
