@@ -1,4 +1,4 @@
-use deadpool_postgres::{ManagerConfig, Pool, PoolError, RecyclingMethod};
+use deadpool_postgres::{ManagerConfig, ManagedConnection, Pool, PoolError, RecyclingMethod};
 // use r2d2::PooledConnection;
 // use r2d2_sqlite::SqliteConnectionManager;
 use serde_compact::compact;
@@ -10,7 +10,7 @@ use crate::configuration::config::Config;
 use teloxide::types::UserId;
 
 pub type DbPool = deadpool_postgres::Pool;
-pub type Connection = deadpool_postgres::Client;
+pub type Connection = deadpool_postgres::ManagedConnection;
 //pub type EventId = u64;
 
 #[derive(PartialEq)]
