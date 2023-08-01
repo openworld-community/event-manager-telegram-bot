@@ -28,6 +28,6 @@ pub async fn create_event(
 }
 
 fn insert_event(pool: &DbPool, event: &Event) -> Result<u64, QueryError> {
-    let con = pool.get()?;
+    let con = poolget().await;
     Ok(mutate_event(&con, &event)?)
 }
