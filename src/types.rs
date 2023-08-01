@@ -9,7 +9,7 @@ use tokio::sync::Mutex;
 use crate::configuration::config::Config;
 use teloxide::types::UserId;
 
-pub type DbPool = Pool<deadpool_postgres::Pool>;
+pub type DbPool = deadpool_postgres::Pool;
 pub type Connection = deadpool_postgres::Pool;
 //pub type EventId = u64;
 
