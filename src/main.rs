@@ -361,7 +361,7 @@ async fn perform_bulk_tasks(bot: AutoSend<Bot>, ctx: Arc<Context>) -> Result<boo
         if num_seconds_from_midnight >= ctx.config.mailing_hours_from
             && num_seconds_from_midnight < ctx.config.mailing_hours_to
         {
-            let messages = if let Ok(conn) = ctx.pool.get().await{
+            let messages = if let Ok(conn) = ctx.pool.get().await {
                 match db::get_pending_messages(
                     &conn,
                     ts,
@@ -403,7 +403,7 @@ async fn perform_bulk_tasks(bot: AutoSend<Bot>, ctx: Arc<Context>) -> Result<boo
                         .reply_markup(keyboard.clone())
                         .await?;
 
-                    if let Ok(conn) = ctx.pool.get().await{
+                    if let Ok(conn) = ctx.pool.get().await {
                         if let Err(e) = db::save_receipt(&conn, m.message_id, u) {
                             error!("Failed to save receipt: {}", e);
                         }
@@ -416,7 +416,7 @@ async fn perform_bulk_tasks(bot: AutoSend<Bot>, ctx: Arc<Context>) -> Result<boo
         }
 
         if ctx.config.cleanup_old_events {
-            if let Ok(conn) = ctx.pool.get().await{
+            if let Ok(conn) = ctx.pool.get().await {
                 // Clean up.
                 if db::clear_old_events(
                     &conn,
@@ -445,7 +445,7 @@ async fn perform_bulk_tasks(bot: AutoSend<Bot>, ctx: Arc<Context>) -> Result<boo
         }
 
         // Clear failed payments.
-        if let Ok(conn) = ctx.pool.get().await{
+        if let Ok(conn) = ctx.pool.get().await {
             if db::clear_failed_payments(&conn, ts - 5 * 60).is_ok() == false {
                 error!("Failed to clear failed payments at {}", ts);
             }
