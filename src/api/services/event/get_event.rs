@@ -18,8 +18,8 @@ pub async fn get_event(id: Path<i64>, pool: Data<DbPool>) -> actix_web::Result<i
     Ok(json_response(&EventWithId::from(event), StatusCode::OK))
 }
 
-fn perform_select_event(pool: &DbPool, id: i64) -> Result<Event, QueryError> {
-    let conn = pool.get()?;
+async fn perform_select_event(pool: &DbPool, id: i64) -> Result<Event, QueryError> {
+    let conn = pool.get().await;
 
     Ok(select_event(&conn, id)?)
 }
