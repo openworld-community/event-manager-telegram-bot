@@ -7,6 +7,7 @@ mod tests {
 
     #[test]
     fn test_db() -> Result<(), rusqlite::Error> {
+        let config = get_config();
         let mut cfg = Config::new();
         cfg.host = Some(config.db_host.clone());
         cfg.user = Some(config.db_user.clone());
@@ -116,6 +117,7 @@ mod tests {
     #[test]
     #[ignore]
     fn test_waiting_list() -> Result<(), rusqlite::Error> {
+        let config = get_config();
         let mut cfg = Config::new();
         cfg.host = Some(config.db_host.clone());
         cfg.user = Some(config.db_user.clone());
