@@ -29,10 +29,10 @@ pub async fn update_event(
     let new_event = pool
         .run(move |conn| {
             perform_update_event(conn, id, event_to_update.into_inner(), &current_event)
-    })
-    .await
-    .map_err(into_internal_server_error_response)?
-    .map_err(into_internal_server_error_response);
+        })
+        .await
+        .map_err(into_internal_server_error_response)?
+        .map_err(into_internal_server_error_response);
 
     Ok(json_response(&new_event, StatusCode::OK))
 }

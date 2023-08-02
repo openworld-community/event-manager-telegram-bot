@@ -303,8 +303,7 @@ pub fn delete_event(
     if let Err(e) = conn.execute("DELETE FROM presence WHERE event=$1", &[event_id]) {
         error!("{}", e);
     }
-    if let Err(e) = conn.execute("DELETE FROM group_leaders WHERE event=$1", &[event_id],
-    ) {
+    if let Err(e) = conn.execute("DELETE FROM group_leaders WHERE event=$1", &[event_id]) {
         error!("{}", e);
     }
     if let Err(e) = conn.execute("DELETE FROM messages WHERE event=$1", &[event_id]) {
