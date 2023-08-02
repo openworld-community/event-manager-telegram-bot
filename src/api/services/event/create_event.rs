@@ -30,7 +30,7 @@ async fn insert_event(pool: &DbPool, event: &Event) -> Result<u64, QueryError> {
     let conn = pool.get().await.unwrap();
     Ok(mutate_event(&conn, &event)
         .await
-        .map_err(| err | {
+        .map_err(|err| {
             println!("Error: {:?}", err);
             err
         })?)
