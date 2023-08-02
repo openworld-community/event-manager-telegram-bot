@@ -19,7 +19,6 @@ pub async fn create_event(
     let cloned = event.clone();
     let event_id = spawn_blocking(move || insert_event(&pool, &cloned))
         .await
-        .map_err(into_internal_server_error_response)?
         .map_err(into_internal_server_error_response)?;
 
     event.id = event_id;
@@ -27,7 +26,9 @@ pub async fn create_event(
     Ok(json_response(&event, StatusCode::CREATED))
 }
 
-fn insert_event(pool: &DbPool, event: &Event) -> Result<u64, QueryError> {
-    let con = pool.get()?;
-    Ok(mutate_event(&con, &event)?)
+async fn insert_event(pool: &DbPool, event: &Event) -> Result<u64, QueryError> {
+    let conn = pool.get().await.unwrap();
+    Ok(mutate_event(&conn, &event)
+        .await
+        .map_err(into_internal_server_error_response)?);
 }
