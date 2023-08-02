@@ -1,16 +1,15 @@
+use crate::format;
 use crate::types::{
-    Booking, Event, EventState, EventType, MessageBatch, MessageType, OrderInfo,
-    Participant, Presence, ReservationState, User,
+    Booking, Event, EventState, EventType, MessageBatch, MessageType, OrderInfo, Participant,
+    Presence, ReservationState, User,
 };
 use crate::util::{self, get_unix_time};
+use anyhow::anyhow;
 use deadpool_postgres::{Client, Pool, PoolError};
 use std::collections::HashSet;
 use tracing::{debug, error, warn};
 use tokio_postgres::Row;
 use url::Url;
-use std::future::Future;
-use crate::format;
-use anyhow::anyhow;
 
 #[cfg(test)]
 mod tests;
@@ -22,11 +21,7 @@ pub struct Counter {
 }
 
 impl Counter {
-    pub fn new(
-        reserved: u64,
-        my_reservation: u64,
-        my_waiting: u64,
-    ) -> Counter {
+    pub fn new(reserved: u64, my_reservation: u64, my_waiting: u64) -> Counter {
         Counter {
             reserved,
             my_reservation,
@@ -85,10 +80,7 @@ pub struct GroupMessage {
     pub waiting_list: u64,
 }
 
-pub async fn mutate_event(
-    conn: &Connection,
-    e: &Event
-) -> Result<u64, tokio_postgres::Error> {
+pub async fn mutate_event(conn: &Connection, e: &Event) -> Result<u64, tokio_postgres::Error> {
     let event_type = e.get_type();
     if event_type == EventType::Announcement {
         if let Err(err) = Url::parse(&e.link) {
@@ -106,10 +98,12 @@ pub async fn mutate_event(
             &[&e.name, &e.link, &e.max_adults, &e.max_children, &e.max_adults_per_reservation, &e.max_children_per_reservation, &e.ts, &e.remind, &e.adult_ticket_price, &e.child_ticket_price, &e.currency],
         ).await?;
         if res > 0 {
-            let row = conn.query_one(
-                "SELECT id FROM events WHERE name = $1 AND link = $2 AND ts = $3",
-                &[&e.name, &e.link, &e.ts],
-            ).await?;
+            let row = conn
+                .query_one(
+                    "SELECT id FROM events WHERE name = $1 AND link = $2 AND ts = $3",
+                    &[&e.name, &e.link, &e.ts],
+                )
+                .await?;
             event_id = row_to_u64(&row).await;
         }
     } else {
@@ -309,9 +303,7 @@ pub fn delete_event(
     if let Err(e) = conn.execute("DELETE FROM presence WHERE event=$1", &[event_id]) {
         error!("{}", e);
     }
-    if let Err(e) = conn.execute(
-        "DELETE FROM group_leaders WHERE event=$1",
-        &[event_id],
+    if let Err(e) = conn.execute("DELETE FROM group_leaders WHERE event=$1", &[event_id],
     ) {
         error!("{}", e);
     }
@@ -431,7 +423,7 @@ pub fn checkout(conn: &Connection, booking: &Booking, order_info: OrderInfo) -> 
         booking.user_id,
         ReservationState::PaymentPending as u64,
         booking.adults,
-        booking.children
+        booking.children,
     ])?;
     if let Some(row) = rows.next()? {
         let id: u64 = row.get("id")?;
@@ -441,7 +433,7 @@ pub fn checkout(conn: &Connection, booking: &Booking, order_info: OrderInfo) -> 
                 ReservationState::PaymentCompleted as u64,
                 serde_json::to_string(&order_info)?,
                 order_info.name,
-                id
+                id,
             ],
         )?;
         Ok(())
@@ -1028,7 +1020,11 @@ pub fn create(conn: &Connection) -> Result<(), tokio_postgres::Error> {
     Ok(())
 }
 
-pub fn save_receipt(conn: &Connection, message_id: u64, user: u64) -> Result<(), tokio_postgres::Error> {
+pub fn save_receipt(
+    conn: &Connection,
+    message_id: u64,
+    user: u64,
+) -> Result<(), tokio_postgres::Error> {
     conn.execute(
         "INSERT INTO message_sent (message, user, ts) VALUES ($1, $2, $3)",
         &[message_id, user, util::get_unix_time()],

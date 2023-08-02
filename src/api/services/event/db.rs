@@ -32,7 +32,9 @@ pub async fn get_event_list(
     pag: &Pagination,
 ) -> Result<Vec<EventWithId>, QueryError> {
     let conn = pool.get().await.unwrap();
-    let mut stmt = conn.prepare("select * from events limit $1 offset $2").await?;
+    let mut stmt = conn
+        .prepare("select * from events limit $1 offset $2")
+        .await?;
     let mut rows = stmt.query(params![pag.limit(), pag.offset()])?;
     let mut events: Vec<EventWithId> = Vec::new();
     while let Some(row) = rows.next()? {
