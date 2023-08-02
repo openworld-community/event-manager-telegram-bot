@@ -38,7 +38,6 @@ use crate::api::setup_api_server;
 
 use crate::reply::*;
 use crate::types::MessageType;
-use r2d2_sqlite::SqliteConnectionManager;
 use tokio::sync::Mutex;
 // use tokio_postgres::NoTls;
 

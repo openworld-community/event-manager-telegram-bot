@@ -6,7 +6,7 @@ use rusqlite::{params, Error, Row};
 
 pub async fn select_event(conn: &Connection, id: i64) -> Result<Event, QueryError> {
     let mut result = conn
-        .query_one("select * from events where id=$1", &[id])
+        .query_one("select * from events where id=$1", &[&id])
         .await?
         .map_err(|e| QueryError::NotFound(e.to_string()))?;
     let some_row = result.next()?;

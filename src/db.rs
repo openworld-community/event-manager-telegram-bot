@@ -5,7 +5,6 @@ use crate::types::{
 };
 use crate::util::{self, get_unix_time};
 use anyhow::anyhow;
-use deadpool_postgres::{Client, Pool, PoolError};
 use std::collections::HashSet;
 use tokio_postgres::Row;
 use tracing::{debug, error, warn};
