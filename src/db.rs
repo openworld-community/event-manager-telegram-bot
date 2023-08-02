@@ -359,7 +359,7 @@ pub fn sign_up(
 
             // Check conflicting time
             let mut stmt = conn
-                ..query_one("select events.id from events join reservations as r on events.id = r.event where events.ts = $1 and r.user = $2 and events.id != $3")?;
+                .query_one("select events.id from events join reservations as r on events.id = r.event where events.ts = $1 and r.user = $2 and events.id != $3")?;
             let mut rows = stmt.query(&[s.event.ts, user_id, s.event.id])?;
             if let Some(_) = rows.next()? {
                 return Err(anyhow!(
@@ -416,7 +416,7 @@ pub fn checkout(conn: &Connection, booking: &Booking, order_info: OrderInfo) -> 
     }
 
     let mut stmt = conn
-        ..query_one("select id from reservations where event = $1 and user = $2 and state = $3 and adults = $4 and children = $5 limit 1")?;
+        .query_one("select id from reservations where event = $1 and user = $2 and state = $3 and adults = $4 and children = $5 limit 1")?;
     let mut rows = stmt.query(&[
         booking.event_id,
         booking.user_id,
