@@ -1,9 +1,9 @@
 use actix_web::ResponseError;
 use deadpool::managed::PoolError;
-use tokio_postgres::Error as tokioPostgresError;
 use std::fmt::Debug;
 use thiserror::Error;
 use tokio::task::JoinError;
+use tokio_postgres::Error as tokioPostgresError;
 
 #[derive(Debug, Error)]
 pub enum QueryError {
