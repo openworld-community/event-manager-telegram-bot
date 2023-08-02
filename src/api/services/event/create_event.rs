@@ -28,5 +28,8 @@ pub async fn create_event(
 
 async fn insert_event(pool: &DbPool, event: &Event) -> Result<u64, QueryError> {
     let conn = pool.get().await.unwrap();
-    Ok(mutate_event(&conn, &event).await.map_err.map_err(|e| QueryError::NotFound(e.to_string()))?)
+    Ok(mutate_event(&conn, &event)
+        .await
+        .map_err
+        .map_err(|e| QueryError::NotFound(e.to_string()))?)
 }
