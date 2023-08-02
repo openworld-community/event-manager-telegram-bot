@@ -20,7 +20,7 @@ pub async fn update_event(
 
     let pool_for_current_event = pool.clone();
     let current_event = spawn_blocking(async move {
-        let conn = pool_for_current_event.get().await.unwrap();
+        let conn = pool_for_current_event.get().unwrap();
         db::select_event(&conn, id)
     })
     .await
