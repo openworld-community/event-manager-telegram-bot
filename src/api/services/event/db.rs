@@ -5,7 +5,7 @@ use crate::types::{Connection, DbPool, Event};
 use rusqlite::{params, Error, Row};
 
 pub async fn select_event(conn: &Connection, id: i64) -> Result<Event, QueryError> {
-    let mut stmt = conn
+    let mut result = conn
         .query_one("select * from events where id=$1", &[id])
         .await?
         .map_err(|e| QueryError::NotFound(e.to_string()))?;
