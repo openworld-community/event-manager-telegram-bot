@@ -38,13 +38,17 @@ use crate::api::setup_api_server;
 
 use crate::reply::*;
 use crate::types::MessageType;
-use r2d2_sqlite::SqliteConnectionManager;
 use tokio::sync::Mutex;
+// use tokio_postgres::NoTls;
 
 use crate::configuration::get_config;
 use crate::set_up_logger::set_up_logger;
 use types::Context;
 use util::get_unix_time;
+
+use deadpool_postgres::config::Config;
+use deadpool_postgres::tokio_postgres::NoTls;
+use deadpool_postgres::{ManagerConfig, Pool, RecyclingMethod};
 
 #[tokio::main]
 async fn main() {
@@ -52,11 +56,42 @@ async fn main() {
 
     let config = get_config();
 
-    let manager = SqliteConnectionManager::file("/data/events.db3");
-    let pool = r2d2::Pool::new(manager).unwrap();
-    if let Ok(conn) = pool.get() {
+    // let db_connection_string = &config.db_connection_string;
+    // if let Ok((client, connection)) = tokio_postgres::connect(db_connection_string, NoTls).await {
+    //     debug!("Connected to db");
+    //     tokio::spawn(async move {
+    //         if let Err(e) = connection.await {
+    //             error!("Connection error: {}", e);
+    //         }
+    //     });
+    //     client
+    // } else {
+    //     panic!("Failed to connect to db");
+    // };
+
+    let mut cfg = Config::new();
+    cfg.host = Some(config.db_host.clone());
+    cfg.user = Some(config.db_user.clone());
+    cfg.password = Some(env::var("DB_PASSWORD").unwrap_or("postgres".to_string()));
+    cfg.dbname = Some(config.db_name.clone());
+    cfg.manager = Some(ManagerConfig {
+        recycling_method: RecyclingMethod::Fast,
+    });
+
+    let pool: Pool = cfg.create_pool(NoTls).unwrap();
+
+    // let manager = SqliteConnectionManager::file("/data/events.db3");
+    // let pool = r2d2::Pool::new(manager).unwrap();
+    //
+    // if let Ok(conn) = pool.get() {
+    //     db::create(&conn).expect("Failed to create db.");
+    // }
+
+    if let Ok(conn) = pool.get().await {
         db::create(&conn).expect("Failed to create db.");
-    }
+    } else {
+        panic!("Failed to connect to db");
+    };
 
     tokio::spawn(setup_api_server(&config.api_socket_address, &pool));
 
@@ -115,7 +150,7 @@ async fn message_handler(
                     }
                     trace!("received {:?}", msg);
                     let u = crate::types::User::new(&user, &context.config.admins);
-                    if let Ok(conn) = context.pool.get() {
+                    if let Ok(conn) = context.pool.get().await {
                         let reply = if u.is_admin {
                             crate::admin_message_handler::handle_message(&conn, &u, text, &context)
                         } else {
@@ -167,7 +202,7 @@ async fn message_handler(
         }
         MessageKind::SuccessfulPayment(MessageSuccessfulPayment { successful_payment }) => {
             trace!("successful_payment {:?}", &successful_payment);
-            if let Ok(conn) = context.pool.get() {
+            if let Ok(conn) = context.pool.get().await {
                 let res = crate::payments::checkout(&conn, successful_payment, &context);
                 if let Err(e) = res {
                     error!("Failed to check out: {}", e);
@@ -197,7 +232,7 @@ async fn callback_handler(
                 *lock = *lock + 1;
                 // todo: use event based locking
             }
-            if let Ok(conn) = context.pool.get() {
+            if let Ok(conn) = context.pool.get().await {
                 let reply = if u.is_admin {
                     crate::admin_message_handler::handle_callback(&conn, &u, &data, &context)
                 } else {
@@ -292,7 +327,7 @@ async fn pre_checkout_handler(
 ) -> Result<(), RequestError> {
     trace!("pre_checkout_handler::received {:?}", pre_checkout);
     let u = crate::types::User::new(&pre_checkout.from, &context.config.admins);
-    if let Ok(conn) = context.pool.get() {
+    if let Ok(conn) = context.pool.get().await {
         let mut lock = context.sign_up_mutex.lock().await;
         *lock = *lock + 1;
 
@@ -325,7 +360,7 @@ async fn perform_bulk_tasks(bot: AutoSend<Bot>, ctx: Arc<Context>) -> Result<boo
         if num_seconds_from_midnight >= ctx.config.mailing_hours_from
             && num_seconds_from_midnight < ctx.config.mailing_hours_to
         {
-            let messages = if let Ok(conn) = ctx.pool.get() {
+            let messages = if let Ok(conn) = ctx.pool.get().await {
                 match db::get_pending_messages(
                     &conn,
                     ts,
@@ -367,7 +402,7 @@ async fn perform_bulk_tasks(bot: AutoSend<Bot>, ctx: Arc<Context>) -> Result<boo
                         .reply_markup(keyboard.clone())
                         .await?;
 
-                    if let Ok(conn) = ctx.pool.get() {
+                    if let Ok(conn) = ctx.pool.get().await {
                         if let Err(e) = db::save_receipt(&conn, m.message_id, u) {
                             error!("Failed to save receipt: {}", e);
                         }
@@ -380,7 +415,7 @@ async fn perform_bulk_tasks(bot: AutoSend<Bot>, ctx: Arc<Context>) -> Result<boo
         }
 
         if ctx.config.cleanup_old_events {
-            if let Ok(conn) = ctx.pool.get() {
+            if let Ok(conn) = ctx.pool.get().await {
                 // Clean up.
                 if db::clear_old_events(
                     &conn,
@@ -409,7 +444,7 @@ async fn perform_bulk_tasks(bot: AutoSend<Bot>, ctx: Arc<Context>) -> Result<boo
         }
 
         // Clear failed payments.
-        if let Ok(conn) = ctx.pool.get() {
+        if let Ok(conn) = ctx.pool.get().await {
             if db::clear_failed_payments(&conn, ts - 5 * 60).is_ok() == false {
                 error!("Failed to clear failed payments at {}", ts);
             }
