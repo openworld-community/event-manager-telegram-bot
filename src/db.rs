@@ -13,7 +13,7 @@ use url::Url;
 #[cfg(test)]
 mod tests;
 
-async fn row_to_u64(row: &Row) -> u64 {
+pub async fn row_to_u64(row: &Row) -> u64 {
     row.get(0)
 }
 
