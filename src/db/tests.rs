@@ -1,8 +1,8 @@
 #[cfg(test)]
 mod tests {
     use crate::db::*;
-    use deadpool_postgres::{ManagerConfig, Pool, RecyclingMethod};
     use deadpool_postgres::config::Config;
+    use deadpool_postgres::{ManagerConfig, Pool, RecyclingMethod};
     use teloxide::types::UserId;
 
     #[test]
