@@ -53,6 +53,7 @@ jobs:
       - name: Build
         env:
           RUSTFLAGS: "-C target-feature=-crt-static"
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
         run: cargo build --release
 
       - name: Test
