@@ -19,38 +19,31 @@ pub async fn update_event(
     let id = id.into_inner();
 
     let pool_for_current_event = pool.clone();
-    let current_event = spawn_blocking(move || {
-        let conn = pool_for_current_event.get()?;
-        db::select_event(&conn, id)
-    })
-    .await
-    .map_err(into_internal_server_error_response)?
-    .map_err(into_internal_server_error_response)?;
+    let current_event = pool_for_current_event
+        .run(move |conn| db::select_event(&conn, id))
+        .await
+        .map_err(into_internal_server_error_response)?;
 
     event_to_update.validation(&current_event)?;
 
-    let new_event = spawn_blocking(move || {
-        perform_update_event(
-            &pool.into_inner(),
-            id,
-            event_to_update.into_inner(),
-            &current_event,
-        )
-    })
-    .await
-    .map_err(into_internal_server_error_response)?
-    .map_err(into_internal_server_error_response)?;
+    let new_event = pool
+        .run(move |conn| {
+            perform_update_event(conn, id, event_to_update.into_inner(), &current_event)
+        })
+        .await
+        .map_err(into_internal_server_error_response)?
+        .map_err(into_internal_server_error_response);
 
     Ok(json_response(&new_event, StatusCode::OK))
 }
 
-pub fn perform_update_event(
+pub async fn perform_update_event(
     pool: &DbPool,
     id: i64,
     event_to_update: OptionalRawEvent,
     current_event: &Event,
 ) -> Result<Event, QueryError> {
-    let conn = pool.get()?;
+    let conn = pool.get().await.unwrap();
 
     let new_event = Event {
         id: id as u64,
