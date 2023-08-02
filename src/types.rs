@@ -1,4 +1,4 @@
-use deadpool::managed::Pool;
+use deadpool::managed::Pool as ManagedPool;
 use deadpool_postgres::{Client, Manager, ManagerConfig, Pool, PoolError, RecyclingMethod};
 // use r2d2::PooledConnection;
 // use r2d2_sqlite::SqliteConnectionManager;
@@ -10,7 +10,7 @@ use tokio::sync::Mutex;
 use crate::configuration::config::Config;
 use teloxide::types::UserId;
 
-pub type DbPool = deadpool_postgres::Pool<Manager>;
+pub type DbPool = deadpool_postgres::Pool;
 pub type Connection = deadpool::managed::Pool<Manager>;
 //pub type EventId = u64;
 
