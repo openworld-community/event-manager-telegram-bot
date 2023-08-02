@@ -1,15 +1,23 @@
 #[cfg(test)]
 mod tests {
     use crate::db::*;
-    use r2d2_sqlite::SqliteConnectionManager;
+    use deadpool_postgres::config::Config;
+    use deadpool_postgres::{ManagerConfig, Pool, RecyclingMethod};
     use teloxide::types::UserId;
 
     #[test]
     fn test_db() -> Result<(), rusqlite::Error> {
-        let db_file = "./test.db3";
-        let _ = std::fs::remove_file(db_file);
-        let manager = SqliteConnectionManager::file(db_file);
-        let pool = r2d2::Pool::new(manager).unwrap();
+        let config = get_config();
+        let mut cfg = Config::new();
+        cfg.host = Some(config.db_host.clone());
+        cfg.user = Some(config.db_user.clone());
+        cfg.password = Some(env::var("DB_PASSWORD").unwrap_or("postgres".to_string()));
+        cfg.dbname = Some(config.db_name.clone());
+        cfg.manager = Some(ManagerConfig {
+            recycling_method: RecyclingMethod::Fast,
+        });
+
+        let pool: Pool = cfg.create_pool(NoTls).unwrap();
         let conn = pool.get().unwrap();
         create(&conn).expect("Failed to create db.");
 
@@ -109,10 +117,17 @@ mod tests {
     #[test]
     #[ignore]
     fn test_waiting_list() -> Result<(), rusqlite::Error> {
-        let db_file = "./test1.db3";
-        let _ = std::fs::remove_file(db_file);
-        let manager = SqliteConnectionManager::file(db_file);
-        let pool = r2d2::Pool::new(manager).unwrap();
+        let config = get_config();
+        let mut cfg = Config::new();
+        cfg.host = Some(config.db_host.clone());
+        cfg.user = Some(config.db_user.clone());
+        cfg.password = Some(env::var("DB_PASSWORD").unwrap_or("postgres".to_string()));
+        cfg.dbname = Some(config.db_name.clone());
+        cfg.manager = Some(ManagerConfig {
+            recycling_method: RecyclingMethod::Fast,
+        });
+
+        let pool: Pool = cfg.create_pool(NoTls).unwrap();
         let conn = pool.get().unwrap();
         create(&conn).expect("Failed to create db.");
 
