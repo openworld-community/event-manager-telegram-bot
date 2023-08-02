@@ -13,7 +13,7 @@ pub async fn get_event(id: Path<i64>, pool: Data<DbPool>) -> actix_web::Result<i
     let event = spawn_blocking(move || perform_select_event(&pool.into_inner(), id.into_inner()))
         .await
         .map_err(into_internal_server_error_response)?
-        .map_err(into_internal_server_error_response)?;
+        .map_err(into_internal_server_error_response);
 
     Ok(json_response(&EventWithId::from(event), StatusCode::OK))
 }

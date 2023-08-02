@@ -17,7 +17,7 @@ pub async fn event_list(
     let events = spawn_blocking(move || db::get_event_list(&pool, &params.into_inner().into()))
         .await
         .map_err(into_internal_server_error_response)?
-        .map_err(into_internal_server_error_response)?;
+        .map_err(into_internal_server_error_response);
 
     Ok(json_response(&events, StatusCode::OK))
 }

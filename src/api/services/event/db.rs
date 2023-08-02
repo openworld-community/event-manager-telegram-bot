@@ -4,8 +4,8 @@ use crate::format::from_timestamp;
 use crate::types::{Connection, DbPool, Event};
 use rusqlite::{params, Error, Row};
 
-pub fn select_event(conn: &Connection, id: i64) -> Result<Event, QueryError> {
-    let mut stmt = conn.prepare("select * from events where id=?1")?;
+pub async fn select_event(conn: &Connection, id: i64) -> Result<Event, QueryError> {
+    let mut stmt = conn.prepare("select * from events where id=$1").await?;
     let mut result = stmt.query(params![id])?;
     let some_row = result.next()?;
 
@@ -32,7 +32,7 @@ pub async fn get_event_list(
     pag: &Pagination,
 ) -> Result<Vec<EventWithId>, QueryError> {
     let conn = pool.get().await.unwrap();
-    let mut stmt = conn.prepare("select * from events limit ? offset ?")?;
+    let mut stmt = conn.prepare("select * from events limit $1 offset $2").await?;
     let mut rows = stmt.query(params![pag.limit(), pag.offset()])?;
     let mut events: Vec<EventWithId> = Vec::new();
     while let Some(row) = rows.next()? {

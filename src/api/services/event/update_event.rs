@@ -19,19 +19,17 @@ pub async fn update_event(
     let id = id.into_inner();
 
     let pool_for_current_event = pool.clone();
-    let current_event = spawn_blocking(async move {
-        let conn = pool_for_current_event.get().unwrap();
+    let current_event = pool_for_current_event.run(move |conn| {
         db::select_event(&conn, id)
     })
     .await
-    .map_err(into_internal_server_error_response)?
     .map_err(into_internal_server_error_response)?;
 
     event_to_update.validation(&current_event)?;
 
-    let new_event = spawn_blocking(move || {
+    let new_event = pool.run(move |conn| {
         perform_update_event(
-            &pool.into_inner(),
+            conn,
             id,
             event_to_update.into_inner(),
             &current_event,
@@ -39,7 +37,7 @@ pub async fn update_event(
     })
     .await
     .map_err(into_internal_server_error_response)?
-    .map_err(into_internal_server_error_response)?;
+    .map_err(into_internal_server_error_response);
 
     Ok(json_response(&new_event, StatusCode::OK))
 }
