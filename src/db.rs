@@ -13,6 +13,10 @@ use url::Url;
 #[cfg(test)]
 mod tests;
 
+async fn row_to_u64(row: &Row) -> u64 {
+    row.get(0)
+}
+
 pub struct Counter {
     pub reserved: u64,
     pub my_reservation: u64,
