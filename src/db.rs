@@ -1,7 +1,7 @@
 use crate::format;
 use crate::types::{
-    Booking, Event, EventState, EventType, MessageBatch, MessageType, OrderInfo, Participant,
-    Presence, ReservationState, User,
+    Booking, Connection, Event, EventState, EventType, MessageBatch, MessageType, OrderInfo,
+    Participant, Presence, ReservationState, User,
 };
 use crate::util::{self, get_unix_time};
 use anyhow::anyhow;
@@ -150,7 +150,7 @@ pub fn enqueue_message(
         "INSERT INTO messages (event, type, sender, waiting_list, text, ts) VALUES ($1, $2, $3, $4, $5, $6)",
         &[event_id, message_type as u64, sender, waiting_list, text, util::get_unix_time()],
     )?;
-    let mut stmt = conn..query_one("SELECT last_insert_rowid()")?;
+    let mut stmt = conn.query_one("SELECT last_insert_rowid()")?;
     let mut rows = stmt.query([])?;
     if let Some(row) = rows.next()? {
         let message_id: u64 = row.get(0)?;
@@ -167,7 +167,7 @@ pub fn delete_enqueued_messages(
     event_id: u64,
     message_type: MessageType,
 ) -> Result<(), tokio_postgres::Error> {
-    let mut stmt = conn..query_one("SELECT id FROM messages WHERE event = $1 AND type = $2")?;
+    let mut stmt = conn.query_one("SELECT id FROM messages WHERE event = $1 AND type = $2")?;
     let mut rows = stmt.query([event_id, message_type as u64])?;
     while let Some(row) = rows.next()? {
         let message_id: u64 = row.get(0)?;
@@ -187,7 +187,7 @@ pub fn prompt_waiting_list(conn: &Connection, event_id: u64) -> Result<(), tokio
     }
 
     let send_at = get_unix_time() + 10; // give some time to finish multiple cancellations
-    let mut stmt = conn..query_one("SELECT id FROM messages WHERE event = $1 AND type = $2")?;
+    let mut stmt = conn.query_one("SELECT id FROM messages WHERE event = $1 AND type = $2")?;
     let mut rows = stmt.query([event_id, MessageType::WaitingListPrompt as u64])?;
     if let Some(row) = rows.next()? {
         let message_id: u64 = row.get("id")?;
@@ -216,7 +216,7 @@ pub fn blacklist_absent_participants(
     admins: &HashSet<u64>,
     cancel_future_reservations: bool,
 ) -> Result<(), tokio_postgres::Error> {
-    let mut stmt = conn..query_one(
+    let mut stmt = conn.query_one(
         "select r.*, p.user from (select event, user, user_name1, user_name2, count(user) as count from reservations where event = $1 and waiting_list = 0 group by user) as r
         left join presence as p on r.event = p.event and r.user = p.user"
     )?;
@@ -260,7 +260,7 @@ pub fn blacklist_absent_participants(
 }
 
 pub fn get_ban_reason(conn: &Connection, user_id: u64) -> Result<String, tokio_postgres::Error> {
-    let mut stmt = conn..query_one("SELECT reason FROM black_list WHERE user = $1")?;
+    let mut stmt = conn.query_one("SELECT reason FROM black_list WHERE user = $1")?;
     let mut rows = stmt.query([user_id])?;
     if let Some(row) = rows.next()? {
         let reason: String = row.get("reason")?;
@@ -313,7 +313,7 @@ pub fn delete_event(
 }
 
 pub fn delete_link(conn: &Connection, link: &str) -> Result<(), tokio_postgres::Error> {
-    let mut stmt = conn..query_one("select id from events where link = $1")?;
+    let mut stmt = conn.query_one("select id from events where link = $1")?;
     let mut rows = stmt.query(&[link])?;
     if let Some(row) = rows.next()? {
         let event_id: u64 = row.get("id")?;
@@ -530,7 +530,7 @@ fn have_vacancies(conn: &Connection, event_id: u64) -> Result<bool, tokio_postgr
 fn get_vacancies(conn: &Connection, event_id: u64) -> Result<(u64, u64), tokio_postgres::Error> {
     let mut vacant_adults: u64 = 0;
     let mut vacant_children: u64 = 0;
-    let mut stmt = conn..query_one(
+    let mut stmt = conn.query_one(
         "SELECT a.max_adults, a.max_children, b.adults, b.children, a.id FROM events as a \
         LEFT JOIN (SELECT sum(adults) as adults, sum(children) as children, event FROM reservations WHERE event = $1 AND waiting_list = 0 group by event) as b \
         ON a.id = b.event WHERE id = $1 group by id"
@@ -559,7 +559,7 @@ pub fn get_attachment(
     user: u64,
 ) -> Result<Option<String>, tokio_postgres::Error> {
     let mut stmt =
-        conn..query_one("SELECT attachment FROM attachments WHERE event = $1 AND user = $2")?;
+        conn.query_one("SELECT attachment FROM attachments WHERE event = $1 AND user = $2")?;
     let mut rows = stmt.query(&[event_id, user])?;
     if let Some(row) = rows.next()? {
         let attachment: String = row.get(0)?;
@@ -575,7 +575,7 @@ pub fn get_events(
     offset: u64,
     limit: u64,
 ) -> Result<Vec<EventStats>, tokio_postgres::Error> {
-    let mut stmt = conn..query_one(
+    let mut stmt = conn.query_one(
         "select a.*, b.my_adults, b.my_children, c.my_wait_adults, c.my_wait_children FROM \
         (SELECT events.id, events.name, events.link, events.max_adults, events.max_children, events.max_adults_per_reservation, events.max_children_per_reservation, events.ts, r.adults, r.children, events.state, events.adult_ticket_price, events.child_ticket_price, events.currency FROM events \
         LEFT JOIN (SELECT sum(adults) as adults, sum(children) as children, event FROM reservations WHERE waiting_list = 0 GROUP BY event) as r ON events.id = r.event ORDER BY ts LIMIT $2 OFFSET $3) as a \
@@ -595,7 +595,7 @@ pub fn get_event(
     event_id: u64,
     user: u64,
 ) -> Result<EventStats, tokio_postgres::Error> {
-    let mut stmt = conn..query_one(
+    let mut stmt = conn.query_one(
         "select a.*, b.my_adults, b.my_children, c.my_wait_adults, c.my_wait_children FROM \
         (SELECT events.id, events.name, events.link, events.max_adults, events.max_children, events.max_adults_per_reservation, events.max_children_per_reservation, events.ts, r.adults, r.children, events.state, events.adult_ticket_price, events.child_ticket_price, events.currency FROM events \
         LEFT JOIN (SELECT sum(adults) as adults, sum(children) as children, event FROM reservations WHERE waiting_list = 0 GROUP BY event) as r ON events.id = r.event) as a \
@@ -615,7 +615,7 @@ pub fn get_event(
 }
 
 pub fn get_event_name(conn: &Connection, event_id: u64) -> Result<String, tokio_postgres::Error> {
-    let mut stmt = conn..query_one("SELECT events.name, events.ts FROM events WHERE id = $1")?;
+    let mut stmt = conn.query_one("SELECT events.name, events.ts FROM events WHERE id = $1")?;
     let mut rows = stmt.query([event_id])?;
     if let Some(row) = rows.next()? {
         let name: String = row.get("name")?;
@@ -638,13 +638,13 @@ pub fn get_participants(
 ) -> Result<Vec<Participant>, tokio_postgres::Error> {
     let mut stmt;
     let mut rows = if limit == 0 {
-        stmt = conn..query_one(
+        stmt = conn.query_one(
             "SELECT a.*, b.attachment FROM (SELECT sum(adults) as adults, sum(children) as children, user, user_name1, user_name2, event, ts FROM reservations WHERE waiting_list = $1 AND event = $2 AND state = $3 group by event, user ORDER BY ts) as a \
         LEFT JOIN attachments as b ON a.event = b.event and a.user = b.user"
         )?;
         stmt.query([waiting_list, event_id, state as u64])?
     } else {
-        stmt = conn..query_one(
+        stmt = conn.query_one(
             "SELECT a.*, b.attachment FROM (SELECT sum(adults) as adults, sum(children) as children, user, user_name1, user_name2, event, ts FROM reservations WHERE waiting_list = $1 AND event = $2 AND state = $3 group by event, user ORDER BY ts LIMIT $4 OFFSET $5) as a \
             LEFT JOIN attachments as b ON a.event = b.event and a.user = b.user"
         )?;
@@ -673,7 +673,7 @@ pub fn get_presence_list(
     offset: u64,
     limit: u64,
 ) -> Result<Vec<Presence>, tokio_postgres::Error> {
-    let mut stmt = conn..query_one(
+    let mut stmt = conn.query_one(
         "select r.*, p.user, a.attachment from (select event, user, user_name1, user_name2, count(user) from reservations where event = $1 and waiting_list = 0 group by user) as r \
             left join presence as p on r.event = p.event and r.user = p.user \
             left join attachments as a on r.event = a.event and r.user = a.user \
@@ -714,7 +714,7 @@ pub fn is_group_leader(
     user_id: u64,
 ) -> Result<bool, tokio_postgres::Error> {
     let mut stmt =
-        conn..query_one("SELECT event FROM group_leaders WHERE event = $1 AND user = $2")?;
+        conn.query_one("SELECT event FROM group_leaders WHERE event = $1 AND user = $2")?;
     let mut rows = stmt.query(&[event_id, user_id])?;
     if let Some(_) = rows.next()? {
         Ok(true)
@@ -758,7 +758,7 @@ pub fn get_pending_messages(
     mut max_messages: u64,
 ) -> Result<Vec<MessageBatch>, tokio_postgres::Error> {
     //debug!("get_pending_messages {}", ts);
-    let mut stmt = conn..query_one(
+    let mut stmt = conn.query_one(
         "SELECT m.*, o.send_at, e.adult_ticket_price, e.child_ticket_price FROM message_outbox as o \
         JOIN messages as m ON o.message = m.id \
         JOIN events as e ON m.event = e.id \
@@ -790,7 +790,7 @@ pub fn get_pending_messages(
         }
 
         if collect_users {
-            let mut stmt = conn..query_one(
+            let mut stmt = conn.query_one(
                 "SELECT r.user, s.message as sent FROM \
                         (select user, ts from reservations WHERE event = $1 AND waiting_list = $2 GROUP BY user) as r
                         LEFT JOIN (select user, message from message_sent where message = $3) as s
@@ -846,7 +846,7 @@ fn set_current_event(
 }
 
 pub fn get_current_event(conn: &Connection, user_id: u64) -> Result<u64, tokio_postgres::Error> {
-    let mut stmt = conn..query_one("SELECT event FROM current_events WHERE user=$1")?;
+    let mut stmt = conn.query_one("SELECT event FROM current_events WHERE user=$1")?;
     let mut rows = stmt.query([user_id])?;
     if let Some(row) = rows.next()? {
         let event_id: u64 = row.get(0)?;
@@ -863,7 +863,7 @@ pub fn clear_old_events(
     cancel_future_reservations: bool,
     admins: &HashSet<u64>,
 ) -> Result<(), tokio_postgres::Error> {
-    let mut stmt = conn..query_one("SELECT id FROM events WHERE ts < $1")?;
+    let mut stmt = conn.query_one("SELECT id FROM events WHERE ts < $1")?;
     let mut rows = stmt.query([ts - util::get_seconds_before_midnight(ts)])?;
     while let Some(row) = rows.next()? {
         let event_id: u64 = row.get(0)?;
@@ -880,7 +880,7 @@ pub fn clear_old_events(
 
 pub fn create(conn: &Connection) -> Result<(), tokio_postgres::Error> {
     let mut stmt =
-        conn..query_one("SELECT name FROM sqlite_master WHERE type='table' AND name='events'")?;
+        conn.query_one("SELECT name FROM sqlite_master WHERE type='table' AND name='events'")?;
     match stmt.query([]) {
         Ok(rows) => match rows.count() {
             Ok(count) => {
@@ -1040,7 +1040,7 @@ pub fn add_to_black_list(
     let mut user_name2 = "".to_string();
 
     let mut stmt =
-        conn..query_one("SELECT user_name1, user_name2 FROM reservations WHERE user = $1 LIMIT 1")?;
+        conn.query_one("SELECT user_name1, user_name2 FROM reservations WHERE user = $1 LIMIT 1")?;
     let mut rows = stmt.query([user])?;
     if let Some(row) = rows.next()? {
         user_name1 = row.get(0)?;
@@ -1089,7 +1089,7 @@ pub fn get_black_list(
     limit: u64,
 ) -> Result<Vec<User>, tokio_postgres::Error> {
     let mut stmt =
-        conn..query_one("SELECT * FROM black_list order by user_name1 LIMIT $1 OFFSET $2")?;
+        conn.query_one("SELECT * FROM black_list order by user_name1 LIMIT $1 OFFSET $2")?;
     let mut rows = stmt.query([limit, offset * limit])?;
     let mut res = Vec::new();
     while let Some(row) = rows.next()? {
@@ -1105,7 +1105,7 @@ pub fn get_black_list(
 }
 
 pub fn is_in_black_list(conn: &Connection, user: u64) -> Result<bool, tokio_postgres::Error> {
-    let mut stmt = conn..query_one("SELECT * FROM black_list WHERE user = $1")?;
+    let mut stmt = conn.query_one("SELECT * FROM black_list WHERE user = $1")?;
     let mut rows = stmt.query([user])?;
     if let Some(_) = rows.next()? {
         Ok(true)
@@ -1164,12 +1164,12 @@ pub fn get_group_messages(
 ) -> Result<Vec<GroupMessage>, tokio_postgres::Error> {
     let mut stmt;
     let mut rows = if let Some(waiting_list) = waiting_list {
-        stmt = conn..query_one(
+        stmt = conn.query_one(
             "SELECT sender, text, ts, waiting_list FROM messages WHERE event = $1 AND type = 0 AND waiting_list = $2 ORDER BY ts DESC LIMIT 3"
         )?;
         stmt.query(&[event_id, waiting_list])?
     } else {
-        stmt = conn..query_one(
+        stmt = conn.query_one(
             "SELECT sender, text, ts, waiting_list FROM messages WHERE event = $1 AND type = 0 ORDER BY ts DESC LIMIT 3",
         )?;
         stmt.query(&[event_id])?

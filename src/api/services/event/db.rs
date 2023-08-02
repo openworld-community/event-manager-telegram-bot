@@ -5,7 +5,7 @@ use crate::types::{Connection, DbPool, Event};
 use rusqlite::{params, Error, Row};
 
 pub async fn select_event(conn: &Connection, id: i64) -> Result<Event, QueryError> {
-    let mut stmt = conn.prepare("select * from events where id=$1").await?;
+    let mut stmt = conn.query_one("select * from events where id=$1").await?;
     let mut result = stmt.query(params![id])?;
     let some_row = result.next()?;
 
