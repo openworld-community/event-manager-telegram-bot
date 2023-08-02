@@ -19,9 +19,10 @@ pub async fn create_event(
     let cloned = event.clone();
     let event_id = spawn_blocking(move || insert_event(&pool, &cloned))
         .await
-        .map_err(into_internal_server_error_response)?;
+        .map_err(into_internal_server_error_response)
+        .await?;
 
-    event.id = row_to_u64(event_id);
+    event.id = event_id;
 
     Ok(json_response(&event, StatusCode::CREATED))
 }
