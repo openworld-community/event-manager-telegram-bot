@@ -1,4 +1,4 @@
-use deadpool::managed::Pool as ManagedPool;
+use deadpool::managed::Object;
 use deadpool_postgres::{Client, Manager, ManagerConfig, Pool, PoolError, RecyclingMethod};
 // use r2d2::PooledConnection;
 // use r2d2_sqlite::SqliteConnectionManager;
