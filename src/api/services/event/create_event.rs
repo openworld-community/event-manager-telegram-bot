@@ -1,7 +1,7 @@
 use crate::api::services::event::types::RawEvent;
 use crate::api::shared::{into_internal_server_error_response, QueryError};
 use crate::api::utils::json_response;
-use crate::db::{mutate_event, row_to_u64};
+use crate::db::{mutate_event;
 use crate::types::{DbPool, Event};
 use actix_web::http::StatusCode;
 use actix_web::web::{Data, Json};
@@ -31,5 +31,5 @@ async fn insert_event(pool: &DbPool, event: &Event) -> Result<u64, QueryError> {
     let conn = pool.get().await.unwrap();
     Ok(mutate_event(&conn, &event)
         .await
-        .map_err(|e| QueryError::DatabaseError(e.to_string()))?)
+        .map_err(|e| QueryError::DatabaseQueryError(e.to_string()))?)
 }
