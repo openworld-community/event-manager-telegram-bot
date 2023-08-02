@@ -1,7 +1,7 @@
 use crate::api::services::event::types::RawEvent;
 use crate::api::shared::{into_internal_server_error_response, QueryError};
 use crate::api::utils::json_response;
-use crate::db::mutate_event;
+use crate::db::{mutate_event, row_to_u64};
 use crate::types::{DbPool, Event};
 use actix_web::http::StatusCode;
 use actix_web::web::{Data, Json};
@@ -19,15 +19,17 @@ pub async fn create_event(
     let cloned = event.clone();
     let event_id = spawn_blocking(move || insert_event(&pool, &cloned))
         .await
-        .map_err(into_internal_server_error_response)?
         .map_err(into_internal_server_error_response)?;
 
-    event.id = event_id;
+    event.id = row_to_u64(event_id);
 
     Ok(json_response(&event, StatusCode::CREATED))
 }
 
-fn insert_event(pool: &DbPool, event: &Event) -> Result<u64, QueryError> {
-    let con = pool.get()?;
-    Ok(mutate_event(&con, &event)?)
+async fn insert_event(pool: &DbPool, event: &Event) -> Result<u64, QueryError> {
+    let conn = pool.get().await.unwrap();
+    Ok(mutate_event(&conn, &event)
+        .await
+        .map_err
+        .map_err(|e| QueryError::NotFound(e.to_string()))?)
 }
