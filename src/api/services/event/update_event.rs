@@ -8,7 +8,6 @@ use actix_web::http::StatusCode;
 use actix_web::web::{Data, Json, Path};
 use actix_web::{post, Responder};
 
-
 #[post("/{id}")]
 pub async fn update_event(
     id: Path<i64>,
