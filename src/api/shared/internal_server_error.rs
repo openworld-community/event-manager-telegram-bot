@@ -18,7 +18,7 @@ pub enum InternalServerError {
     #[error("error with connection pool {0}")]
     ConnectionPoll(#[from] PoolError<tokioPostgresError>),
     #[error("error with database request {0}")]
-    QueryError(#[from] QueryError),
+    QueryError(QueryError),
     #[error("error with tokio spawn {0}")]
     TokioJoinError(#[from] JoinError),
 }
