@@ -1,6 +1,6 @@
 use crate::api::services::event;
+use crate::api::shared::json_response;
 use crate::api::shared::{AppError, RawPagination};
-use crate::api::utils::json_response;
 use actix_web::http::StatusCode;
 use actix_web::web::{Data, Query};
 use actix_web::{get, Responder};

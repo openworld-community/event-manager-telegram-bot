@@ -135,6 +135,12 @@ pub struct MessageBatch {
     pub recipients: Vec<i32>,
 }
 
+impl MessageBatch {
+    pub fn is_paid(&self) -> bool {
+        self.adult_ticket_price != 0 || self.child_ticket_price != 0
+    }
+}
+
 fn batch_query<C>(conn: &C, time: &chrono::DateTime<Utc>) -> SelectorRaw<SelectModel<MessageBatch>>
 where
     C: ConnectionTrait,

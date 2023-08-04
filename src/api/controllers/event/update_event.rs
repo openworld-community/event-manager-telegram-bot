@@ -1,6 +1,6 @@
 use crate::api::controllers::event::types::OptionalRawEvent;
+use crate::api::shared::json_response;
 use crate::api::shared::AppError;
-use crate::api::utils::json_response;
 
 use actix_web::http::StatusCode;
 use actix_web::web::{Data, Json, Path};

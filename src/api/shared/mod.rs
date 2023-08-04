@@ -1,6 +1,8 @@
+mod json_response;
 mod response_error;
 mod validation_error;
 
+pub use json_response::json_response;
 pub use response_error::AppError;
 use serde::{Deserialize, Serialize};
 pub use validation_error::ValidationError;

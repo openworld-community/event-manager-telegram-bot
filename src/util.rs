@@ -1,4 +1,10 @@
+use chrono::NaiveDateTime;
 use std::time::{SystemTime, UNIX_EPOCH};
+
+#[inline]
+pub fn current_date_time() -> NaiveDateTime {
+    chrono::Utc::now().naive_utc()
+}
 
 pub fn get_unix_time() -> u64 {
     let t = SystemTime::now();

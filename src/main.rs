@@ -1,15 +1,17 @@
 mod api;
 mod app_errors;
 mod background_task;
+mod bot;
 mod configuration;
 mod set_up_logger;
+mod util;
 
 use crate::api::setup_api_server;
 
 use migration::{Migrator, MigratorTrait};
 
 use sea_orm::{ConnectOptions, Database, DatabaseConnection, DbErr};
-use teloxide::prelude::{Bot, RequesterExt};
+use teloxide::prelude::Bot;
 
 use crate::app_errors::AppErrors;
 use crate::background_task::perform_background_task;
@@ -31,14 +33,14 @@ async fn main() -> Result<(), AppErrors> {
     let database_connection = build_connection(&config.database_connection).await?;
     Migrator::up(&database_connection, None).await?;
 
-    let bot = Bot::new(&config.telegram_bot_token).auto_send();
+    let bot = Bot::new(&config.telegram_bot_token);
 
     tokio::spawn(setup_api_server(
         &config.api_socket_address,
         &database_connection,
     ));
 
-    perform_background_task(bot.clone(), &config, &database_connection).await;
+    perform_background_task(&bot, &config, &database_connection).await;
 
     return Ok(());
 }
