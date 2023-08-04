@@ -5,14 +5,14 @@ use chrono::{DateTime, NaiveDateTime, Utc};
 use crate::db;
 use db::EventStats;
 
-pub fn from_timestamp(ts: u64) -> DateTime<Utc> {
+pub fn from_timestamp(ts: i64) -> DateTime<Utc> {
     let naive =
         NaiveDateTime::from_timestamp_opt(ts as i64, 0).expect("NaiveDateTime Unwrap Error");
     let datetime: DateTime<Utc> = DateTime::from_utc(naive, Utc);
     datetime
 }
 
-pub fn ts(ts: u64) -> String {
+pub fn ts(ts: i64) -> String {
     let datetime = from_timestamp(ts);
     datetime.format("%d.%m %H:%M").to_string()
 }
@@ -113,13 +113,13 @@ pub fn participants(
 pub fn messages(
     conn: &Connection,
     s: &EventStats,
-    event_id: u64,
+    event_id: i64,
     is_admin: bool,
 ) -> Option<String> {
     let waiting_list = if is_admin {
         None
     } else {
-        Some((s.adults.my_reservation == 0 && s.children.my_reservation == 0) as u64)
+        Some((s.adults.my_reservation == 0 && s.children.my_reservation == 0) as i64)
     };
 
     if let Ok(messages) = db::get_group_messages(conn, event_id, waiting_list) {

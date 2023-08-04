@@ -1,17 +1,16 @@
-use r2d2::PooledConnection;
-use r2d2_sqlite::SqliteConnectionManager;
+// use r2d2::PooledConnection;
+// use r2d2_sqlite::SqliteConnectionManager;
 use serde_compact::compact;
 use std::collections::HashSet;
 use std::sync::Arc;
-
 use tokio::sync::Mutex;
 
 use crate::configuration::config::Config;
 use teloxide::types::UserId;
 
-pub type DbPool = r2d2::Pool<SqliteConnectionManager>;
-pub type Connection = PooledConnection<SqliteConnectionManager>;
-//pub type EventId = u64;
+pub type DbPool = deadpool_postgres::Pool;
+pub type Connection = deadpool_postgres::Client;
+//pub type EventId = i64;
 
 #[derive(PartialEq)]
 pub enum EventType {
@@ -22,17 +21,17 @@ pub enum EventType {
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct Event {
-    pub id: u64,
+    pub id: i64,
     pub name: String,
     pub link: String,
-    pub max_adults: u64,
-    pub max_children: u64,
-    pub max_adults_per_reservation: u64,
-    pub max_children_per_reservation: u64,
-    pub ts: u64,
-    pub remind: u64,
-    pub adult_ticket_price: u64,
-    pub child_ticket_price: u64,
+    pub max_adults: i64,
+    pub max_children: i64,
+    pub max_adults_per_reservation: i64,
+    pub max_children_per_reservation: i64,
+    pub ts: i64,
+    pub remind: i64,
+    pub adult_ticket_price: i64,
+    pub child_ticket_price: i64,
     pub currency: String,
 }
 
@@ -64,7 +63,7 @@ pub struct User {
 }
 
 impl User {
-    pub fn new(u: &teloxide::types::User, admins: &HashSet<u64>) -> User {
+    pub fn new(u: &teloxide::types::User, admins: &HashSet<i64>) -> User {
         let mut user_name1 = u.first_name.clone();
         if let Some(v) = u.last_name.clone() {
             user_name1.push_str(" ");
@@ -85,31 +84,31 @@ impl User {
 }
 
 pub struct Participant {
-    pub user_id: u64,
+    pub user_id: i64,
     pub user_name1: String,
     pub user_name2: String,
-    pub adults: u64,
-    pub children: u64,
+    pub adults: i64,
+    pub children: i64,
     pub attachment: Option<String>,
 }
 
 pub struct Presence {
-    pub user_id: u64,
+    pub user_id: i64,
     pub user_name1: String,
     pub user_name2: String,
-    pub reserved: u64,
+    pub reserved: i64,
     pub attachment: Option<String>,
 }
 
 pub struct MessageBatch {
-    pub message_id: u64,
-    pub event_id: u64,
+    pub message_id: i64,
+    pub event_id: i64,
     pub sender: String,
     pub message_type: MessageType,
-    pub waiting_list: u64,
+    pub waiting_list: i64,
     pub text: String,
     pub is_paid: bool,
-    pub recipients: Vec<u64>,
+    pub recipients: Vec<i64>,
 }
 
 #[derive(FromPrimitive, ToPrimitive, PartialEq)]
@@ -122,23 +121,23 @@ pub enum MessageType {
 pub struct Context {
     pub config: Config,
     pub pool: DbPool,
-    pub sign_up_mutex: Arc<Mutex<u64>>,
+    pub sign_up_mutex: Arc<Mutex<i64>>,
 }
 
 #[compact]
 #[derive(Serialize, Deserialize, Clone)]
 pub struct Booking {
-    pub event_id: u64,
-    pub adults: u64,
-    pub children: u64,
-    pub user_id: u64,
+    pub event_id: i64,
+    pub adults: i64,
+    pub children: i64,
+    pub user_id: i64,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct OrderInfo {
     pub id: String,
     pub name: String,
-    pub amount: u64,
+    pub amount: i64,
 }
 
 pub enum ReservationState {

@@ -1,11 +1,11 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 
-pub fn get_unix_time() -> u64 {
+pub fn get_unix_time() -> i64 {
     let t = SystemTime::now();
-    t.duration_since(UNIX_EPOCH).unwrap().as_secs() as u64
+    t.duration_since(UNIX_EPOCH).unwrap().as_secs() as i64
 }
 
-pub fn get_seconds_before_midnight(ts: u64) -> u64 {
+pub fn get_seconds_before_midnight(ts: i64) -> i64 {
     86400 - ts % 86400
 }
 
