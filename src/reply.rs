@@ -13,7 +13,7 @@ pub enum Reply {
         description: String,
         payload: String,
         currency: String,
-        amount: u64,
+        amount: i64,
     },
 }
 #[derive(Debug)]
@@ -62,9 +62,9 @@ impl ReplyMessage {
         mut self,
         prev: T,
         next: T,
-        participants: u64,
-        limit: u64,
-        offset: u64,
+        participants: i64,
+        limit: i64,
+        offset: i64,
     ) -> anyhow::Result<Self>
     where
         T: serde::ser::Serialize,
