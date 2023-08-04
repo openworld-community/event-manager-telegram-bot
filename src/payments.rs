@@ -34,7 +34,7 @@ pub fn pre_checkout(
                 booking.children,
                 0,
                 get_unix_time(),
-                pre_checkout.total_amount as u64,
+                pre_checkout.total_amount as i64,
             ) {
                 Ok(_) => Ok(()),
                 Err(e) => Err(anyhow!("{}", e)),
@@ -64,7 +64,7 @@ pub fn checkout(
                 OrderInfo {
                     id: payment.telegram_payment_charge_id.to_owned(),
                     name: name.to_owned(),
-                    amount: payment.total_amount as u64,
+                    amount: payment.total_amount as i64,
                 },
             ) {
                 Ok(_) => Ok(()),
@@ -77,10 +77,10 @@ pub fn checkout(
 }
 
 pub fn show_paid_event(
-    event_id: u64,
-    adults: u64,
-    children: u64,
-    offset: u64,
+    event_id: i64,
+    adults: i64,
+    children: i64,
+    offset: i64,
     conn: &Connection,
     user: &User,
     ctx: &Context,
@@ -103,7 +103,7 @@ pub fn show_paid_event(
                     ReservationState::PaymentCompleted,
                 )?;
                 let len = participants.len();
-                (Some(participants), len as u64)
+                (Some(participants), len as i64)
             } else {
                 (None, 0)
             };
@@ -242,14 +242,14 @@ pub fn show_paid_event(
 
 fn get_controls(
     s: &EventStats,
-    adults: u64,
-    children: u64,
-    offset: u64,
+    adults: i64,
+    children: i64,
+    offset: i64,
     free_adults: i64,
     free_children: i64,
     no_age_distinction: bool,
     is_admin: bool,
-    _user_id: u64,
+    _user_id: i64,
     _conn: &Connection,
 ) -> anyhow::Result<Vec<Vec<InlineKeyboardButton>>> {
     let mut keyboard: Vec<Vec<InlineKeyboardButton>> = Vec::new();
@@ -361,9 +361,9 @@ fn get_controls(
 }
 
 pub fn prepare_invoice(
-    event_id: u64,
-    adults: u64,
-    children: u64,
+    event_id: i64,
+    adults: i64,
+    children: i64,
     conn: &Connection,
     user: &User,
     _ctx: &Context,
@@ -409,7 +409,7 @@ pub fn prepare_invoice(
     }
 }
 
-pub fn donate(user: &User, amount: u64, _ctx: &Context) -> anyhow::Result<Reply> {
+pub fn donate(user: &User, amount: i64, _ctx: &Context) -> anyhow::Result<Reply> {
     Ok(Reply::Invoice {
         title: "Донат".to_string(),
         description: "Поддержать работу канала \"Венские Истории\"".to_string(),

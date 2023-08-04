@@ -17,15 +17,15 @@ use teloxide::{
 
 #[derive(Deserialize, Serialize, Clone, Default, Debug)]
 struct NewEvent {
-    id: Option<u64>,
+    id: Option<i64>,
     name: String,
     link: String,
     start: String,
     remind: String,
-    max_adults: u64,
-    max_children: u64,
-    max_adults_per_reservation: u64,
-    max_children_per_reservation: u64,
+    max_adults: i64,
+    max_children: i64,
+    max_adults_per_reservation: i64,
+    max_children_per_reservation: i64,
     adult_ticket_price: Option<f64>,
     child_ticket_price: Option<f64>,
     currency: String,
@@ -53,7 +53,7 @@ pub fn handle_message(
                 _ => 2,
             };
             if waiting_list < 2 {
-                if let Ok(event_id) = pars[2].parse::<u64>() {
+                if let Ok(event_id) = pars[2].parse::<i64>() {
                     match db::get_event(conn, event_id, user.id.0) {
                         Ok(s) => {
                             let text = format!(
@@ -93,7 +93,7 @@ pub fn handle_message(
             }
         }
         "/ban" if pars.len() == 2 => {
-            if let Ok(user_id) = pars[1].parse::<u64>() {
+            if let Ok(user_id) = pars[1].parse::<i64>() {
                 if db::add_to_black_list(
                     conn,
                     user_id,
@@ -108,7 +108,7 @@ pub fn handle_message(
             }
         }
         "/remove_from_black_list" if pars.len() == 2 => {
-            if let Ok(user_id) = pars[1].parse::<u64>() {
+            if let Ok(user_id) = pars[1].parse::<i64>() {
                 if db::remove_from_black_list(conn, user_id).is_ok() == false {
                     error!("Failed to remove user {} from black list", user_id);
                 }
@@ -116,7 +116,7 @@ pub fn handle_message(
             }
         }
         "/delete_event" if pars.len() == 2 => {
-            if let Ok(event_id) = pars[1].parse::<u64>() {
+            if let Ok(event_id) = pars[1].parse::<i64>() {
                 match db::delete_event(
                     conn,
                     event_id,
@@ -142,7 +142,7 @@ pub fn handle_message(
             }
         },
         "/delete_reservation" if pars.len() == 3 => {
-            if let (Ok(event_id), Ok(user_id)) = (pars[1].parse::<u64>(), pars[2].parse::<u64>()) {
+            if let (Ok(event_id), Ok(user_id)) = (pars[1].parse::<i64>(), pars[2].parse::<i64>()) {
                 match db::delete_reservation(conn, event_id, user_id) {
                     Ok(_) => {
                         return Ok(ReplyMessage::new("Reservation deleted.").into());
@@ -154,7 +154,7 @@ pub fn handle_message(
             }
         }
         "/set_group_leader" if pars.len() == 3 => {
-            if let (Ok(event_id), Ok(user_id)) = (pars[1].parse::<u64>(), pars[2].parse::<u64>()) {
+            if let (Ok(event_id), Ok(user_id)) = (pars[1].parse::<i64>(), pars[2].parse::<i64>()) {
                 match db::set_group_leader(conn, event_id, user_id) {
                     Ok(_) => {
                         return Ok(ReplyMessage::new("Group leader set.").into());
@@ -170,9 +170,9 @@ pub fn handle_message(
         }
         "/set_event_limits" if pars.len() == 4 => {
             if let (Ok(event_id), Ok(max_adults), Ok(max_children)) = (
-                pars[1].parse::<u64>(),
-                pars[2].parse::<u64>(),
-                pars[3].parse::<u64>(),
+                pars[1].parse::<i64>(),
+                pars[2].parse::<i64>(),
+                pars[3].parse::<i64>(),
             ) {
                 match db::set_event_limits(conn, event_id, max_adults, max_children) {
                     Ok(_) => {
@@ -283,12 +283,12 @@ fn add_event(conn: &Connection, data: &str) -> anyhow::Result<Reply> {
                         max_children: v.max_children,
                         max_adults_per_reservation: v.max_adults_per_reservation,
                         max_children_per_reservation: v.max_children_per_reservation,
-                        ts: ts.timestamp() as u64,
-                        remind: remind.timestamp() as u64,
+                        ts: ts.timestamp() as i64,
+                        remind: remind.timestamp() as i64,
                         adult_ticket_price: (v.adult_ticket_price.unwrap_or(0.00f64) * 100.0)
-                            as u64,
+                            as i64,
                         child_ticket_price: (v.child_ticket_price.unwrap_or(0.00f64) * 100.0)
-                            as u64,
+                            as i64,
                         currency: v.currency,
                     };
 
@@ -323,7 +323,7 @@ fn add_event(conn: &Connection, data: &str) -> anyhow::Result<Reply> {
     }
 }
 
-fn show_black_list(conn: &Connection, config: &Config, offset: u64) -> anyhow::Result<Reply> {
+fn show_black_list(conn: &Connection, config: &Config, offset: i64) -> anyhow::Result<Reply> {
     match db::get_black_list(conn, offset, config.presence_page_size) {
         Ok(participants) => {
             Ok(
@@ -358,7 +358,7 @@ fn show_black_list(conn: &Connection, config: &Config, offset: u64) -> anyhow::R
                         offset: offset.saturating_sub(1),
                     },
                     &CallbackQuery::ShowBlackList { offset: offset + 1 },
-                    participants.len() as u64,
+                    participants.len() as i64,
                     config.presence_page_size,
                     offset,
                 )?
