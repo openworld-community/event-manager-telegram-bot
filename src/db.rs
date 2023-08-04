@@ -88,10 +88,7 @@ pub async fn mutate_event(conn: &Connection, e: &Event) -> Result<i64, tokio_pos
     if event_type == EventType::Announcement {
         if let Err(err) = Url::parse(&e.link) {
             // todo: fix error
-            return Err(anyhow::anyhow!(
-                 "Failed to parse url: {}. {}",
-                 e.link, err
-            ));
+            return Err(anyhow::anyhow!("Failed to parse url: {}. {}", e.link, err));
         }
     }
     let mut event_id = e.id;
