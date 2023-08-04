@@ -4,9 +4,11 @@ use crate::format::from_timestamp;
 use crate::types::{Connection, DbPool, Event};
 use rusqlite::{params, Error, Row};
 
-pub fn select_event(conn: &Connection, id: i64) -> Result<Event, QueryError> {
-    let mut stmt = conn.prepare("select * from events where id=?1")?;
-    let mut result = stmt.query(params![id])?;
+pub async fn select_event(conn: &Connection, id: i64) -> Result<Event, QueryError> {
+    let mut result = conn
+        .query_one("select * from events where id=$1", &[&id])
+        .await
+        .map_err(|e| QueryError::NotFound(e.to_string()))?;
     let some_row = result.next()?;
 
     let row = some_row.unwrap();
@@ -27,9 +29,14 @@ pub fn select_event(conn: &Connection, id: i64) -> Result<Event, QueryError> {
     })
 }
 
-pub fn get_event_list(pool: &DbPool, pag: &Pagination) -> Result<Vec<EventWithId>, QueryError> {
-    let conn = pool.get()?;
-    let mut stmt = conn.prepare("select * from events limit ? offset ?")?;
+pub async fn get_event_list(
+    pool: &DbPool,
+    pag: &Pagination,
+) -> Result<Vec<EventWithId>, QueryError> {
+    let conn = pool.get().await.unwrap();
+    let mut stmt = conn
+        .prepare("select * from events limit $1 offset $2")
+        .await?;
     let mut rows = stmt.query(params![pag.limit(), pag.offset()])?;
     let mut events: Vec<EventWithId> = Vec::new();
     while let Some(row) = rows.next()? {
