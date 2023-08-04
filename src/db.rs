@@ -83,13 +83,12 @@ pub struct GroupMessage {
     pub waiting_list: i64,
 }
 
-pub async fn mutate_event(conn: &Connection, e: &Event) -> Result<i64, tokio_postgres::Error> {
+pub async fn mutate_event(conn: &Connection, e: &Event) -> Result<u64, Box<dyn std::error::Error>> {
     let event_type = e.get_type();
     if event_type == EventType::Announcement {
         if let Err(err) = Url::parse(&e.link) {
             // todo: fix error
-            return Err(anyhow::anyhow!("Failed to parse url: {}. {}", e.link, err));
-        }
+            return Err(Box::new(anyhow::anyhow!("Failed to parse url: {}. {}",e.link, err)));
     }
     let mut event_id = e.id;
     if e.id == 0 {
