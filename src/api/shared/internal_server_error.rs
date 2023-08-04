@@ -27,7 +27,9 @@ impl From<QueryError> for InternalServerError {
     fn from(value: QueryError) -> Self {
         match value {
             QueryError::GetConnectionError(err) => InternalServerError::ConnectionPoll(err),
-            QueryError::DatabaseQueryError(err) => InternalServerError::QueryError(QueryError::DatabaseQueryError(err)),
+            QueryError::DatabaseQueryError(err) => {
+                InternalServerError::QueryError(QueryError::DatabaseQueryError(err))
+            },
         }
     }
 }
