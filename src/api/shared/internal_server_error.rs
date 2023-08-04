@@ -1,22 +1,22 @@
 use actix_web::ResponseError;
-use r2d2::Error as r2d2Error;
-use rusqlite::Error as queryError;
+use deadpool::managed::PoolError;
 use std::fmt::Debug;
 use thiserror::Error;
 use tokio::task::JoinError;
+use tokio_postgres::Error as tokioPostgresError;
 
 #[derive(Debug, Error)]
 pub enum QueryError {
     #[error("GetConnectionError {0}")]
-    GetConnectionError(#[from] r2d2::Error),
+    GetConnectionError(#[from] PoolError<tokioPostgresError>),
     #[error("DatabaseQueryError {0}")]
-    DatabaseQueryError(#[from] rusqlite::Error),
+    DatabaseQueryError(#[from] String),
 }
 
 #[derive(Debug, Error)]
 pub enum InternalServerError {
     #[error("error with connection pool {0}")]
-    ConnectionPoll(#[from] r2d2Error),
+    ConnectionPoll(#[from] PoolError<tokioPostgresError>),
     #[error("error with database request {0}")]
     QueryError(#[from] queryError),
     #[error("error with tokio spawn {0}")]
