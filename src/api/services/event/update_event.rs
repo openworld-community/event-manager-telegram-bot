@@ -44,7 +44,7 @@ pub async fn perform_update_event(
     let conn = pool.get().await.unwrap();
 
     let new_event = Event {
-        id: id as u64,
+        id: id as i64,
         name: event_to_update.name.unwrap_or(current_event.name.clone()),
         link: event_to_update.link.unwrap_or(current_event.link.clone()),
         max_adults: event_to_update
@@ -56,18 +56,18 @@ pub async fn perform_update_event(
         max_adults_per_reservation: event_to_update
             .max_adults_per_reservation
             .unwrap_or(current_event.max_adults_per_reservation)
-            as u64,
+            as i64,
         max_children_per_reservation: event_to_update
             .max_children_per_reservation
             .unwrap_or(current_event.max_children_per_reservation)
-            as u64,
+            as i64,
         ts: event_to_update
             .event_start_time
-            .map(|val| val.timestamp() as u64)
+            .map(|val| val.timestamp() as i64)
             .unwrap_or(current_event.ts),
         remind: event_to_update
             .remind
-            .map(|val| val.timestamp() as u64)
+            .map(|val| val.timestamp() as i64)
             .unwrap_or(current_event.remind),
         adult_ticket_price: current_event.adult_ticket_price,
         child_ticket_price: current_event.child_ticket_price,

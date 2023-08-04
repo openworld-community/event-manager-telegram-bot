@@ -109,7 +109,7 @@ async fn main() {
     let context = Arc::new(Context {
         config,
         pool,
-        sign_up_mutex: Arc::new(Mutex::new(0u64)),
+        sign_up_mutex: Arc::new(Mutex::new(0i64)),
     });
 
     tokio::spawn(perform_bulk_tasks(bot.clone(), context.clone()));

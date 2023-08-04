@@ -107,7 +107,7 @@ mod tests {
             ts + 20 * 60 * 60,
             false,
             false,
-            &HashSet::<u64>::new(),
+            &HashSet::<i64>::new(),
         )?;
 
         let events = get_events(&conn, 0, 0, 20).unwrap();

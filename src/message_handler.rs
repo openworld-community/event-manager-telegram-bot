@@ -30,11 +30,11 @@ pub fn handle_message(
             if pars.len() == 2 {
                 // Direct link
                 if pars[1].starts_with("donate_") {
-                    if let Ok(amount) = pars[1][7..].parse::<u64>() {
+                    if let Ok(amount) = pars[1][7..].parse::<i64>() {
                         return donate(user, amount, ctx);
                     }
                 } else {
-                    if let Ok(event_id) = pars[1].parse::<u64>() {
+                    if let Ok(event_id) = pars[1].parse::<i64>() {
                         return show_event(conn, user, event_id, ctx, None, 0);
                     }
                 }
@@ -68,62 +68,62 @@ pub fn handle_message(
 #[derive(Serialize, Deserialize, Clone)]
 pub enum CallbackQuery {
     EventList {
-        offset: u64,
+        offset: i64,
     },
     Event {
-        event_id: u64,
-        offset: u64,
+        event_id: i64,
+        offset: i64,
     },
     SignUp {
-        event_id: u64,
+        event_id: i64,
         is_adult: bool,
         wait: bool,
     },
     Cancel {
-        event_id: u64,
+        event_id: i64,
         is_adult: bool,
     },
     WontGo {
-        event_id: u64,
+        event_id: i64,
     },
     ShowWaitingList {
-        event_id: u64,
-        offset: u64,
+        event_id: i64,
+        offset: i64,
     },
     ShowPresenceList {
-        event_id: u64,
-        offset: u64,
+        event_id: i64,
+        offset: i64,
     },
     ConfirmPresence {
-        event_id: u64,
-        user_id: u64,
-        offset: u64,
+        event_id: i64,
+        user_id: i64,
+        offset: i64,
     },
     PaidEvent {
-        event_id: u64,
-        adults: u64,
-        children: u64,
-        offset: u64,
+        event_id: i64,
+        adults: i64,
+        children: i64,
+        offset: i64,
     },
     SendInvoice {
-        event_id: u64,
-        adults: u64,
-        children: u64,
+        event_id: i64,
+        adults: i64,
+        children: i64,
     },
 
     // admin callbacks
     ChangeEventState {
-        event_id: u64,
-        state: u64,
+        event_id: i64,
+        state: i64,
     },
     ShowBlackList {
-        offset: u64,
+        offset: i64,
     },
     RemoveFromBlackList {
-        user_id: u64,
+        user_id: i64,
     },
     ConfirmRemoveFromBlackList {
-        user_id: u64,
+        user_id: i64,
     },
 }
 
@@ -148,9 +148,9 @@ pub fn handle_callback(
                     conn,
                     event_id,
                     user,
-                    is_adult as u64,
-                    !is_adult as u64,
-                    wait as u64,
+                    is_adult as i64,
+                    !is_adult as i64,
+                    wait as i64,
                     get_unix_time(),
                     0,
                 ) {
@@ -172,7 +172,7 @@ pub fn handle_callback(
             }
             Cancel { event_id, is_adult } => {
                 let user_id = user.id.0;
-                match db::cancel(conn, event_id, user_id, is_adult as u64) {
+                match db::cancel(conn, event_id, user_id, is_adult as i64) {
                     Ok(_) => {
                         let mut ps = None;
                         if is_too_late_to_cancel(conn, event_id, user, ctx) {
@@ -279,7 +279,7 @@ pub fn add_attachment(
     data: &str,
     ctx: &Context,
 ) -> anyhow::Result<Reply> {
-    let user_id: u64 = user.id.0;
+    let user_id: i64 = user.id.0;
     match db::get_current_event(conn, user_id) {
         Ok(event_id) if event_id > 0 => {
             match db::add_attachment(conn, event_id, user_id, &html::escape(data)) {
@@ -306,9 +306,9 @@ pub fn add_attachment(
 
 pub fn show_event_list(
     conn: &Connection,
-    user_id: u64,
+    user_id: i64,
     ctx: &Context,
-    offset: u64,
+    offset: i64,
 ) -> anyhow::Result<Reply> {
     match db::get_events(conn, user_id, offset, ctx.config.event_list_page_size) {
         Ok(events) => {
@@ -386,7 +386,7 @@ pub fn show_event_list(
                 .pagination(
                     &CallbackQuery::EventList {offset: offset.saturating_sub(1)},
                     &CallbackQuery::EventList {offset: offset + 1},
-                    events.len() as u64,
+                    events.len() as i64,
                     ctx.config.event_list_page_size,
                     offset,
                 )?
@@ -400,10 +400,10 @@ pub fn show_event_list(
 pub fn show_event(
     conn: &Connection,
     user: &User,
-    event_id: u64,
+    event_id: i64,
     ctx: &Context,
     ps: Option<String>,
-    offset: u64,
+    offset: i64,
 ) -> anyhow::Result<Reply> {
     match db::get_event(conn, event_id, user.id.0) {
         Ok(s) => {
@@ -421,7 +421,7 @@ pub fn show_event(
                     ReservationState::Free,
                 )?;
                 let len = participants.len();
-                (Some(participants), len as u64)
+                (Some(participants), len as i64)
             } else {
                 (None, 0)
             };
@@ -525,7 +525,7 @@ fn get_signup_controls(
     free_children: i64,
     no_age_distinction: bool,
     is_admin: bool,
-    user_id: u64,
+    user_id: i64,
     conn: &Connection,
 ) -> anyhow::Result<Vec<Vec<InlineKeyboardButton>>> {
     let mut keyboard: Vec<Vec<InlineKeyboardButton>> = Vec::new();
@@ -683,9 +683,9 @@ fn get_signup_controls(
 fn show_waiting_list(
     conn: &Connection,
     user: &User,
-    event_id: u64,
+    event_id: i64,
     ctx: &Context,
-    offset: u64,
+    offset: i64,
 ) -> anyhow::Result<Reply> {
     let mut list = "".to_string();
     let no_age_distinction;
@@ -766,7 +766,7 @@ fn show_waiting_list(
                     event_id,
                     offset: offset + 1,
                 },
-                participants.len() as u64,
+                participants.len() as i64,
                 ctx.config.event_page_size,
                 offset,
             )?
@@ -776,7 +776,7 @@ fn show_waiting_list(
     }
 }
 
-fn is_too_late_to_cancel(conn: &Connection, event_id: u64, user: &User, ctx: &Context) -> bool {
+fn is_too_late_to_cancel(conn: &Connection, event_id: i64, user: &User, ctx: &Context) -> bool {
     if let Ok(s) = db::get_event(conn, event_id, user.id.0) {
         if s.event.ts - get_unix_time() < ctx.config.too_late_to_cancel_hours * 60 * 60 {
             return true;
@@ -787,10 +787,10 @@ fn is_too_late_to_cancel(conn: &Connection, event_id: u64, user: &User, ctx: &Co
 
 fn show_presence_list(
     conn: &Connection,
-    event_id: u64,
+    event_id: i64,
     user: &User,
     ctx: &Context,
-    offset: u64,
+    offset: i64,
 ) -> anyhow::Result<Reply> {
     let mut header = "".to_string();
     match db::get_event(conn, event_id, user.id.0) {
@@ -863,7 +863,7 @@ fn show_presence_list(
                         event_id,
                         offset: offset + 1,
                     },
-                    participants.len() as u64,
+                    participants.len() as i64,
                     ctx.config.event_page_size,
                     offset,
                 )?
