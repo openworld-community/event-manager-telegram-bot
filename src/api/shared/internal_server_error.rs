@@ -16,7 +16,7 @@ pub enum QueryError {
 #[derive(Debug, Error)]
 pub enum InternalServerError {
     #[error("error with connection pool {0}")]
-    ConnectionPoll(#[from] r2d2Error),
+    ConnectionPoll(#[from] PoolError<tokioPostgresError>),
     #[error("error with database request {0}")]
     QueryError(#[from] queryError),
     #[error("error with tokio spawn {0}")]
