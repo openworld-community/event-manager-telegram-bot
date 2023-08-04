@@ -29,7 +29,7 @@ impl From<QueryError> for InternalServerError {
             QueryError::GetConnectionError(err) => InternalServerError::ConnectionPoll(err),
             QueryError::DatabaseQueryError(err) => {
                 InternalServerError::QueryError(QueryError::DatabaseQueryError(err))
-            },
+            }
         }
     }
 }
