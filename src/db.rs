@@ -89,6 +89,7 @@ pub async fn mutate_event(conn: &Connection, e: &Event) -> Result<u64, Box<dyn s
         if let Err(err) = Url::parse(&e.link) {
             // todo: fix error
             return Err(Box::new(anyhow::anyhow!("Failed to parse url: {}. {}",e.link, err)));
+        }
     }
     let mut event_id = e.id;
     if e.id == 0 {
