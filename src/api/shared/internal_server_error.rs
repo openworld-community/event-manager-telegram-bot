@@ -18,7 +18,7 @@ pub enum InternalServerError {
     #[error("error with connection pool {0}")]
     ConnectionPoll(#[from] PoolError<tokioPostgresError>),
     #[error("error with database request {0}")]
-    QueryError(#[from] queryError),
+    QueryError(#[from] QueryError),
     #[error("error with tokio spawn {0}")]
     TokioJoinError(#[from] JoinError),
 }
@@ -27,7 +27,7 @@ impl From<QueryError> for InternalServerError {
     fn from(value: QueryError) -> Self {
         match value {
             QueryError::GetConnectionError(err) => InternalServerError::ConnectionPoll(err),
-            QueryError::DatabaseQueryError(err) => InternalServerError::QueryError(err),
+            QueryError::DatabaseQueryError(err) => InternalServerError::QueryError(QueryError::DatabaseQueryError(err)),
         }
     }
 }
