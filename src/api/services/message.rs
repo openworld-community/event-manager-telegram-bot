@@ -3,12 +3,11 @@ use crate::api::services::reservation::get_vacancies;
 use chrono::Utc;
 use entity::message::{ActiveModel, Column, Entity};
 use entity::new_types::MessageType;
-use entity::{event, message, message_outbox};
+use entity::{message, message_outbox, message_sent};
 use futures::TryStreamExt;
 use sea_orm::prelude::*;
 use sea_orm::{
-    ActiveValue, DeleteResult, FromQueryResult, Iterable, JoinType, QuerySelect, SelectModel,
-    SelectorRaw, Statement, StreamTrait,
+    ActiveValue, DeleteResult, FromQueryResult, SelectModel, SelectorRaw, Statement, StreamTrait,
 };
 
 pub async fn delete_enqueued_messages<C>(
@@ -86,7 +85,9 @@ where
             && vacancies.is_have_vacancies();
 
         if collect_users {
-            let mut user_stream = users_query(&message_batch, max_messages, con).stream(con).await?;
+            let mut user_stream = users_query(&message_batch, max_messages, con)
+                .stream(con)
+                .await?;
 
             while let Some(user) = user_stream.try_next().await? {
                 message_batch.recipients.push(user.user);
@@ -103,7 +104,17 @@ where
             }
         }
 
-        // TODO: remove message
+        if message_batch.recipients.len() == 0 {
+            message_outbox::Entity::delete_many()
+                .filter(message_outbox::Column::Message.eq(message_batch.message_id))
+                .exec(con)
+                .await?;
+
+            message_sent::Entity::delete_many()
+                .filter(message_sent::Column::Message.eq(message_batch.message_id))
+                .exec(con)
+                .await?;
+        }
 
         result.push(message_batch);
     }
@@ -171,7 +182,7 @@ where
                 message_batch.waiting_list.into(),
                 message_batch.message_id.into(),
                 max_messages.into(),
-            ]
+            ],
         )
     )
 }

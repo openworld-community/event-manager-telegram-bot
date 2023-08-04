@@ -1,5 +1,5 @@
 use sea_orm::FromQueryResult;
-use sea_orm::{ConnectionTrait, DatabaseConnection, DbErr, Statement};
+use sea_orm::{ConnectionTrait, DbErr, Statement};
 
 #[derive(FromQueryResult)]
 pub struct VacantData {

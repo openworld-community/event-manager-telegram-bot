@@ -1,5 +1,5 @@
 use crate::api::shared::ValidationError;
-use crate::api::shared::WithId;
+
 use chrono::{DateTime, Utc};
 use entity::event;
 use serde::{Deserialize, Serialize};
