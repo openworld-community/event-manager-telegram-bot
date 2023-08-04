@@ -396,7 +396,7 @@ async fn perform_bulk_tasks(bot: AutoSend<Bot>, ctx: Arc<Context>) -> Result<boo
                 let keyboard = InlineKeyboardMarkup::new(keyboard);
                 for u in m.recipients {
                     debug!("Sending notification {} to {} {}", m.message_id, u, &m.text);
-                    bot.send_message(UserId(u), &m.text)
+                    bot.send_message(UserId(u.try_into().unwrap()), &m.text)
                         .parse_mode(ParseMode::Html)
                         .disable_web_page_preview(true)
                         .reply_markup(keyboard.clone())
