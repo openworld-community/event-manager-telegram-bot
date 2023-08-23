@@ -80,11 +80,7 @@ where
     while let Some(message_batch) = stream.try_next().await? {
         let mut message_batch = message_batch;
 
-        let vacancies = get_vacancies(message_batch.event_id, con).await?.unwrap();
-        let collect_users = message_batch.message_type == MessageType::WaitingListPrompt
-            && vacancies.is_have_vacancies();
-
-        if collect_users {
+        if is_collect_users(&message_batch, con).await? {
             let mut user_stream = users_query(&message_batch, max_messages, con)
                 .stream(con)
                 .await?;
@@ -122,6 +118,19 @@ where
     Ok(result)
 }
 
+async fn is_collect_users<C>(message_batch: &MessageBatch, con: &C) -> Result<bool, DbErr>
+where
+    C: ConnectionTrait + StreamTrait,
+{
+    let vacancies = get_vacancies(message_batch.event_id, con).await?;
+    let have_vacancies = match vacancies {
+        Some(vacanci) => vacanci.is_have_vacancies(),
+        None => false,
+    };
+
+    Ok(message_batch.message_type == MessageType::WaitingListPrompt && have_vacancies)
+}
+
 #[derive(FromQueryResult)]
 pub struct MessageBatch {
     pub message_id: i32,
@@ -154,8 +163,8 @@ where
                         e.adult_ticket_price,
                         e.child_ticket_price
                     FROM message_outbox as o
-                        JOIN messages as m ON o.message = m.id
-                        JOIN events as e ON m.event = e.id
+                        JOIN message as m ON o.message = m.id
+                        JOIN event as e ON m.event = e.id
                     WHERE o.send_at < $1"#,
         [time.naive_utc().into()],
     ))

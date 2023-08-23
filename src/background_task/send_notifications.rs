@@ -39,7 +39,8 @@ pub async fn send_notifications(
         cfg.limit_bulk_notifications_per_second as i32,
         &transaction,
     )
-    .await?;
+    .await
+    .unwrap();
 
     for message in messages {
         notifications += message.recipients.len();
@@ -51,7 +52,9 @@ pub async fn send_notifications(
                 .reply_markup(keyboard.clone())
                 .await;
 
-            add_message_sent(message.message_id, user, &transaction).await?;
+            add_message_sent(message.message_id, user, &transaction)
+                .await
+                .unwrap();
 
             if message.message_type == MessageType::WaitingListPrompt {
                 batch_contains_waiting_list_prompt = true;

@@ -2,6 +2,7 @@ use crate::configuration::raw_config::RawConfiguration;
 use std::collections::HashSet;
 use std::net::SocketAddr;
 
+#[derive(Clone)]
 pub struct Config {
     pub telegram_bot_token: String,
     pub payment_provider_token: String,

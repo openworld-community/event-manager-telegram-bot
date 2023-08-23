@@ -13,7 +13,7 @@
 {
   "name": "Peredelanoconf Yerevan TEST EVENT FOR BOT", # имя мероприятия
   "link": "https://t.me/peredelanoconfyerevan/579", # ссылка на мероприятие
-  "start": "2023-06-17 15:00 +00:00", # время начала мероприятия
+  "Start": "2023-06-17 15:00 +00:00", # время начала мероприятия
   "remind": "2023-05-28 15:00 +00:00", # время отправки напоминания по мероприятию
   "max_adults": 100, # максимальное количество мест для взрослых, которое может быть забронировано, при превышение количества, люди будут помещаться в лист ожидания
   "max_children": 100, # максимальное количество мест для детей, которое может быть забронировано, при превышение количества, люди будут помещаться в лист ожидания
@@ -62,7 +62,7 @@ The bot can help with basic event management tasks like sign up, cancel, remind,
 
 ## Install
 
--   Register a bot, configure access token, set administrators in the config file, build and start.
+-   Register a bot, configure access token, set administrators in the config file, build and Start.
 -   Check /help for controls.
 -   Invite your audience to sign up using links returned on event creation.
 
