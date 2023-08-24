@@ -1,3 +1,4 @@
+use std::sync::Arc;
 use crate::bot::Context;
 use teloxide::payloads::SendMessageSetters;
 use teloxide::prelude::{Message, Requester};
@@ -16,7 +17,7 @@ async fn send_unsupported_message_error(bot: &Bot, message: &Message) -> Result<
     Ok(())
 }
 
-pub async fn handler(message: &Message, bot: &Bot, context: &Context) -> Result<(), RequestError> {
+pub async fn handler(message: Message, bot: Bot, context: Arc<Context>) -> Result<(), RequestError> {
     if message.text().is_none() {
         return send_unsupported_message_error(&bot, &message).await;
     }
@@ -25,7 +26,7 @@ pub async fn handler(message: &Message, bot: &Bot, context: &Context) -> Result<
 
     match command {
         Ok(command) => {
-            return commands_handler(message, bot, &command).await;
+            return commands_handler(&message, &bot, &command).await;
         }
         Err(error) => {
             bot.send_message(message.chat.id, format!("Ошибка разбора команды {error}"))
