@@ -35,7 +35,6 @@ async fn main() -> Result<(), AppErrors> {
     set_up_logger();
 
     let config = get_config();
-
     let database_connection = build_connection(&config.database_connection).await?;
     Migrator::up(&database_connection, None).await?;
 
@@ -47,6 +46,7 @@ async fn main() -> Result<(), AppErrors> {
     let context = Arc::new(Context {
         bot_name: me.username().to_string(),
         admin_ids: config.admins.clone(),
+        database_connection: database_connection.clone()
     });
 
 

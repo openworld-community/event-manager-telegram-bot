@@ -2,14 +2,14 @@ use crate::api::controllers::event::types::{OptionalRawEvent, RawEvent};
 use crate::api::services::message::{
     create_message, delete_enqueued_messages, ResultCreateMessage,
 };
-use crate::api::shared::Pagination;
+use crate::api::shared::{Pagination, RawPagination};
 use chrono::Utc;
 use entity::event;
 use entity::new_types::{EventState, MessageType};
-use sea_orm::{
-    ActiveModelTrait, ActiveValue, ConnectionTrait, DatabaseConnection, DbErr, EntityTrait,
-    IntoActiveModel, QuerySelect,
-};
+use sea_orm::{ActiveModelTrait, ActiveValue, ConnectionTrait, DatabaseConnection, DbErr, EntityTrait, IntoActiveModel, QuerySelect, SelectModel, SelectorRaw, Statement};
+use sea_orm::FromQueryResult;
+use sea_orm::prelude::DateTime;
+use entity::event::EventType;
 
 #[derive(Debug)]
 pub struct ResultCreateEvent {
@@ -21,8 +21,8 @@ pub async fn create_event<C>(
     event_to_create: &RawEvent,
     con: &C,
 ) -> Result<ResultCreateEvent, DbErr>
-where
-    C: ConnectionTrait,
+    where
+        C: ConnectionTrait,
 {
     let now = Utc::now().naive_utc();
 
@@ -65,7 +65,7 @@ where
             event_to_create.remind,
             con,
         )
-        .await?;
+            .await?;
 
         return Ok(ResultCreateEvent {
             event: result,
@@ -91,8 +91,8 @@ pub async fn event_list(
 }
 
 pub async fn get_event<C>(id: &i32, pool: &C) -> Result<Option<event::Model>, DbErr>
-where
-    C: ConnectionTrait,
+    where
+        C: ConnectionTrait,
 {
     event::Entity::find_by_id(id.clone()).one(pool).await
 }
@@ -102,8 +102,8 @@ pub async fn update_event<C>(
     raw_event: &OptionalRawEvent,
     poll: &C,
 ) -> Result<event::Model, DbErr>
-where
-    C: ConnectionTrait,
+    where
+        C: ConnectionTrait,
 {
     let event = get_event(id, poll).await?;
 
@@ -184,10 +184,81 @@ where
 }
 
 pub async fn remove_event<C>(id: &i32, pool: &C) -> Result<(), DbErr>
-where
-    C: ConnectionTrait,
+    where
+        C: ConnectionTrait,
 {
     event::Entity::delete_by_id(*id).exec(pool).await?;
 
     Ok(())
+}
+
+
+#[derive(FromQueryResult)]
+pub struct EventStats {
+    pub id: u64,
+    pub name: String,
+    pub link: String,
+    pub event_start_time: DateTime,
+    pub my_adults: u64,
+    pub my_children: u64,
+    pub my_wait_adults: u64,
+    pub my_wait_children: u64,
+    pub adult_ticket_price: u64,
+    pub child_ticket_price: u64,
+    pub max_adults: u64,
+    pub max_children: u64,
+    pub state: EventState,
+}
+
+impl EventStats {
+    pub fn event_type(&self) -> EventType {
+        if self.adult_ticket_price != 0 || self.child_ticket_price != 0 {
+            EventType::Paid
+        } else if self.max_adults != 0 || self.max_children != 0 {
+            EventType::Free
+        } else {
+            EventType::Announcement
+        }
+    }
+}
+
+
+pub async fn event_list_stats<C>(user: u64, pagination: &impl Pagination, con: &C) -> Result<Vec<EventStats>, DbErr>
+    where
+        C: ConnectionTrait,
+{
+    EventStats::find_by_statement(
+        Statement::from_sql_and_values(
+            con.get_database_backend(),
+            "select a.*, b.my_adults, b.my_children, c.my_wait_adults, c.my_wait_children FROM \
+        (SELECT event.id, event.name, event.link, event.max_adults, event.max_children, event.max_adults_per_reservation, event.max_children_per_reservation, event.event_start_time, r.adults, r.children, event.state, event.adult_ticket_price, event.child_ticket_price, event.currency FROM event \
+        LEFT JOIN (SELECT sum(adults) as adults, sum(children) as children, event FROM reservation WHERE waiting_list = 0 GROUP BY event) as r ON event.id = r.event ORDER BY event_start_time LIMIT $2 OFFSET $3) as a \
+        LEFT JOIN (SELECT sum(adults) as my_adults, sum(children) as my_children, event FROM reservation WHERE waiting_list = 0 AND user = $1 GROUP BY event) as b ON a.id = b.event \
+        LEFT JOIN (SELECT sum(adults) as my_wait_adults, sum(children) as my_wait_children, event FROM reservation WHERE waiting_list = 1 AND user = $1 GROUP BY event) as c ON a.id = c.event",
+            [
+                user.to_string().into(),
+                pagination.limit().into(),
+                pagination.offset().into()
+            ],
+        )
+    ).all(con).await
+}
+
+#[tokio::test]
+async fn event_list_stats_test() {
+    use crate::configuration::get_config;
+    use crate::build_connection;
+
+    // TODO: create helper for such tests
+    let config = get_config();
+    let database_connection = build_connection(&config.database_connection).await.unwrap();
+
+    let pagination = RawPagination {
+        page: None,
+        per_page: None,
+    };
+
+   let result = event_list_stats(50, &pagination, &database_connection).await;
+
+    assert_eq!(result.is_err(), false)
 }

@@ -98,7 +98,7 @@ impl ReplyMessage {
         self
     }
 
-    pub async fn send(self, msg: &Message, bot: &AutoSend<Bot>) -> Result<(), RequestError> {
+    pub async fn send(self, msg: &Message, bot: &Bot) -> Result<(), RequestError> {
         let fut = if let Some(keyboard) = self.keyboard {
             bot.send_message(msg.chat.id, self.message)
                 .parse_mode(self.parse_mode)

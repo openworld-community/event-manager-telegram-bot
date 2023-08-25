@@ -9,8 +9,8 @@ pub use validation_error::ValidationError;
 
 #[derive(Deserialize)]
 pub struct RawPagination {
-    page: Option<u64>,
-    per_page: Option<u64>,
+   pub page: Option<u64>,
+   pub per_page: Option<u64>,
 }
 
 pub trait Pagination {

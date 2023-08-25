@@ -1,7 +1,7 @@
 mod controllers;
 mod middlewares;
 pub mod services;
-mod shared;
+pub mod shared;
 
 use crate::api::controllers::event::event_scope;
 use crate::api::middlewares::LogTime;
